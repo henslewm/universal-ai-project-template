@@ -1,0 +1,32 @@
+{
+  "project_name": "Example Complex Matter",
+  "objective": "Create a source-pinned record and execution plan for a high-stakes disputed matter.",
+  "problem_statement": "Relevant facts, communications, filings, and deadlines are distributed across multiple systems and models.",
+  "success_criteria": [
+    "Controlling sources are indexed and material contradictions are surfaced",
+    "Priority actions have owners and deadlines",
+    "Another model can continue from the handoff without the chat transcript"
+  ],
+  "deliverables": ["Verified chronology", "Issue matrix", "Action plan"],
+  "target_date": "2026-09-30",
+  "domain": "legal",
+  "jurisdiction_or_version": "North Carolina",
+  "risk_tier": "critical",
+  "sensitivity": "restricted",
+  "owner": "Example Owner",
+  "ai_clients": ["chatgpt", "codex", "claude", "claude-code"],
+  "connectors": ["github", "google-drive", "gmail", "google-calendar", "web", "midpage"],
+  "connector_permissions": {
+    "github": "read-and-project-write",
+    "google-drive": "read",
+    "gmail": "read",
+    "google-calendar": "read",
+    "web": "read",
+    "midpage": "read"
+  },
+  "source_locations": ["Google Drive legal folder", "Gmail correspondence", "Court docket"],
+  "repeatable_workflows": ["evidence chronology update", "contradiction audit"],
+  "output_formats": ["markdown", "docx", "pdf"],
+  "constraints": ["Preserve originals", "No filing or sending without explicit approval"],
+  "out_of_scope": ["Representing any person as counsel"]
+}

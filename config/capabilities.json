@@ -1,0 +1,46 @@
+{
+  "connectors": {
+    "github": {
+      "default": "required",
+      "writes": "explicit or project-scoped"
+    },
+    "web": {
+      "default": "conditional",
+      "writes": "none"
+    },
+    "google-drive": {
+      "default": "conditional",
+      "writes": "read-only unless explicit"
+    },
+    "gmail": {
+      "default": "conditional",
+      "writes": "no send unless explicit"
+    },
+    "google-calendar": {
+      "default": "conditional",
+      "writes": "no create/update unless explicit"
+    },
+    "google-contacts": {
+      "default": "conditional",
+      "writes": "read-only"
+    },
+    "specialist-database": {
+      "default": "conditional",
+      "writes": "read-only"
+    }
+  },
+  "skills": {
+    "complex-project-bootstrapper": {
+      "default": "included"
+    },
+    "planning": {
+      "default": "conditional"
+    },
+    "source-ledger": {
+      "default": "high-risk, legal, research"
+    },
+    "artifact-skills": {
+      "default": "only for requested format"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Universal AI Project Profile",
+  "type": "object",
+  "required": [
+    "template_mode",
+    "project_name",
+    "project_slug",
+    "objective",
+    "success_criteria",
+    "deliverables",
+    "domain",
+    "risk_tier",
+    "sensitivity",
+    "ai_clients",
+    "connectors"
+  ],
+  "properties": {
+    "template_mode": {
+      "type": "boolean"
+    },
+    "project_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "success_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "deliverables": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risk_tier": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "sensitivity": {
+      "enum": [
+        "public",
+        "internal",
+        "private",
+        "restricted"
+      ]
+    },
+    "ai_clients": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "connectors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

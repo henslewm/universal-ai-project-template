@@ -1,0 +1,7 @@
+interface:
+  display_name: "Complex Project Bootstrapper"
+  short_description: "Build a focused, repo-backed AI project"
+  brand_color: "#1F4E78"
+  default_prompt: "Set up a new complex project from the universal repository template. Inspect existing context, ask only the missing concise intake questions, tailor the repo, select connectors and skills, validate it, and report verified Git/GitHub status."
+policy:
+  allow_implicit_invocation: true

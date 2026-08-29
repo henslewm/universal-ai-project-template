@@ -1,0 +1,24 @@
+{
+  "project_name": "Example Project",
+  "objective": "State the desired outcome in one sentence.",
+  "problem_statement": "State the problem being solved.",
+  "success_criteria": ["Observable criterion 1"],
+  "deliverables": ["Deliverable 1"],
+  "target_date": "",
+  "domain": "other",
+  "jurisdiction_or_version": "",
+  "risk_tier": "medium",
+  "sensitivity": "private",
+  "owner": "",
+  "ai_clients": ["chatgpt", "codex", "claude", "claude-code"],
+  "connectors": ["github", "web"],
+  "connector_permissions": {
+    "github": "read-and-project-write",
+    "web": "read"
+  },
+  "source_locations": [],
+  "repeatable_workflows": [],
+  "output_formats": ["markdown"],
+  "constraints": [],
+  "out_of_scope": []
+}

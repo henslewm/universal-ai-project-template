@@ -1,0 +1,38 @@
+{
+  "template_mode": true,
+  "template_version": "1.0.0",
+  "created": "2026-08-29",
+  "project_name": "{{PROJECT_NAME}}",
+  "project_slug": "{{PROJECT_SLUG}}",
+  "objective": "{{OBJECTIVE}}",
+  "problem_statement": "{{PROBLEM_STATEMENT}}",
+  "success_criteria": [],
+  "deliverables": [],
+  "target_date": "",
+  "domain": "other",
+  "jurisdiction_or_version": "",
+  "risk_tier": "medium",
+  "sensitivity": "private",
+  "owner": "",
+  "ai_clients": [
+    "chatgpt",
+    "codex",
+    "claude",
+    "claude-code"
+  ],
+  "connectors": [
+    "github",
+    "web"
+  ],
+  "connector_permissions": {
+    "github": "read-and-project-write",
+    "web": "read"
+  },
+  "source_locations": [],
+  "repeatable_workflows": [],
+  "output_formats": [
+    "markdown"
+  ],
+  "constraints": [],
+  "out_of_scope": []
+}

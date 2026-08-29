@@ -1,0 +1,45 @@
+name: Project task
+description: Create a scoped, source-aware unit of work
+title: "[TASK] "
+labels: ["task"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the outcome, not merely the activity.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: List observable success criteria.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources and context
+      description: Name source IDs, files, emails, issues, or authoritative references.
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk tier
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical / regulated / legal
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and permissions
+      description: Note exclusions, deadlines, write boundaries, and required approvals.
+  - type: textarea
+    id: handoff
+    attributes:
+      label: Completion handoff
+      description: Files to update and what the next model or person must know.
