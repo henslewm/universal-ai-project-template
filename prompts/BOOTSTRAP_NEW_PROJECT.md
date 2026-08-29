@@ -19,7 +19,7 @@ After I answer, do not keep interviewing unless a missing fact makes safe execut
 
 Then perform the setup:
 
-1. Duplicate this template into a new repository/directory with a clean Git history.
+1. If the current repository was already created with GitHub **Use this template**, tailor it safely in place. Otherwise duplicate the base template into a new repository/directory and preserve the base template.
 2. Fill `config/project.json` and replace all project placeholders.
 3. Tailor `PROJECT_CHARTER.md`, `PROJECT_STATE.md`, `OPEN_LOOPS.md`, `FACTS_AND_ASSUMPTIONS.md`, `RISK_REGISTER.md`, `CONNECTOR_PLAN.md`, `SKILL_PLAN.md`, and `HANDOFF_CURRENT.md`.
 4. Keep `MASTER_INSTRUCTIONS.md` universal. Tailor only the platform master files that need project-specific additions.
@@ -40,8 +40,12 @@ Then perform the setup:
     - commit/push status;
     - first three project actions.
 
-For command-line execution, prefer:
+For command-line execution, use the matching mode:
 
 ```bash
+# GitHub "Use this template" repository: tailor in place
+python scripts/bootstrap_project.py --interactive --destination .
+
+# Base template clone: create a separate project directory
 python scripts/bootstrap_project.py --interactive --destination ../<project-slug>
 ```

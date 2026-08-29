@@ -28,7 +28,12 @@ After publishing:
 gh repo create henslewm/new-project --private --template henslewm/universal-ai-project-template --clone
 ```
 
-Then run the bootstrap script inside the cloned project to tailor its contents.
+Then tailor the cloned project in place:
+
+```bash
+cd new-project
+python scripts/bootstrap_project.py --interactive --destination .
+```
 
 ## Install the project bootstrap skill from GitHub
 

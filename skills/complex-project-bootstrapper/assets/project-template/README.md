@@ -17,17 +17,31 @@ The repository is the durable source of truth. Each AI surface gets a small nati
 
 ## Fastest start
 
-### From this repository
+### From the base template repository
+
+Create a separate tailored repository:
 
 ```bash
 python scripts/bootstrap_project.py --interactive --destination ../my-project
 ```
 
-Then publish the generated local repository:
+After using GitHub **Use this template**, tailor that new repository in place:
+
+```bash
+python scripts/bootstrap_project.py --interactive --destination .
+```
+
+For a separate local project, publish it with GitHub CLI:
 
 ```bash
 gh auth login
 gh repo create henslewm/my-project --private --source ../my-project --remote origin --push
+```
+
+For an in-place repository created with **Use this template**, the remote already exists; the bootstrapper commits the tailored state and you only need:
+
+```bash
+git push -u origin HEAD
 ```
 
 ### From an AI chat

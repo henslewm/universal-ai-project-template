@@ -150,6 +150,16 @@ def ignore_copy(directory: str, names: list[str]) -> set[str]:
 
 
 def copy_template(source: Path, destination: Path) -> None:
+    source = source.resolve()
+    destination = destination.resolve()
+
+    # Repositories created with GitHub's "Use this template" already contain
+    # the full tree. In that case, tailor the current repository in place.
+    if source == destination:
+        if not (destination / ".ai-project-template").exists():
+            raise SystemExit(f"Not a recognized template repository: {destination}")
+        return
+
     if destination.exists() and any(destination.iterdir()):
         raise SystemExit(f"Destination exists and is not empty: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -444,26 +454,37 @@ def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedPr
 def initialize_git(dest: Path) -> str:
     if not shutil.which("git"):
         return "Git not installed; repository not initialized."
-    run(["git", "init", "-b", "main"], dest)
+
+    existing_repo = (dest / ".git").exists()
+    if not existing_repo:
+        run(["git", "init", "-b", "main"], dest)
+
     run(["git", "add", "."], dest)
-    result = run(["git", "commit", "-m", "chore: initialize AI project workspace"], dest, check=False)
+    message = "chore: tailor AI project workspace" if existing_repo else "chore: initialize AI project workspace"
+    result = run(["git", "commit", "-m", message], dest, check=False)
     if result.returncode != 0:
         # Set local-only identity if no global identity exists, then retry.
         run(["git", "config", "user.name", "AI Project Bootstrapper"], dest)
         run(["git", "config", "user.email", "bootstrapper@local.invalid"], dest)
-        result = run(["git", "commit", "-m", "chore: initialize AI project workspace"], dest, check=False)
+        result = run(["git", "commit", "-m", message], dest, check=False)
     if result.returncode != 0:
-        return "Git initialized but initial commit failed: " + (result.stderr.strip() or result.stdout.strip())
-    sha = run(["git", "rev-parse", "HEAD"], dest).stdout.strip()
+        status = run(["git", "status", "--porcelain"], dest, check=False).stdout.strip()
+        if not status:
+            sha = run(["git", "rev-parse", "HEAD"], dest, check=False).stdout.strip()
+            return f"Git repository already clean at {sha or 'unknown commit'}."
+        return "Git repository exists but project commit failed: " + (result.stderr.strip() or result.stdout.strip())
+
+    foundation_sha = run(["git", "rev-parse", "HEAD"], dest).stdout.strip()
+    branch = run(["git", "branch", "--show-current"], dest, check=False).stdout.strip() or "main"
     handoff = dest / "HANDOFF_CURRENT.md"
-    text = handoff.read_text(encoding="utf-8").replace(
-        "main / commit pending until Git initialization completes", f"main / {sha}"
+    handoff_text = handoff.read_text(encoding="utf-8").replace(
+        "main / commit pending until Git initialization completes", f"{branch} / {foundation_sha}"
     )
-    handoff.write_text(text, encoding="utf-8")
+    handoff.write_text(handoff_text, encoding="utf-8")
     run(["git", "add", "HANDOFF_CURRENT.md"], dest)
-    run(["git", "commit", "-m", "docs: record verified initial commit"], dest, check=False)
+    run(["git", "commit", "-m", "docs: record verified project foundation commit"], dest, check=False)
     final_sha = run(["git", "rev-parse", "HEAD"], dest).stdout.strip()
-    return f"Git initialized and committed at {final_sha}."
+    return f"Git project state committed at {final_sha}."
 
 
 def publish_github(dest: Path, owner: str | None, visibility: str) -> str:
@@ -472,6 +493,17 @@ def publish_github(dest: Path, owner: str | None, visibility: str) -> str:
     auth = run(["gh", "auth", "status"], dest, check=False)
     if auth.returncode != 0:
         return "GitHub CLI is not authenticated; run `gh auth login`."
+
+    existing_origin = run(["git", "remote", "get-url", "origin"], dest, check=False)
+    if existing_origin.returncode == 0:
+        origin = existing_origin.stdout.strip()
+        if origin.startswith(("https://", "http://", "ssh://", "git@")):
+            push = run(["git", "push", "-u", "origin", "HEAD"], dest, check=False)
+            if push.returncode != 0:
+                return "Existing remote push failed: " + (push.stderr.strip() or push.stdout.strip())
+            return f"Existing remote pushed successfully: {origin}"
+        return f"Existing non-network origin detected ({origin}); remove or rename it before GitHub publication."
+
     slug = json.loads((dest / "config/project.json").read_text(encoding="utf-8"))["project_slug"]
     repo_name = f"{owner}/{slug}" if owner else slug
     cmd = ["gh", "repo", "create", repo_name, f"--{visibility}", "--source", ".", "--remote", "origin", "--push"]
@@ -485,7 +517,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--interactive", action="store_true", help="Ask the concise intake questions")
     parser.add_argument("--answers", help="Path to JSON answers")
-    parser.add_argument("--destination", required=True, help="New project directory")
+    parser.add_argument("--destination", required=True, help="New project directory, or . to tailor a GitHub-template repository in place")
     parser.add_argument("--template-root", help="Explicit template root")
     parser.add_argument("--no-git", action="store_true", help="Do not initialize Git")
     parser.add_argument("--github", action="store_true", help="Create and push a GitHub repository with gh")
@@ -535,8 +567,12 @@ def main() -> int:
     print("3. Create the first bounded task and begin work.")
     if not args.github:
         owner = args.github_owner or "OWNER"
+        existing_origin = run(["git", "remote", "get-url", "origin"], destination, check=False) if shutil.which("git") else None
         print("\nPublish command:")
-        print(f"gh repo create {owner}/{answers['project_slug']} --{args.visibility} --source {destination} --remote origin --push")
+        if existing_origin and existing_origin.returncode == 0 and existing_origin.stdout.strip().startswith(("https://", "http://", "ssh://", "git@")):
+            print("git push -u origin HEAD")
+        else:
+            print(f"gh repo create {owner}/{answers['project_slug']} --{args.visibility} --source {destination} --remote origin --push")
     return 0
 
 

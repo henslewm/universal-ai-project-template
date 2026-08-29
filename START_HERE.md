@@ -4,16 +4,22 @@ Choose the path that matches where you are working.
 
 ## A. Codex or Claude Code
 
-1. Clone or unzip this repository.
+1. Clone or unzip the base template, or create a repository with GitHub **Use this template**.
 2. Open a terminal at the repository root.
-3. Run:
+3. For a fresh GitHub-template repository, tailor it in place:
+
+   ```bash
+   python scripts/bootstrap_project.py --interactive --destination .
+   ```
+
+   To preserve the base template locally and create a separate project directory instead:
 
    ```bash
    python scripts/bootstrap_project.py --interactive --destination ../your-project-name
    ```
 
-4. Open the generated repository in Codex or Claude Code.
-5. The client will automatically discover `AGENTS.md` or `CLAUDE.md`.
+4. Open the tailored repository in Codex or Claude Code.
+5. The client automatically discovers `AGENTS.md` or `CLAUDE.md`.
 6. Run `python scripts/validate_project.py` before the first substantive commit.
 
 ## B. ChatGPT web Project
