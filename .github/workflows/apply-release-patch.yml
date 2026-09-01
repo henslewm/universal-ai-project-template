@@ -1,0 +1,45 @@
+name: Apply v1.1.0 release patch
+
+on:
+  push:
+    branches:
+      - release/v1.1.0
+    paths:
+      - .release-patch.tar.gz
+      - .github/workflows/apply-release-patch.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-v1.1.0-release-patch
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply reviewed release payload
+        shell: bash
+        run: |
+          tar -xzf .release-patch.tar.gz
+          rm -f .release-patch.tar.gz .github/workflows/apply-release-patch.yml
+          chmod +x bootstrap.sh scripts/*.py scripts/*.sh skills/complex-project-bootstrapper/scripts/*.py
+          python scripts/sync_skills.py
+      - name: Validate release candidate
+        shell: bash
+        run: |
+          python scripts/validate_project.py
+          python -m unittest discover -s tests -p "test_*.py"
+      - name: Commit validated release candidate
+        shell: bash
+        run: |
+          git config user.name "Universal AI Project Release Bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git add --all
+          git diff --cached --check
+          git commit -m "release: harden cross-platform v1.1.0"
+          git push origin HEAD:release/v1.1.0
