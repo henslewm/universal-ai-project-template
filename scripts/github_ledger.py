@@ -38,6 +38,13 @@ def number(value):
     return type(value) is int and value > 0
 
 
+def valid_branch(value):
+    # Restricted ASCII subset of git check-ref-format --branch, with portable dots.
+    return (isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}", value)
+            and value != "HEAD" and ".." not in value and "//" not in value
+            and all(part and not part.startswith(".") and not part.endswith((".lock", ".")) for part in value.split("/")))
+
+
 def config_valid(config):
     schema = wp.read_json(ROOT / "config/github-ledger.schema.json")
     errors = wp.schema_errors(wp.Draft202012Validator(schema), config)
@@ -48,8 +55,7 @@ def config_valid(config):
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}", config["repository"]), "Unsafe repository name")
     require(config["state_branch"] != config["accepted_branch"], "State and accepted branches must differ")
     for branch in (config["state_branch"], config["accepted_branch"]):
-        require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}", branch), "Unsafe branch name")
-        require(not any(part in branch for part in ("..", "@{", "//")) and not branch.endswith((".", "/", ".lock")), "Unsafe branch name")
+        require(valid_branch(branch), "Unsafe branch name")
 
 
 def authority(config, root):
@@ -100,7 +106,7 @@ def row_valid(task_id, row, anchor):
             require(state["packet"]["revision_history"] == row["packet"]["revision_history"], "Review cannot revise the feedback contract")
             for event in row["packet"]["events"][len(state["packet"]["events"]):]:
                 require(event["role"] in {"reviewer", "integrator"}, "Only review/integration may extend completed feedback")
-    require(row["branch"] is None or (isinstance(row["branch"], str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}", row["branch"])), "Invalid implementation branch")
+    require(row["branch"] is None or valid_branch(row["branch"]), "Invalid implementation branch")
     require(row["pr"] is None or number(row["pr"]), "Invalid PR number")
     if row["pr"]:
         require(row["branch"] is not None, "PR requires a branch")
@@ -158,6 +164,12 @@ def validate(state, config, prior=None):
         if row["pr"]:
             require(row["pr"] not in prs, "Duplicate PR home")
             prs.add(row["pr"])
+    if state["tasks"]:
+        wp.graph_order([row["packet"] for row in state["tasks"].values()])
+    reserved_homes = homes | {config["master_issue"]}
+    for row in state["tasks"].values():
+        require(not (set(row["discoveries"].values()) & reserved_homes),
+                "Discovery homes must be separate from the master and all canonical task issues")
     ids = set()
     for item in state["outbox"]:
         exact(item, {"id", "summary", "status", "claim", "comment"})

@@ -609,6 +609,91 @@ class LedgerTests(unittest.TestCase):
                 row[field] = value
                 with self.assertRaises(ValueError):
                     ledger.row_valid("TASK-001", row, ANCHOR)
+
+    def test_invalid_git_branch_bindings_are_refused_before_mutation(self):
+        before = copy.deepcopy(self.api.mutations)
+        invalid = ("task..bad", "foo.lock/bar", "foo/@{bar", "foo.", "foo/.hidden", "foo//bar",
+                   "foo/", "HEAD", "-task", "foo\\bar", "foo:bar", "foo[bar", "foo bar")
+        for branch in invalid:
+            with self.subTest(branch=branch):
+                row = task_row()
+                row["branch"] = branch
+                with self.assertRaisesRegex(ValueError, "Invalid implementation branch"):
+                    self.register(row)
+                for field in ("state_branch", "accepted_branch"):
+                    config = copy.deepcopy(self.config)
+                    config[field] = branch
+                    with self.assertRaises(ValueError):
+                        ledger.config_valid(config)
+        self.assertEqual(self.api.mutations, before)
+        for branch in ("task-01", "feature/packet.v2", "team/task_name"):
+            self.assertTrue(ledger.valid_branch(branch))
+            checked = subprocess.run(["git", "check-ref-format", "--branch", branch], capture_output=True, text=True, timeout=30)
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_registry_rejects_missing_unverified_and_regressed_dependencies(self):
+        prerequisite = task_row("PREREQ", 3, verified=True)
+        prerequisite["acceptance"] = None
+        row = task_row(verified=True)
+        contract = copy.deepcopy(wp.current(row["packet"])["contract"])
+        contract["dependencies"] = ["PREREQ"]
+        packet = wp.create("TASK-001", "software-hardware", contract, "Architect", "Synthetic dependency", timestamp())
+        for target, role, actor in (("ARCHITECTED", "architect", "Architect"), ("READY", "architect", "Architect"),
+                ("IN_PROGRESS", "worker", "Worker"), ("VALIDATING", "worker", "Worker"),
+                ("REVIEW", "worker", "Worker"), ("ACCEPTED", "reviewer", "Independent reviewer"),
+                ("VERIFIED", "integrator", "Integrator")):
+            packet = wp.transition(packet, target, role, actor, "Synthetic dependency evidence", ["synthetic://check"],
+                                   graph=[prerequisite["packet"], packet], timestamp=timestamp())
+        row["packet"] = packet
+        before = len(self.api.mutations)
+        with self.assertRaisesRegex(ValueError, "missing dependencies"):
+            self.register(row)
+        self.assertEqual(len(self.api.mutations), before)
+        self.register(task_row("PREREQ", 3))
+        with self.assertRaisesRegex(ValueError, "dependencies must be VERIFIED"):
+            self.register(row)
+        self.register(prerequisite)
+        self.register(row)
+        self.client.publish(self.directory)
+        self.client.close("TASK-001", self.directory)
+        self.assertTrue(self.client.audit()["valid"])
+        revised = copy.deepcopy(prerequisite)
+        contract = copy.deepcopy(wp.current(revised["packet"])["contract"])
+        contract["goal"] += " Reconsidered prerequisite."
+        revised["packet"] = wp.revise(revised["packet"], contract, "Architect", "Synthetic regression", timestamp(1))
+        with self.assertRaisesRegex(ValueError, "dependencies must be VERIFIED"):
+            self.register(revised)
+        state = self.client.read()[0]
+        state["tasks"]["PREREQ"] = revised
+        state["outbox"].append(ledger.entry_for("PREREQ", revised))
+        with self.assertRaisesRegex(ValueError, "dependencies must be VERIFIED"):
+            ledger.validate(state, self.config)
+
+    def test_registry_rejects_dependency_cycles_even_before_readiness(self):
+        state = self.client.read()[0]
+        for task_id, dependency, issue in (("A", "B", 2), ("B", "A", 3)):
+            row = task_row(task_id, issue)
+            contract = copy.deepcopy(wp.current(row["packet"])["contract"])
+            contract["dependencies"] = [dependency]
+            row["packet"] = wp.create(task_id, "software-hardware", contract, "Architect", "Synthetic cycle", timestamp())
+            state["tasks"][task_id] = row
+            state["outbox"].append(ledger.entry_for(task_id, row))
+        with self.assertRaisesRegex(ValueError, "cycle"):
+            ledger.validate(state, self.config)
+
+    def test_discoveries_cannot_target_master_or_any_canonical_task_home(self):
+        discovery = {"summary": "Separate work", "evidence": ["synthetic://discovery"]}
+        row, state = self.feedback_row("passed", discoveries=[discovery])
+        self.register(task_row("OTHER", 3))
+        key = ledger.router.digest(state["discoveries"][0])
+        for issue in (self.config["master_issue"], 3):
+            row["discoveries"] = {key: issue}
+            with self.assertRaisesRegex(ValueError, "Discovery homes must be separate"):
+                self.register(row)
+        row["discoveries"] = {key: 4}
+        self.register(row)
+        with self.assertRaisesRegex(ValueError, "Discovery homes must be separate"):
+            self.register(task_row("LATER", 4))
         with self.assertRaisesRegex(ValueError, "Exact state commit"):
             self.client.read(self.client.head() + "\n")
 

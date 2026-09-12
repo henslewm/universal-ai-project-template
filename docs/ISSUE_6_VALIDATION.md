@@ -20,7 +20,7 @@ All six YAML forms passed duplicate-key parsing and structural checks derived fr
 
 A read-only smoke check through the actual GitHub adapter successfully fetched Issue #6, its comments, merged PR #18, accepted-commit ancestry and pinned Contents API data. This confirms current authenticated read compatibility, not a live mutation or production recovery test.
 
-The full pre-connector-test suite passed all 157 tests in 121.100 seconds. Repository validation passed 57 required paths; generated payload consistency and whitespace checks passed. All 42 focused connector tests passed in 24.696 seconds. They exercise file-SHA conflicts, claimed publication ordering, lost commit/POST responses, complete pagination, receipt tampering, closure and live metadata, real synthetic approval gates, history preservation, portable recovery, local/structured-state drift and discovery issue homes. Final GitHub CI will include the combined 199-test suite. GitHub acceptance remains in the child issue and PR.
+The full pre-connector-test suite passed all 157 tests in 121.100 seconds. Repository validation passed 57 required paths; generated payload consistency and whitespace checks passed. All 42 focused connector tests passed in 24.696 seconds. They exercise file-SHA conflicts, claimed publication ordering, lost commit/POST responses, complete pagination, receipt tampering, closure and live metadata, real synthetic approval gates, history preservation, portable recovery, local/structured-state drift and discovery issue homes. The initial PR head passed all 199 tests in GitHub Linux CI (105.019s), with both checks green. The GitHub review corrections below add four tests; the final suite contains 203. Current-head CI results remain in the PR/issue. GitHub acceptance remains in the child issue and PR.
 
 ## Independent review
 
@@ -33,3 +33,9 @@ The connector is executable GitHub metadata tooling using the existing GitHub CL
 The bounded registry holds at most 900,000 UTF-8 bytes and never truncates raw evidence. An unresolved claimed POST is not automatically retried; partial initialization or permanently uncertain publication requires evidence-based operational repair. Fixed approval anchors require an explicit continuity decision after material architecture changes. GitHub administrators can rewrite history; this is not a hostile-actor security boundary. See `GITHUB_LEDGER_PROTOCOL.md` for the supported recovery path and #7/#8 responsibilities.
 
 After committed/pushed verification, independent review and PR acceptance, close #6 with evidence, then reread master #14 before #7. Continue through #13 strictly one child at a time.
+
+## GitHub review corrections
+
+The initial automatic review found three issues: registry validation omitted the complete cross-task dependency graph, implementation branch names could be invalid Git refs, and discovery mappings could reuse the master or another canonical task issue. Corrections validate the complete registered DAG on every read/write, use a restricted valid Git branch-name subset (including component rules), and keep every discovery target outside the master/canonical-home set in either registration order.
+
+All 46 final ledger tests passed in 29.224 seconds. Added regressions cover missing/unverified/regressed prerequisites and cycles, invalid branch components before mutation, master/other-task discovery targets, and later task registration that would reuse a discovery home. Accepted branch examples were also checked with the actual Git ref validator. The [Git reference naming manual](https://git-scm.com/docs/git-check-ref-format) supplies the naming rules. Independent current-head review and final GitHub CI are required before acceptance.
