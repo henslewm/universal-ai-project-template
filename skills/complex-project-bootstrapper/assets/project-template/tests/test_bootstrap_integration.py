@@ -87,6 +87,16 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.active_check(root, False)
                     self.activate(root)
                     self.run_cli(root / "scripts/validate_project.py")
+                    # The same standalone/native payload must deliver usable packet tooling.
+                    packet = root / "synthetic-packet.json"
+                    self.run_cli(root / "scripts/work_packet.py", "create",
+                                 root / "examples/work-packets" / f"{profile}.contract.json",
+                                 "--task-id", "DELIVERY-1", "--profile", profile,
+                                 "--actor", "Synthetic architect", "--reason", "Distribution test",
+                                 "--output", packet)
+                    self.run_cli(root / "scripts/work_packet.py", "validate", packet)
+                    rendered = self.run_cli(root / "scripts/work_packet.py", "render", packet)
+                    self.assertIn("DELIVERY-1", rendered.stdout)
 
     def test_interactive_only_asks_missing_material_domain_field(self):
         for profile in FIXTURES:

@@ -61,6 +61,10 @@ The local gate prevents normal workflow bypass and detects stale approvals. It d
 
 Open [`prompts/BOOTSTRAP_NEW_PROJECT.md`](prompts/BOOTSTRAP_NEW_PROJECT.md), paste it into ChatGPT, Codex, Claude, or Claude Code, and answer only missing intake questions. A repository-capable client runs the setup/review flow; a web-only client without a validator runtime prepares files and a runtime handoff while autonomy remains off.
 
+## Architected work packets
+
+Use [`WORK_PACKET_PROTOCOL.md`](WORK_PACKET_PROTOCOL.md) to define bounded tasks with a shared JSON contract, dependency validation, versioned history and generated GitHub issue bodies. Examples cover software/hardware, family law and civil rights. Install `requirements-work-packets.txt` before using the packet commands. These tools record local metadata; provider routing, live execution and external acceptance verification remain separate workstreams.
+
 ## Native entrypoints
 
 | Surface | Native entrypoint | Shared files it loads or directs the model to read |

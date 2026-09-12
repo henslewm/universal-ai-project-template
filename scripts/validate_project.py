@@ -27,6 +27,11 @@ REQUIRED = [
     ".claude/skills/complex-project-bootstrapper/SKILL.md",
     "BOOTSTRAP_PROTOCOL.md", "prompts/INTERACTIVE_BOOTSTRAP.md",
     "config/bootstrap.schema.json", "scripts/validate_bootstrap.py", "scripts/bootstrap_gate.py",
+    "WORK_PACKET_PROTOCOL.md", "config/work-packet.schema.json", "scripts/work_packet.py",
+    "requirements-work-packets.txt",
+    "examples/work-packets/software-hardware.contract.json",
+    "examples/work-packets/family-law.contract.json",
+    "examples/work-packets/civil-rights-nc.contract.json",
 ]
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z0-9_]+\}\}")

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-12 — Issue #3 work-packet contract foundation
+
+- Add a shared JSON Schema contract and complete synthetic examples for all three domains.
+- Generate GitHub issue views from canonical packets; preserve versioned snapshots and validate recorded lifecycle, roles, evidence references and dependency graphs.
+- Keep packet tools local and optional to bootstrap; document their trust boundary and future executor/review responsibilities.
+- Cover packet failure paths and generated root/native/standalone delivery; retain actual validation/review and acceptance evidence in Issue #3 and its PR.
+
 ## 2026-09-12 — Issue #2 bootstrap activation foundation
 
 - Integrate inactive project generation, staged profile intake, complete review packets and explicit fingerprint-bound activation.

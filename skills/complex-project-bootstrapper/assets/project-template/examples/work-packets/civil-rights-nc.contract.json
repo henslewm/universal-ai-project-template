@@ -1,0 +1,112 @@
+{
+  "dependencies": [],
+  "complexity": "low",
+  "risk": "low",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    2,
+    3
+  ],
+  "title": "Index fictional civil-rights record relationships",
+  "parent": {
+    "objective": "Demonstrate traceable record organization for a wholly fictional North Carolina civil-rights workspace.",
+    "milestone": "Produce a verified source-to-derived-record index."
+  },
+  "goal": "Index two synthetic original records and their declared derived notes while preserving explicit source links.",
+  "non_goals": [
+    "Assess liability, constitutional claims, jurisdiction, or limitation periods.",
+    "Identify real defendants or contact any person or institution."
+  ],
+  "scope": {
+    "allowed": [
+      "Create an index from the embedded fictional source and note descriptors.",
+      "Check declared links, identifier uniqueness, and complete record coverage."
+    ],
+    "prohibited": [
+      "Assert legal authority or add real case facts.",
+      "Change originals, infer undeclared relationships, or publish records."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Synthetic source manifest",
+      "description": "CR-SYN-001: fictional location sketch; CR-SYN-002: fictional observation log."
+    },
+    {
+      "name": "Synthetic derived-note manifest",
+      "description": "CR-NOTE-001 cites CR-SYN-001; CR-NOTE-002 cites CR-SYN-002. Both notes and their links are fictional indexing fixtures."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Record relationship index",
+      "description": "Four uniquely identified rows separating originals from derived notes, with source links on note rows."
+    },
+    {
+      "name": "Relationship verification record",
+      "description": "Recorded coverage, uniqueness, link-resolution, and unchanged-original-label checks."
+    }
+  ],
+  "interface": {
+    "name": "synthetic_record_relationship_index",
+    "version": "1.0",
+    "description": "Input source and derived-note descriptors; output record_id, record_kind, label, and source_ids."
+  },
+  "assumptions": [
+    "The manifests and relationships are fictional and contain no real evidence.",
+    "Only explicitly supplied note-to-source relationships may be indexed."
+  ],
+  "sources": [
+    {
+      "id": "SRC-CR-MANIFEST",
+      "reference": "The fictional source and derived-note manifests embedded in this contract inputs.",
+      "authority": "Synthetic fixture data only; no legal authority, deadline determination, or real-world allegation."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-COVERAGE",
+      "description": "All four records appear once and retain their original or derived classification."
+    },
+    {
+      "id": "AC-LINKS",
+      "description": "Each note has exactly its declared source link, every link resolves, and source labels remain unchanged."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-RELATIONSHIPS",
+      "description": "Compare indexed identifiers, classifications, labels, and link sets with the embedded manifests.",
+      "criterion_ids": [
+        "AC-COVERAGE",
+        "AC-LINKS"
+      ],
+      "evidence_required": [
+        "Four-record coverage and unique-identifier results.",
+        "Source-link resolution and exact-label comparison results."
+      ]
+    }
+  ],
+  "context_scope": [
+    "This contract and its embedded fictional manifests.",
+    "The derived relationship index and verification record."
+  ],
+  "architecture_boundaries": [
+    "Preserve original-record identity and separate derived notes.",
+    "Perform indexing checks only; make no legal or factual findings."
+  ],
+  "domain": {
+    "synthetic": true,
+    "record_set": "CR-NC-SYN-DEMO",
+    "jurisdiction_label": "North Carolina context label only; no jurisdiction determination.",
+    "legal_authority_status": "No legal authority asserted."
+  }
+}

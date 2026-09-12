@@ -1,0 +1,107 @@
+{
+  "dependencies": [],
+  "complexity": "low",
+  "risk": "low",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    2,
+    3
+  ],
+  "title": "Index fictional family-case exhibit records",
+  "parent": {
+    "objective": "Demonstrate a reproducible source inventory using fictional family-case records.",
+    "milestone": "Create a complete exhibit index with traceable source identifiers."
+  },
+  "goal": "Build a stable exhibit index from three synthetic record descriptors without making legal or factual findings.",
+  "non_goals": [
+    "Advise on rights, remedies, deadlines, or admissibility.",
+    "File, send, or change any case record."
+  ],
+  "scope": {
+    "allowed": [
+      "Index the three embedded synthetic descriptors.",
+      "Check uniqueness, count, order, and source traceability."
+    ],
+    "prohibited": [
+      "Introduce real people, cases, court orders, or legal authorities.",
+      "Rewrite source descriptors or infer facts beyond their labels."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Synthetic record manifest",
+      "description": "FAM-SYN-001: fictional meeting note; FAM-SYN-002: fictional inventory list; FAM-SYN-003: fictional scheduling note. These labels carry no substantive case facts."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Exhibit index",
+      "description": "Three rows containing source identifier, verbatim label, and stable ascending index number."
+    },
+    {
+      "name": "Index verification record",
+      "description": "Recorded checks of row count, unique identifiers, stable ordering, and exact label preservation."
+    }
+  ],
+  "interface": {
+    "name": "synthetic_exhibit_index",
+    "version": "1.0",
+    "description": "Input record descriptors; output index rows with index_number, source_id, and label."
+  },
+  "assumptions": [
+    "All descriptors are invented solely for indexing tests.",
+    "The source identifier order determines the index order."
+  ],
+  "sources": [
+    {
+      "id": "SRC-FAM-MANIFEST",
+      "reference": "The three fictional descriptors embedded in this contract inputs.",
+      "authority": "Synthetic fixture manifest only; no legal authority or real case evidence."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-COMPLETE",
+      "description": "The index contains exactly one row for each of the three source identifiers."
+    },
+    {
+      "id": "AC-TRACEABLE",
+      "description": "Each row preserves its input label verbatim and receives a stable ascending index number."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-INDEX",
+      "description": "Compare index rows with the embedded manifest and repeat the indexing operation to check stability.",
+      "criterion_ids": [
+        "AC-COMPLETE",
+        "AC-TRACEABLE"
+      ],
+      "evidence_required": [
+        "Manifest-to-index comparison with identifier counts.",
+        "Exact-label comparison and repeated-output equality result."
+      ]
+    }
+  ],
+  "context_scope": [
+    "This contract and the embedded fictional record manifest.",
+    "The derived index and its verification record."
+  ],
+  "architecture_boundaries": [
+    "Keep originals distinct from derived index output.",
+    "Make no legal determinations and perform no external writes."
+  ],
+  "domain": {
+    "synthetic": true,
+    "record_set": "FAM-SYN-DEMO",
+    "legal_authority_status": "No legal authority asserted."
+  }
+}

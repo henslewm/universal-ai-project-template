@@ -71,6 +71,8 @@ The architect should not repeatedly re-enter ordinary worker loops.
 
 ## Worker rule
 
+Canonical work packets now use `config/work-packet.schema.json` and the local tooling in `WORK_PACKET_PROTOCOL.md`. The schema applies to all three profiles; the latest versioned contract snapshot generates the human-readable issue view. Complete-graph validation checks dependencies before a task is recorded ready. These local records do not independently verify external evidence or authorize execution; the bootstrap gate and subsequent executor/review controls remain necessary.
+
 A worker may solve only the work packet it was given. It may not silently expand scope or redesign the project.
 
 A worker may return only a bounded outcome:
