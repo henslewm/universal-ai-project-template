@@ -51,7 +51,7 @@ python scripts/bootstrap_project.py --interactive --answers verified-intake.json
 
 Omit `--answers verified-intake.json` when no answers file exists. Substitute `family-law` or `civil-rights-nc` for the profile as appropriate. Use `--destination .` only for an uninitialized template repository. The interactive collector reuses supplied fields and asks only missing common intake and profile orientation fields; it does not invent the architecture. Optional proposal data belongs under the answers file's `bootstrap` object.
 
-The generator writes tailored project files, `config/project.json`, `config/bootstrap.json` in `INTAKE` with false/null approval metadata, and an initial `BOOTSTRAP_REVIEW.md` listing readiness gaps. `--no-git` keeps this preparation separate from Git initialization. Neither generated files, a passing repository validator, nor a commit or push activates the project.
+The generator writes tailored project files, `config/project.json`, `config/bootstrap.json` in `INTAKE` with false/null approval metadata, and an initial `BOOTSTRAP_REVIEW.md` listing readiness gaps. `--no-git` keeps this preparation separate from Git initialization. Approval records and old review packets are excluded from template copies, including unsuccessful generation from an already-approved source. Neither generated files, a passing repository validator, nor a commit or push activates the project.
 
 Domain-specific intake is supplied through the `domain` extension. This common protocol requires the extension point but does not preempt the detailed domain work assigned to #9, #10 and #11.
 

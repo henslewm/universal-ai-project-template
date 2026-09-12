@@ -140,7 +140,21 @@ class BootstrapIntegrationTests(unittest.TestCase):
         root = self.generate(data=raw)
         self.active_check(root, False)
         self.assertFalse(read(root / "config/bootstrap.json")["approval"]["approved"])
-        self.assertIn("SETUP — autonomy OFF", (root / "PROJECT_STATE.md").read_text(encoding="utf-8"))
+
+    def test_failed_generation_cannot_inherit_source_project_approval(self):
+        source = self.generate()
+        self.activate(source)
+        raw = answers("software-hardware")
+        raw["bootstrap"]["architecture"] = []
+        answer_file = self.base / "failed-copy.json"
+        write(answer_file, raw)
+        dest = self.base / "failed-new-project"
+        self.run_cli(ROOT / "scripts/bootstrap_project.py", "--template-root", source, "--answers", answer_file,
+                     "--destination", dest, "--no-git", ok=False)
+        self.assertFalse((dest / "config/bootstrap.json").exists())
+        self.assertFalse((dest / "BOOTSTRAP_REVIEW.md").exists())
+        self.active_check(dest, False)
+        self.active_check(source, True)
 
     def test_missing_or_wrong_confirmation_leaves_package_inactive(self):
         root = self.generate()
@@ -202,6 +216,7 @@ class BootstrapIntegrationTests(unittest.TestCase):
         self.run_cli(root / "scripts/bootstrap_gate.py", "review", "--root", root)
         self.active_check(root, False)
         self.assertFalse(read(root / "config/bootstrap.json")["approval"]["approved"])
+        self.assertIn("SETUP — autonomy OFF", (root / "PROJECT_STATE.md").read_text(encoding="utf-8"))
         (root / "config/bootstrap.json").unlink()
         self.run_cli(root / "scripts/validate_project.py", ok=False)
 

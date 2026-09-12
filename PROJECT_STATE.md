@@ -11,7 +11,7 @@
 - Normal bootstrap creates inactive state and a review packet. Explicit fingerprint-bound user approval is required for activation.
 - All three canonical profiles pass fresh interactive intake, architect handoff, review and activation in disposable fixtures.
 - Root, native skill and standalone installed-skill paths pass the same gate behavior.
-- 28 local tests, repository validation and payload consistency checks passed. Independent review findings were fixed and their regressions independently verified.
+- 29 local tests, repository validation and payload consistency checks passed. Independent review findings were fixed and their regressions independently verified.
 - This repository remains a reusable template. No real project has been activated and no provider or permission configuration was changed.
 
 ## Acceptance and continuation

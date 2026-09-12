@@ -19,7 +19,9 @@ from validate_bootstrap import PROFILES, validate
 
 EXCLUDE_NAMES = {
     ".git", "dist", "build", "__pycache__", ".pytest_cache",
-    "universal-ai-project-template.zip", "skill.zip"
+    "universal-ai-project-template.zip", "skill.zip",
+    # Approval belongs only to its original project, even if generation fails.
+    "bootstrap.json", "bootstrap.json.tmp", "BOOTSTRAP_REVIEW.md",
 }
 
 

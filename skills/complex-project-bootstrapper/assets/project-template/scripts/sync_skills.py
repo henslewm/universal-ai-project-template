@@ -16,7 +16,7 @@ def files_under(root: Path):
     for directory, dirs, files in os.walk(root):
         dirs[:] = sorted(name for name in dirs if name not in EXCLUDED)
         for name in sorted(files):
-            if not name.endswith(('.pyc', '.zip')) and name != 'bootstrap-answers.local.json':
+            if not name.endswith(('.pyc', '.zip')) and name not in {'bootstrap-answers.local.json', 'bootstrap.json', 'bootstrap.json.tmp', 'BOOTSTRAP_REVIEW.md'}:
                 yield Path(directory) / name
 
 
