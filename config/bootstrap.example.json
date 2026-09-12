@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "domain_profile": "software-hardware",
+  "state": "AWAITING_APPROVAL",
+  "project": {
+    "name": "Representative Hardware Project",
+    "objective": "Deliver a verified hardware-connected software capability.",
+    "definition_of_done": ["Approved architecture is decomposed into independently verifiable work."],
+    "non_goals": ["Unapproved hardware redesign"],
+    "constraints": ["Physical hardware claims require representative evidence"]
+  },
+  "architecture": {
+    "summary": "Separate protocol, transport, device abstraction, application logic and validation boundaries.",
+    "boundaries": ["Workers may not change public interfaces without architecture approval"],
+    "milestones": ["Baseline", "Implementation", "Integration verification"],
+    "dependencies": ["Integration verification depends on implementation"]
+  },
+  "sources": ["Repository", "Authoritative hardware/protocol documentation"],
+  "risks": ["Simulation may diverge from physical hardware"],
+  "routing": {"policy": "Assign the cheapest capability tier expected to satisfy objective acceptance criteria."},
+  "human_gates": ["Material architecture change", "Consequential external action"],
+  "domain": {"extension_status": "placeholder; detailed software-hardware schema is issue #9"},
+  "approval": {
+    "approved": false,
+    "approved_by": null,
+    "approved_at": null,
+    "architecture_fingerprint": null
+  }
+}
