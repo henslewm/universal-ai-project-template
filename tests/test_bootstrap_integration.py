@@ -97,6 +97,32 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.run_cli(root / "scripts/work_packet.py", "validate", packet)
                     rendered = self.run_cli(root / "scripts/work_packet.py", "render", packet)
                     self.assertIn("DELIVERY-1", rendered.stdout)
+                    # Routing stays offline even with enabled synthetic resources.
+                    for state in ("ARCHITECTED", "READY"):
+                        next_packet = root / f"synthetic-packet-{state}.json"
+                        self.run_cli(root / "scripts/work_packet.py", "transition", packet,
+                                     "--to", state, "--role", "architect", "--actor", "Synthetic architect",
+                                     "--reason", "Router delivery check", "--output", next_packet)
+                        packet = next_packet
+                    data = read(packet)
+                    revision = data["revision_history"][-1]
+                    request = root / "synthetic-routing-request.json"
+                    write(request, {"schema_version": "1.0", "binding": {
+                        "task_id": data["task_id"], "revision": revision["version"],
+                        "contract_hash": revision["hash"], "role": "worker"},
+                        "task_class": "delivery-test", "input_tokens": 100, "output_tokens": 100,
+                        "unavailable_providers": [], "unavailable_resources": [], "attempts": [], "observations": []})
+                    resources = read(root / "config/model-router.example.json")
+                    for resource in resources["resources"]:
+                        resource["enabled"] = True
+                    config = root / "synthetic-routing-config.json"
+                    write(config, resources)
+                    ledger = root / "synthetic-routing-record.json"
+                    routed = self.run_cli(root / "scripts/model_router.py", "route", packet,
+                                         "--config", config, "--request", request, "--output", ledger)
+                    self.assertEqual(json.loads(routed.stdout)["status"], "ROUTED")
+                    self.assertFalse(json.loads(routed.stdout)["execution_authorized"])
+                    self.run_cli(root / "scripts/model_router.py", "verify", ledger)
 
     def test_interactive_only_asks_missing_material_domain_field(self):
         for profile in FIXTURES:

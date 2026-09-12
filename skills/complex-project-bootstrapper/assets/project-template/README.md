@@ -63,7 +63,9 @@ Open [`prompts/BOOTSTRAP_NEW_PROJECT.md`](prompts/BOOTSTRAP_NEW_PROJECT.md), pas
 
 ## Architected work packets
 
-Use [`WORK_PACKET_PROTOCOL.md`](WORK_PACKET_PROTOCOL.md) to define bounded tasks with a shared JSON contract, dependency validation, versioned history and generated GitHub issue bodies. Examples cover software/hardware, family law and civil rights. Install `requirements-work-packets.txt` before using the packet commands. These tools record local metadata; provider routing, live execution and external acceptance verification remain separate workstreams.
+Use [`WORK_PACKET_PROTOCOL.md`](WORK_PACKET_PROTOCOL.md) to define bounded tasks with a shared JSON contract, dependency validation, versioned history and generated GitHub issue bodies. Examples cover software/hardware, family law and civil rights. Install `requirements-work-packets.txt` before using the packet commands. These tools record local metadata; live execution and external acceptance verification remain separate workstreams.
+
+[`MODEL_ROUTING.md`](MODEL_ROUTING.md) adds deterministic capability/effort routing with risk floors, cost-per-accepted-result estimates, bounded escalation and provider fallback. It saves replayable local decision records. The shipped provider resources are disabled synthetic examples; the router does not call models or activate autonomy.
 
 ## Native entrypoints
 

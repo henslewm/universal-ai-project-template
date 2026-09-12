@@ -32,6 +32,8 @@ REQUIRED = [
     "examples/work-packets/software-hardware.contract.json",
     "examples/work-packets/family-law.contract.json",
     "examples/work-packets/civil-rights-nc.contract.json",
+    "MODEL_ROUTING.md", "config/model-router.schema.json", "config/model-router.example.json",
+    "scripts/model_router.py",
 ]
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z0-9_]+\}\}")

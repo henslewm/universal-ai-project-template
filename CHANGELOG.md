@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-12 — Issue #4 capability router and economic governor
+
+- Add provider-independent configuration with disabled fictional examples for LM Studio, Mistral, Claude and OpenAI/Codex.
+- Select within exact effort and authorized tier paths using risk/complexity floors, accepted-result cost estimates, supplied performance observations and bounded retry/fallback policy.
+- Save immutable local routing decisions with original inputs, reasons, exclusions, cost components and deterministic replay; retain explicit offline and execution-authority boundaries.
+- Cover routing failure paths and delivery through generated projects; retain actual checks/review/acceptance in #4 and its PR.
+
 ## 2026-09-12 — Issue #3 work-packet contract foundation
 
 - Add a shared JSON Schema contract and complete synthetic examples for all three domains.
