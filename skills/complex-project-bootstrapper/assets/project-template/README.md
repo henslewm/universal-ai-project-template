@@ -129,3 +129,5 @@ Use a private repository for personal, legal, regulated, proprietary, or identif
 ## Template status
 
 This repository intentionally contains placeholders. Generated project repositories set `config/project.json -> template_mode` to `false`; repository validation then rejects unresolved placeholders. That setting is not activation: generated bootstrap state remains `INTAKE` until explicit approval. Canonical templates carry snapshots of existing domain documents; detailed domain schemas and workflows remain assigned to #9/#10/#11.
+
+Use [GITHUB_LEDGER_PROTOCOL.md](GITHUB_LEDGER_PROTOCOL.md) for canonical task/issue registration, durable attempt publication, recovery and drift checks in an approved initialized project.

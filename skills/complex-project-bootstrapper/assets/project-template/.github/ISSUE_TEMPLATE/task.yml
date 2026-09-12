@@ -1,31 +1,101 @@
-name: Project task
-description: Create a scoped, source-aware unit of work
+name: Architected task
+description: Link a canonical work packet and its scope, dependencies, routing, and acceptance evidence
 title: "[TASK] "
 labels: ["task"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is an intake and rendered view of an architected task. The latest validated revision of the canonical JSON work packet is the sole current contract. Link its existing fields; do not create a second editable authority here. Contract changes require an architect revision and a regenerated view under WORK_PACKET_PROTOCOL.md.
+
+        Form submission, labels, checkboxes, and issue closure do not grant execution permission or establish acceptance. Validate the packet separately even if this form accepts incomplete input. Keep secrets and restricted originals out of GitHub; link approved evidence locations.
+  - type: input
+    id: master_issue
+    attributes:
+      label: Master issue
+      description: Link the controlling project or master issue and its approved sequence.
+    validations:
+      required: true
+  - type: input
+    id: packet_reference
+    attributes:
+      label: Canonical packet reference
+      description: Link the JSON packet at a specific commit or durable version and its generated issue view.
+    validations:
+      required: true
+  - type: input
+    id: task_id
+    attributes:
+      label: Packet task_id
+      description: Copy the exact task_id from the canonical packet.
+    validations:
+      required: true
+  - type: input
+    id: packet_revision
+    attributes:
+      label: Packet revision
+      description: Copy the latest revision_history version, not the interface version.
+    validations:
+      required: true
+  - type: input
+    id: contract_hash
+    attributes:
+      label: Contract SHA-256
+      description: Copy the latest revision's complete contract hash from the validated packet.
+    validations:
+      required: true
+  - type: textarea
+    id: parent
+    attributes:
+      label: Parent objective and milestone
+      description: Link the packet's parent objective and milestone to the controlling project records.
+    validations:
+      required: true
   - type: textarea
     id: objective
     attributes:
       label: Objective
-      description: State the outcome, not merely the activity.
+      description: Summarize and link the packet goal and intended outputs.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Allowed scope and exclusions
+      description: Link allowed and prohibited paths or actions, non-goals, interfaces, and architecture boundaries in the packet.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependency bindings
+      description: Link prerequisite task IDs and canonical issues/packets with their required revisions and verified completion evidence. State none explicitly if there are no dependencies.
     validations:
       required: true
   - type: textarea
     id: done
     attributes:
-      label: Definition of done
-      description: List observable success criteria.
+      label: Acceptance criteria and validation evidence
+      description: Link the packet's criterion IDs, objective validation checks, expected evidence, and result locations. Identify evidence still missing; a planned check is not a verified result.
+    validations:
+      required: true
+  - type: textarea
+    id: routing
+    attributes:
+      label: Routing and bounded feedback references
+      description: Link the packet's worker tiers, reasoning effort, reviewer tier, retry budget, escalation path, and any routing or feedback ledger. Do not change those bounds in this form.
     validations:
       required: true
   - type: textarea
     id: sources
     attributes:
       label: Sources and context
-      description: Name source IDs, files, emails, issues, or authoritative references.
+      description: Link source IDs, authoritative records, input artifacts, assumptions, and the packet's permitted context.
   - type: dropdown
     id: risk
     attributes:
       label: Risk tier
+      description: Mirror the canonical packet's risk assessment; discrepancies require an architect revision.
       options:
         - Low
         - Medium
@@ -37,9 +107,13 @@ body:
     id: constraints
     attributes:
       label: Constraints and permissions
-      description: Note exclusions, deadlines, write boundaries, and required approvals.
+      description: Link deadlines, permission boundaries, and applicable human decisions. This issue does not grant new authority.
+    validations:
+      required: true
   - type: textarea
     id: handoff
     attributes:
       label: Completion handoff
-      description: Files to update and what the next model or person must know.
+      description: Name the next action and responsible owner; link expected deliverables and records to update. Record blockers and what the next worker or reviewer must verify.
+    validations:
+      required: true

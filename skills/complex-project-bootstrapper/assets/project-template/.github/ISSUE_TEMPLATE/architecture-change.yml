@@ -1,0 +1,67 @@
+name: Architecture-change request
+description: Present a material architecture change for an explicit human decision
+title: "[ARCHITECTURE CHANGE] "
+labels: ["architecture-change"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a proposal for a human decision, not an approval. Submission, assignment, comments, or issue closure do not authorize the change or release a human-decision hold. Preserve the current canonical JSON packet and approved architecture until the controlling decision is recorded.
+
+        A material architecture change requires the applicable human decision and renewed approval of the exact package under BOOTSTRAP_PROTOCOL.md. Link that decision and approval evidence when available; do not infer consent from this request. Keep secrets and restricted originals out of GitHub.
+  - type: input
+    id: task_issue
+    attributes:
+      label: Canonical task issue
+      description: Link the authoritative task issue that exposed or would implement the change.
+    validations:
+      required: true
+  - type: input
+    id: master_issue
+    attributes:
+      label: Master issue
+      description: Link the controlling project or master issue.
+    validations:
+      required: true
+  - type: textarea
+    id: packet_binding
+    attributes:
+      label: Canonical packet and approved architecture
+      description: Link the packet with task_id, revision, and complete contract SHA-256; link the current governing architecture and approval fingerprint or receipt.
+    validations:
+      required: true
+  - type: textarea
+    id: conflict
+    attributes:
+      label: Current limitation or architecture conflict
+      description: Identify the boundary that prevents the required outcome and affected task or project requirements.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Supporting evidence
+      description: Link original results, relevant ledger events or dispatch IDs, sources, and any confirmed architect diagnosis. Separate facts from proposals.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change and alternatives
+      description: Describe the proposed architecture delta, alternatives including retaining the current design, and why the change is needed.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and review package
+      description: Link the proposed package and affected scope, interfaces, dependencies, domains, routing, workflow, permissions, cost, risk, and migration or rollback plan. Identify approval bindings that would change.
+    validations:
+      required: true
+  - type: textarea
+    id: next_action
+    attributes:
+      label: Human decision requested and owner
+      description: Name the human decision-maker, exact decision requested, owner of the next preparation step, and due date if known. State that approval is pending unless a controlling decision is linked.
+    validations:
+      required: true

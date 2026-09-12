@@ -1,0 +1,58 @@
+name: Evidence gap
+description: Identify missing or conflicting evidence that prevents a task conclusion or acceptance
+title: "[EVIDENCE GAP] "
+labels: ["evidence-gap"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Missing evidence remains unknown. This issue cannot substitute for a verified source or acceptance result and does not change the canonical JSON packet. Preserve originals and provenance; link approved locations for restricted evidence instead of attaching it here.
+  - type: input
+    id: task_issue
+    attributes:
+      label: Canonical task issue
+      description: Link the authoritative task issue whose conclusion or acceptance is affected.
+    validations:
+      required: true
+  - type: input
+    id: master_issue
+    attributes:
+      label: Master issue
+      description: Link the controlling project or master issue.
+    validations:
+      required: true
+  - type: textarea
+    id: packet_binding
+    attributes:
+      label: Canonical packet binding
+      description: Link the packet and record task_id, current revision, and complete contract SHA-256.
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: Missing evidence and affected criterion
+      description: Identify the missing, inaccessible, stale, or conflicting evidence and the exact claim or acceptance criterion it prevents verifying.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Available evidence and searches performed
+      description: Link existing sources, source IDs, conflicting records, queries, and dated search results. Distinguish unavailable material from material not yet searched.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Required provenance and verification
+      description: Specify the expected source, coverage, version or date, and verification check that would resolve the gap. Note access and preservation constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: next_action
+    attributes:
+      label: Next action and evidence owner
+      description: Name the responsible owner, permitted collection or verification action, dependency, and due date if known. Identify any permission still required.
+    validations:
+      required: true

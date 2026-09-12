@@ -71,9 +71,11 @@ Do not create process artifacts that add no decision value. Do create a decision
 
 For architected work, follow `WORK_PACKET_PROTOCOL.md`. The canonical JSON packet defines scope, interfaces, acceptance checks, model/effort bounds, review and escalation. Use `scripts/work_packet.py` to validate it, generate its GitHub issue view, or record a revision/state transition. The latest revision snapshot is the sole current contract. Preserve earlier snapshots and events; a contract revision resets readiness. Workers report bounded outcomes and must not revise their own contracts or accept their own work.
 
-These tools record local metadata. They do not execute work, authenticate roles, verify external evidence, publish issues, or grant autonomy. Before actual autonomous work, the existing bootstrap activation gate still applies. Use `MODEL_ROUTING.md` for offline resource selection and its replayable local decision ledger. Domain-specific substantive validators, live review gates and execution remain separate controls.
+Packet tools record local metadata. They do not execute work, authenticate roles, verify external evidence, publish issues, or grant autonomy. Before actual autonomous work, the existing bootstrap activation gate still applies. Use `MODEL_ROUTING.md` for offline resource selection and its replayable local decision ledger. Domain-specific substantive validators, live review gates and execution remain separate controls.
 
 Use `FEEDBACK_PROTOCOL.md` for bounded attempts: retain one authoritative task ledger, reserve before dispatch, preserve cumulative limits and failure evidence, and honor architect/human holds. A worker result cannot revise a contract or override failed objective checks. The feedback controller consumes supplied evidence; actual execution and independent acceptance must still verify it.
+
+Use `GITHUB_LEDGER_PROTOCOL.md` to publish/recover canonical packets and full feedback history in an approved initialized project. One task has one canonical issue; comments link committed evidence. Reconcile uncertain publications before retrying. Audit live issue/PR/accepted-commit state and the generated project-state index; do not duplicate task narration in passdown documents. Recovery does not grant dispatch authority.
 
 ## Connector selection
 

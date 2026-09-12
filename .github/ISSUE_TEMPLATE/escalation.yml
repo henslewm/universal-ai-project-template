@@ -1,0 +1,58 @@
+name: Escalation
+description: Request bounded escalation of a canonical task with retained failure evidence
+title: "[ESCALATION] "
+labels: ["escalation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Escalation must follow the canonical packet's path and remaining budgets. This issue is a request and evidence view; it cannot expand tiers, reset attempts, repair a contract, or override an architecture or human-decision hold. Keep original failure records and link approved evidence locations.
+  - type: input
+    id: task_issue
+    attributes:
+      label: Canonical task issue
+      description: Link the one authoritative issue for the task requiring escalation.
+    validations:
+      required: true
+  - type: input
+    id: master_issue
+    attributes:
+      label: Master issue
+      description: Link the controlling project or master issue.
+    validations:
+      required: true
+  - type: textarea
+    id: packet_binding
+    attributes:
+      label: Canonical packet binding
+      description: Link the packet and record task_id, current revision, and complete contract SHA-256.
+    validations:
+      required: true
+  - type: textarea
+    id: trigger
+    attributes:
+      label: Escalation trigger
+      description: Identify the failed criterion, repeated failure, unavailable capability, or ambiguity that requires escalation.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Attempt history and focused evidence
+      description: Link all relevant original results, dispatch IDs, failure fingerprints, and routing decisions; summarize the specific unresolved failure.
+    validations:
+      required: true
+  - type: textarea
+    id: bounds
+    attributes:
+      label: Authorized path and remaining limits
+      description: Link the worker or reviewer role, current tier and effort, allowed next step, and remaining task, tier, cost, and diagnosis limits. State when no authorized path remains.
+    validations:
+      required: true
+  - type: textarea
+    id: next_action
+    attributes:
+      label: Requested next action and owner
+      description: Name the recipient or responsible owner, the bounded action or decision requested, required evidence, and due date if known.
+    validations:
+      required: true

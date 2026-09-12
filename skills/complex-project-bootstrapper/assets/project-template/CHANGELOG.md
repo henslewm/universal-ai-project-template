@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-12 — Issue #6 GitHub task ledger
+
+- Add canonical task/issue registration, complete packet and feedback publication, exclusive comment claims and pinned recovery.
+- Detect live issue/PR/accepted-commit drift, unpublished records, untracked discoveries and stale structured project status.
+- Deliver six issue forms and linked PR conventions; preserve explicit authority and metadata-only acceptance boundaries.
+
 ## 2026-09-12 — Issue #5 bounded feedback controller
 
 - Reserve worker intents durably before dispatch and replay immutable events to recover task state and cumulative usage.

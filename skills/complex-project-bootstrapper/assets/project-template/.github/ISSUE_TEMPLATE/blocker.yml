@@ -1,0 +1,58 @@
+name: Blocker
+description: Record an obstacle to a canonical task with evidence and an owned next action
+title: "[BLOCKER] "
+labels: ["blocker"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue records a blocker; it does not revise the canonical JSON packet, reset budgets, or authorize work to resume. Preserve the original result and link any later resolution. Architecture or human-decision holds require their controlling process. Keep secrets and restricted originals out of GitHub.
+  - type: input
+    id: task_issue
+    attributes:
+      label: Canonical task issue
+      description: Link the one authoritative issue for the blocked task.
+    validations:
+      required: true
+  - type: input
+    id: master_issue
+    attributes:
+      label: Master issue
+      description: Link the controlling project or master issue.
+    validations:
+      required: true
+  - type: textarea
+    id: packet_binding
+    attributes:
+      label: Canonical packet binding
+      description: Link the packet and record task_id, current revision, and complete contract SHA-256.
+    validations:
+      required: true
+  - type: textarea
+    id: obstacle
+    attributes:
+      label: Blocked outcome and cause
+      description: Identify the blocked acceptance criterion, dependency, access, decision, or input. Separate observed facts from assumptions.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Blocker evidence
+      description: Link original results, relevant ledger events or dispatch IDs, reproduction details, and attempted remedies. Preserve unsuccessful attempts.
+    validations:
+      required: true
+  - type: textarea
+    id: resolution_check
+    attributes:
+      label: Resolution condition
+      description: Specify the observable evidence needed to remove this obstacle and the remaining scope, budget, and permission limits.
+    validations:
+      required: true
+  - type: textarea
+    id: next_action
+    attributes:
+      label: Next action and owner
+      description: Name the responsible owner, concrete next action, dependency, and due date if known. Explicitly state any unresolved ownership.
+    validations:
+      required: true
