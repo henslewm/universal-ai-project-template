@@ -1,21 +1,23 @@
 # Current Handoff
 
 - **Prepared:** 2026-09-12 UTC
-- **From:** Issue #2 implementation and independent review
-- **To:** Acceptance / master orientation
-- **Branch:** issue-2-bootstrap-gate
-- **Scope:** Issue #2 only; locked master #14 is unchanged.
+- **From:** Issue #3 implementation and independent review
+- **To:** Contract acceptance / master orientation
+- **Branch:** issue-3-work-packet-contract
+- **Scope:** Issue #3 only; locked master #14 title/body is unchanged.
 
 ## Verified work
 
-The normal generator now writes inactive bootstrap state and a review packet. The explicit activation command requires a complete package, user identity, and approval of its exact fingerprint. Project configuration, governing documents, domain rules, GitHub workflow and the other material foundation sections are approval-bound. All native startup paths fail closed. Standalone/native payloads are synchronized and CI checks their consistency.
+Issue #2 is accepted through merged PR #15 and closed #2. The master comments link its completion evidence. The user explicitly selected #3 next.
 
-32 tests passed locally, including fresh interactive flows for all three profiles, root/native/standalone entrypoints, approval refusal and invalidation, initialized-project preservation, malformed inputs, and approval portability through a Windows-line-ending Git commit/clone. Independent review confirmed its two additional findings were repaired. See `docs/ISSUE_2_VALIDATION.md`.
+Issue #3 introduces one shared packet schema, complete synthetic contracts for the three profiles, deterministic issue rendering, contract revisions, a recorded task lifecycle and dependency-graph validation. See `WORK_PACKET_PROTOCOL.md`, `scripts/work_packet.py` and the live Issue #3 evidence for validation/review status. Standalone delivery is covered by generated-project tests and payload consistency checks.
+
+The initial full 70-test suite passed. The final renderer correction and added type-preservation regression passed all 39 packet tests; repository validation (38 paths), payload consistency and diff checks passed again. See `docs/ISSUE_3_VALIDATION.md` for exact results and PR #16 for current remote checks.
 
 ## Exact continuation
 
-Use PR #15 and Issue #2 to verify the pushed commit, remote checks/review, merge, and closure evidence. Do not infer merge from this local validation record. After acceptance, return to master #14 and stop before another child issue. Do not change the locked master body/title.
+Use Issue #3 and its linked PR to verify the pushed commit, checks, review, merge and closure. Do not infer acceptance from local files. The user has authorized continuing through #13, one issue at a time. After #3 acceptance and closure, return to master #14 before starting #4. Repeat the complete validate/commit/push/evidence/close/master sequence for each child. Do not change the locked master title/body or overlap child issue work.
 
 ## Boundaries and limitations
 
-No paid providers were configured, no external API test calls were made, no permissions were changed, and no real project was activated. The local approval gate detects workflow bypass and stale material state; it does not authenticate humans or resist deliberate code/approval-record rewriting. Fresh profile tests use synthetic records and profile snapshots, not physical hardware or live legal matters. Detailed domain schemas and branch rollout remain later issues.
+No paid providers or external API test calls, permission changes or real-project activation were needed. Packet commands only record metadata and supplied evidence references; they do not prove real acceptance or authenticate actors. Supported commands preserve source files/history and reject invalid records, while hostile record rewriting remains outside the trust boundary. Install `requirements-work-packets.txt` in the chosen environment for packet commands/tests; existing bootstrap remains standard-library-only. Live routing, retries, GitHub publishing, review machinery, detailed domain schemas and legal-branch rollout remain later issues.

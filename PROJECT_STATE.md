@@ -1,21 +1,22 @@
 # Project State
 
-- **Status:** TEMPLATE MAINTENANCE — Issue #2 implementation validated
+- **Status:** TEMPLATE MAINTENANCE — Issue #3 implementation validated
 - **Last verified:** 2026-09-12 UTC
-- **Current phase:** Bootstrap foundation acceptance
-- **Active branch:** issue-2-bootstrap-gate
-- **Primary objective:** Complete Issue #2 under locked master #14; do not start another child issue.
+- **Current phase:** Work-packet contract validation and acceptance
+- **Active branch:** issue-3-work-packet-contract
+- **Primary objective:** Complete Issue #3 under locked master #14; do not start another child issue.
 
 ## Current verified state
 
-- Normal bootstrap creates inactive state and a review packet. Explicit fingerprint-bound user approval is required for activation.
-- All three canonical profiles pass fresh interactive intake, architect handoff, review and activation in disposable fixtures.
-- Root, native skill and standalone installed-skill paths pass the same gate behavior.
-- 32 local tests, repository validation and payload consistency checks passed. Independent review findings were fixed and their regressions independently verified.
+- Issue #2 is closed; PR #15 merged at `500a7205fa671e7104671d25446d07e4ed8558c7`. Its completion evidence is linked in master #14 comments.
+- The user selected #3 after the requirements audit. The master title/body and ordered build plan remain unchanged.
+- Issue #3 adds a canonical three-domain packet schema, local create/validate/render/revise/transition commands, complete dependency-graph checks and synthetic examples.
+- The initial full 70-test suite passed, including all nine generated profile/entrypoint combinations. After the GitHub renderer finding was fixed, all 39 packet tests passed; repository validation and distribution checks passed again. Evidence: `docs/ISSUE_3_VALIDATION.md`; current full-suite remote results live in PR #16.
+- Contract snapshots and lifecycle records preserve revision provenance. The tools record supplied assertions; actual worker execution, provider routing, external evidence verification and GitHub automation remain later work.
 - This repository remains a reusable template. No real project has been activated and no provider or permission configuration was changed.
 
 ## Acceptance and continuation
 
-Implementation and validation evidence are in `docs/ISSUE_2_VALIDATION.md`. PR #15 and Issue #2 hold the authoritative pushed commit, remote checks, review, merge and closure evidence. Verify those live states before assuming acceptance; local success is not a merge record.
+Issue #3 holds the implementation plan, current validation, review and PR evidence. Verify its live acceptance/closure before assuming completion; local files are not a merge record. Bootstrap acceptance evidence remains in `docs/ISSUE_2_VALIDATION.md` and PR #15.
 
-After Issue #2 is accepted, return to locked master #14. Do not edit its title/body or begin another issue in this handoff. Detailed domain completion and rollout to the legal branches remain the later domain workstreams; the common bootstrap supports all three profiles now.
+The user has authorized continuing through Issue #13, strictly one child issue at a time. After Issue #3 is accepted and closed, return to locked master #14 before selecting #4; do not overlap child issues or change the master title/body. Detailed domain completion and canonical legal-branch rollout remain #9/#10/#11. The audit's six issue-template types and complete automatic intake-to-first-task-graph demonstration remain clarifications for #6/#13; the packet/graph tools do not claim to complete those workstreams.

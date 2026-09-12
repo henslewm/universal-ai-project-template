@@ -1,0 +1,2 @@
+# Only the work-packet tools require these packages; bootstrap remains standard-library-only.
+jsonschema==4.26.0
