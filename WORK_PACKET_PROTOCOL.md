@@ -55,7 +55,7 @@ python scripts/work_packet.py render task-1-proposed.json --output task-1-issue.
 
 For another domain, use its contract file and matching `--profile`. Creation requires a complete contract and always records version 1 at `PROPOSED`. No command infers approval from an example or from successful validation.
 
-`render` produces a deterministic GitHub issue body containing the entire current contract, identity/version/hash, revision provenance and latest recorded event. It omits old contract bodies to keep worker context bounded. Keep the canonical JSON in the project's controlled work-record location and link it when publishing the generated issue. Do not maintain an independently edited copy of the issue contract. `templates/TASK.md` points to this generation workflow; automatic GitHub publishing and the broader issue-form family belong to #6.
+`render` produces a deterministic GitHub issue body containing the entire current contract, identity/version/hash, revision provenance and latest recorded event. Domain extensions appear as fenced JSON so arbitrary keys, nested arrays and scalar types retain their exact meaning. It omits old contract bodies to keep worker context bounded. Keep the canonical JSON in the project's controlled work-record location and link it when publishing the generated issue. Do not maintain an independently edited copy of the issue contract. `templates/TASK.md` points to this generation workflow; automatic GitHub publishing and the broader issue-form family belong to #6.
 
 ## Record the lifecycle
 

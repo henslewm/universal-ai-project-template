@@ -12,7 +12,7 @@ Issue #2 is accepted through merged PR #15 and closed #2. The master comments li
 
 Issue #3 introduces one shared packet schema, complete synthetic contracts for the three profiles, deterministic issue rendering, contract revisions, a recorded task lifecycle and dependency-graph validation. See `WORK_PACKET_PROTOCOL.md`, `scripts/work_packet.py` and the live Issue #3 evidence for validation/review status. Standalone delivery is covered by generated-project tests and payload consistency checks.
 
-All 70 local tests, repository validation (38 required paths), payload consistency and diff checks passed. See `docs/ISSUE_3_VALIDATION.md` for acceptance mapping, review corrections, exact results and limitations.
+The initial full 70-test suite passed. The final renderer correction and added type-preservation regression passed all 39 packet tests; repository validation (38 paths), payload consistency and diff checks passed again. See `docs/ISSUE_3_VALIDATION.md` for exact results and PR #16 for current remote checks.
 
 ## Exact continuation
 

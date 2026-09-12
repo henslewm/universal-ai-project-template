@@ -333,7 +333,15 @@ def render(packet) -> str:
         value = latest["contract"][key]
         if key != "title":
             lines.extend([f"## {key.replace('_', ' ').capitalize()}", ""])
-            bullets(value)
+            if key == "domain":
+                # Extension data has arbitrary JSON keys/types/nesting. A JSON block
+                # preserves distinctions such as null vs "null" and 1 vs "1".
+                extension = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
+                longest = max((len(run) for run in re.findall(r"`+", extension)), default=0)
+                fence = "`" * max(3, longest + 1)
+                lines.extend([fence + "json", extension, fence])
+            else:
+                bullets(value)
             lines.append("")
     lines.extend(["## Revision provenance", ""])
     for item in packet["revision_history"]:

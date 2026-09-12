@@ -30,7 +30,9 @@ git diff --check
 Passed
 ```
 
-The suite contains 38 packet tests plus the 32 existing bootstrap/repository tests. Packet checks cover all required fields; malformed values; domain extensions; reference coverage; tier bounds; invalid historical snapshots and events; state/role failures; implementation-actor self-acceptance; retained revision history; missing, duplicate, cyclic or stale dependency records; deterministic rendering; malformed JSON; and exclusive-output file preservation.
+That initial complete run contained 38 packet tests plus the 32 existing bootstrap/repository tests. After GitHub review identified lossy scalar/list rendering in arbitrary domain extensions, the renderer was corrected to use fenced JSON and a round-trip type/key/nesting regression was added. The final local packet suite passed **39 tests in 7.124s**; repository validation, sync and diff checks passed again. Current full-suite remote results are recorded in PR #16 / Issue #3.
+
+Packet checks cover all required fields; malformed values; domain extensions; reference coverage; tier bounds; invalid historical snapshots and events; state/role failures; implementation-actor self-acceptance; retained revision history; missing, duplicate, cyclic or stale dependency records; deterministic rendering; malformed JSON; and exclusive-output file preservation.
 
 Existing bootstrap integration tests were extended to create, validate and render packets from generated projects using all three profiles through root, native-skill and standalone-skill entrypoints. This checks actual packaged delivery of the new tool/schema/examples while retaining the bootstrap approval tests.
 
@@ -42,6 +44,7 @@ An independent reviewer inspected contract/history/state/graph behavior and the 
 - Timestamp validation must run even without jsonschema's optional RFC3339 dependency; malformed calendar/time/offset values fail, while lowercase RFC3339 `t`/`z` is supported.
 - Malformed graph members must fail through normal validation before target-record lookup.
 - Identifiers must reject trailing newlines/control characters rather than relying only on the regex `$` anchor.
+- Arbitrary domain-extension keys, JSON scalar types and nested arrays must survive the generated issue view; fenced JSON now preserves them, including embedded backtick sequences.
 
 ## Boundaries
 

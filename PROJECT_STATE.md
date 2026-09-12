@@ -11,7 +11,7 @@
 - Issue #2 is closed; PR #15 merged at `500a7205fa671e7104671d25446d07e4ed8558c7`. Its completion evidence is linked in master #14 comments.
 - The user selected #3 after the requirements audit. The master title/body and ordered build plan remain unchanged.
 - Issue #3 adds a canonical three-domain packet schema, local create/validate/render/revise/transition commands, complete dependency-graph checks and synthetic examples.
-- All 70 local tests passed, including 38 packet tests and all nine generated profile/entrypoint combinations; repository validation and distribution checks passed. Evidence: `docs/ISSUE_3_VALIDATION.md`.
+- The initial full 70-test suite passed, including all nine generated profile/entrypoint combinations. After the GitHub renderer finding was fixed, all 39 packet tests passed; repository validation and distribution checks passed again. Evidence: `docs/ISSUE_3_VALIDATION.md`; current full-suite remote results live in PR #16.
 - Contract snapshots and lifecycle records preserve revision provenance. The tools record supplied assertions; actual worker execution, provider routing, external evidence verification and GitHub automation remain later work.
 - This repository remains a reusable template. No real project has been activated and no provider or permission configuration was changed.
 

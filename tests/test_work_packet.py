@@ -469,6 +469,21 @@ class RendererTests(unittest.TestCase):
                 self.assertIn("do not authorize execution", rendered)
                 self.assertIn("independently prove", rendered)
 
+    def test_domain_render_preserves_json_types_keys_and_nested_arrays(self):
+        contract = fixture()
+        contract["domain"] = {"Exact_Key": [None, "None", True, "True", 1, "1", [], {},
+            [False, "false", {"CaseSensitive": "```\n## embedded fence"}]], "exact_key": None}
+        value = work_packet.create("WP-TYPES", "software-hardware", contract, "Architect", "Typed data", STAMP)
+        rendered = work_packet.render(value)
+        block = rendered.split("## Domain\n\n", 1)[1].split("\n\n## Revision provenance", 1)[0]
+        lines = block.splitlines()
+        self.assertEqual(lines[0], "````json")
+        self.assertEqual(lines[-1], "````")
+        decoded = json.loads("\n".join(lines[1:-1]))
+        self.assertEqual(decoded, contract["domain"])
+        self.assertEqual([type(item) for item in decoded["Exact_Key"][:6]],
+                         [type(None), str, bool, str, int, str])
+
     def test_renderer_uses_latest_revision_and_escapes_embedded_markup(self):
         value = packet()
         contract = fixture()
