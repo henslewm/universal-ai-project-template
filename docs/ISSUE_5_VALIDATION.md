@@ -34,7 +34,7 @@ git diff --check
 Passed
 ```
 
-The full local run began before the final additional per-tier contract-boundary test was added. The final 40-test packet suite includes that added test; the complete current suite contains 149 tests. Current full-suite GitHub results are linked from the PR/issue rather than inferred from the earlier local count.
+The full local run began before the additional per-tier contract-boundary test was added. The final 40-test packet suite includes that test. The initial PR head then passed all 149 tests in GitHub's Linux run (69.242s). The directory-durability correction below adds eight more tests, bringing the current suite to 157. Final full-suite GitHub results are linked from the PR/issue rather than inferred from earlier counts.
 
 The generated-project integration test exercises all nine combinations of three domain profiles and root/native/standalone entrypoints. Each creates a synthetic approved project, packet and router decision, initializes its delivered feedback controller, reserves a synthetic intent, records supplied passing validation, replays `REVIEW_PENDING` and renders its evidence. No real model or validator execution is claimed by these fixtures.
 
@@ -49,6 +49,12 @@ A separate read-only reviewer examined runtime, schemas, protocol and tests, ran
 3. Exhausting nonterminal diagnoses prevented a confirmed architecture-change stop; terminal stop recording remains available and immediately creates an unreleasable ordinary-work hold.
 
 The reviewer reported no remaining blockers after the final targeted reproduction, replay/hold checks and suite rerun. Documentation was clarified to distinguish post-revocation result recording from timeout failure and saved dependency snapshots from live freshness.
+
+## GitHub durability finding and correction
+
+PR #18's automatic review identified a POSIX persistence gap: file synchronization alone does not guarantee the new directory entry. `append` now closes the synchronized event file and synchronizes the containing directory before returning an intent. Initialization requires an existing parent and synchronizes that parent after creating the ledger directory. Failures return no intent; existing records remain for reconciliation. The [Linux fsync manual](https://man7.org/linux/man-pages/man2/fsync.2.html) supports the directory-synchronization requirement.
+
+Eight added portable regressions cover ordering, no returned intent on failed directory synchronization, retained pending reservations, parent/ledger initialization order, missing-parent refusal, POSIX descriptor cleanup and the non-POSIX path. All 46 final feedback tests passed for the author (13.965s) and independent reviewer (13.917s). Independent fault injection also verified failure recovery and prevention of duplicate dispatch. No runtime blockers remained. Windows file synchronization remains; namespace persistence across power loss is unverified and explicitly documented. These tests verify the implementation/protocol and failure handling, not physical power-loss behavior.
 
 ## Boundaries and actual acceptance
 

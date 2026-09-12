@@ -13,7 +13,7 @@
 - Issue #4 is closed; PR #17 merged at `e7c7c9c4fdf4221e25d877b00fe1e4d74debccba`. All 110 tests passed locally and in GitHub CI; independent and automatic review found no remaining blockers. Completion evidence is in #4 and master comments.
 - The master was reread after #4 closure; #5 is the sole active child. Master title/body and ordered scope remain unchanged.
 - Issue #5 adds an authoritative local feedback ledger with exclusive pre-dispatch reservations, cumulative task/tier budgets, repeated-failure fingerprints, focused evidence and finite architect repair/recovery. Confirmed architecture changes and unavailable/changed approval stop in a human-decision state.
-- The full local 148-test run passed, followed by all 40 packet tests including the final added cap-boundary check. Independent review passed all 38 feedback tests with no remaining blockers. Current full-suite/merge acceptance is verified in GitHub; local evidence is `docs/ISSUE_5_VALIDATION.md`.
+- The full local 148-test run and final 40 packet tests passed; the initial PR head passed all 149 tests on Linux. After the GitHub directory-durability finding, all 46 final feedback tests passed independently with no remaining runtime blockers. Current full-suite/merge acceptance must be verified in GitHub; local evidence is `docs/ISSUE_5_VALIDATION.md`.
 - Worker results remain supplied evidence assertions. Live provider/validator execution, current cross-ledger dependency checks, GitHub publication and independent final acceptance remain their later owning issues. See `FEEDBACK_PROTOCOL.md` and live #5 for exact boundaries and acceptance evidence.
 - This repository remains a reusable template. No real project has been activated and no provider or permission configuration was changed.
 

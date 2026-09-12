@@ -391,6 +391,16 @@ def replay(directory):
     return state, sequence, previous
 
 
+def sync_directory(directory):
+    # File fsync alone does not guarantee persistence of a new directory entry.
+    if os.name == "posix":
+        descriptor = os.open(os.fspath(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
 def append(directory, kind, data, timestamp=None, previous_state=None):
     # Exclusive sequence creation is the compare-and-swap: only one contender wins.
     state, sequence, previous = previous_state or (None, 0, None)
@@ -408,6 +418,7 @@ def append(directory, kind, data, timestamp=None, previous_state=None):
         output.write(serialized)
         output.flush()
         os.fsync(output.fileno())
+    sync_directory(directory)
     return next_state
 
 
@@ -418,7 +429,9 @@ def initialize(directory, packet, graph, policy, config, root, architect, timest
             "anchor": anchor, "architect": architect}
     # Validate before creating the ledger. A partial initialization fails closed.
     apply(None, {"kind": "INIT", "data": data, "timestamp": timestamp or wp.now()})
-    Path(directory).mkdir(parents=True, exist_ok=False)
+    # The caller supplies an existing parent; persist the ledger name there too.
+    Path(directory).mkdir(exist_ok=False)
+    sync_directory(Path(directory).parent)
     return append(directory, "INIT", data, timestamp)
 
 

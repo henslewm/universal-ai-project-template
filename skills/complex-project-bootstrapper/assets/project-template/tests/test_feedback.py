@@ -252,6 +252,98 @@ class FeedbackTests(unittest.TestCase):
             self.reserve(directory)
         self.assertEqual({path.name: path.read_bytes() for path in directory.iterdir()}, before)
 
+    def test_directory_sync_follows_complete_closed_event_before_dispatch_returns(self):
+        directory = self.start()
+        order, written_handles = [], []
+        original_open = Path.open
+        original_fsync = feedback.os.fsync
+
+        def tracked_open(path, *args, **kwargs):
+            handle = original_open(path, *args, **kwargs)
+            mode = args[0] if args else kwargs.get("mode", "r")
+            if path.parent == directory and mode == "x":
+                written_handles.append(handle)
+            return handle
+
+        def file_sync(descriptor):
+            order.append("file_fsync")
+            return original_fsync(descriptor)
+
+        def directory_sync(path):
+            self.assertEqual(path, directory)
+            self.assertEqual(order, ["file_fsync"])
+            self.assertEqual(len(written_handles), 1)
+            self.assertTrue(written_handles[0].closed)
+            event = wp.read_json(directory / "00000002.json")
+            self.assertEqual(event["kind"], "DISPATCH")
+            state, sequence, last_hash = feedback.replay(directory)
+            self.assertEqual(sequence, 2)
+            self.assertEqual(last_hash, event["hash"])
+            self.assertEqual(state["pending"], state["attempts"][0]["id"])
+            order.append("directory_fsync")
+
+        with mock.patch.object(Path, "open", new=tracked_open), \
+                mock.patch.object(feedback.os, "fsync", side_effect=file_sync), \
+                mock.patch.object(feedback, "sync_directory", side_effect=directory_sync):
+            dispatch = self.reserve(directory)
+            order.append("intent_returned")
+        self.assertEqual(dispatch["status"], "DISPATCH")
+        self.assertEqual(order, ["file_fsync", "directory_fsync", "intent_returned"])
+
+    def test_directory_sync_failure_returns_no_intent_but_retains_pending_reservation(self):
+        directory = self.start()
+        returned = []
+        with mock.patch.object(feedback, "sync_directory", side_effect=OSError("Directory sync failed")):
+            with self.assertRaisesRegex(OSError, "Directory sync failed"):
+                returned.append(self.reserve(directory))
+        self.assertEqual(returned, [])
+        state, sequence, _ = feedback.replay(directory)
+        self.assertEqual(sequence, 2)
+        self.assertEqual(len(state["attempts"]), 1)
+        self.assertEqual(state["pending"], state["attempts"][0]["id"])
+        self.assertIsNone(state["attempts"][0]["result"])
+        with self.assertRaisesRegex(ValueError, "pending"):
+            self.reserve(directory)
+        self.assertEqual(feedback.replay(directory)[1], 2)
+
+    def test_initialization_syncs_existing_parent_before_init_event_and_ledger_after(self):
+        directory = self.directory / "durable-init"
+        packet = make_packet()
+        order = []
+
+        def directory_sync(path):
+            if not order:
+                self.assertEqual(path, self.directory)
+                self.assertTrue(directory.is_dir())
+                self.assertEqual(list(directory.iterdir()), [])
+                order.append("parent_synced")
+            else:
+                self.assertEqual(path, directory)
+                self.assertEqual(order, ["parent_synced"])
+                event = wp.read_json(directory / "00000001.json")
+                self.assertEqual(event["kind"], "INIT")
+                self.assertEqual(feedback.replay(directory)[1], 1)
+                order.append("ledger_synced")
+
+        with mock.patch.object(feedback, "sync_directory", side_effect=directory_sync):
+            state = feedback.initialize(directory, packet, [packet], policy(), self.settings,
+                                        self.directory, "Architect", self.tick())
+            order.append("initialization_returned")
+        self.assertEqual(state["status"], "READY")
+        self.assertEqual(order, ["parent_synced", "ledger_synced", "initialization_returned"])
+
+    def test_initialization_refuses_missing_parent_without_creating_ancestor_directories(self):
+        missing_parent = self.directory / "missing-parent"
+        directory = missing_parent / "ledger"
+        packet = make_packet()
+        with mock.patch.object(feedback, "sync_directory") as synchronized:
+            with self.assertRaises(FileNotFoundError):
+                feedback.initialize(directory, packet, [packet], policy(), self.settings,
+                                    self.directory, "Architect", self.tick())
+        self.assertFalse(missing_parent.exists())
+        self.assertFalse(directory.exists())
+        synchronized.assert_not_called()
+
     def test_concurrent_reservations_have_exactly_one_exclusive_winner(self):
         directory = self.start()
         original_replay = feedback.replay
@@ -673,6 +765,59 @@ class FeedbackTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     feedback.complete(directory, reported, self.tick())
                 self.assertEqual(feedback.replay(directory)[1], 2)
+
+
+class DirectorySyncHelperTests(unittest.TestCase):
+    def test_posix_helper_opens_syncs_and_closes_directory_in_order(self):
+        path = "/synthetic/ledger"
+        flags = feedback.os.O_RDONLY | 65536
+        calls = mock.Mock()
+        with mock.patch.object(feedback.os, "name", "posix"), \
+                mock.patch.object(feedback.os, "O_DIRECTORY", 65536, create=True), \
+                mock.patch.object(feedback.os, "open", return_value=47) as opened, \
+                mock.patch.object(feedback.os, "fsync") as synced, \
+                mock.patch.object(feedback.os, "close") as closed:
+            calls.attach_mock(opened, "open")
+            calls.attach_mock(synced, "fsync")
+            calls.attach_mock(closed, "close")
+            feedback.sync_directory(path)
+        self.assertEqual(calls.mock_calls, [mock.call.open(path, flags), mock.call.fsync(47), mock.call.close(47)])
+
+    def test_posix_helper_closes_descriptor_when_sync_fails_and_propagates_close_failures(self):
+        path = "/synthetic/ledger"
+        for failure in ("fsync", "close"):
+            with self.subTest(failure=failure):
+                with mock.patch.object(feedback.os, "name", "posix"), \
+                        mock.patch.object(feedback.os, "open", return_value=47), \
+                        mock.patch.object(feedback.os, "fsync") as synced, \
+                        mock.patch.object(feedback.os, "close") as closed:
+                    (synced if failure == "fsync" else closed).side_effect = OSError(f"{failure} failed")
+                    with self.assertRaisesRegex(OSError, f"{failure} failed"):
+                        feedback.sync_directory(path)
+                synced.assert_called_once_with(47)
+                closed.assert_called_once_with(47)
+
+    def test_posix_helper_does_not_sync_or_close_when_directory_open_fails(self):
+        path = "/synthetic/ledger"
+        with mock.patch.object(feedback.os, "name", "posix"), \
+                mock.patch.object(feedback.os, "open", side_effect=OSError("open failed")), \
+                mock.patch.object(feedback.os, "fsync") as synced, \
+                mock.patch.object(feedback.os, "close") as closed:
+            with self.assertRaisesRegex(OSError, "open failed"):
+                feedback.sync_directory(path)
+        synced.assert_not_called()
+        closed.assert_not_called()
+
+    def test_non_posix_helper_performs_no_directory_operations(self):
+        path = "C:\\synthetic\\ledger"
+        with mock.patch.object(feedback.os, "name", "nt"), \
+                mock.patch.object(feedback.os, "open") as opened, \
+                mock.patch.object(feedback.os, "fsync") as synced, \
+                mock.patch.object(feedback.os, "close") as closed:
+            feedback.sync_directory(path)
+        opened.assert_not_called()
+        synced.assert_not_called()
+        closed.assert_not_called()
 
 
 class ActualBootstrapGateTests(unittest.TestCase):

@@ -12,7 +12,7 @@
 
 The master was reread after #4 closure; #5 is the sole active child. It adds durable pre-dispatch reservations, replayed task state, cumulative/per-tier budgets, repeated-failure evidence, focused context and finite architect repair/recovery. Confirmed architecture changes and changed/unavailable approval enter a sticky human-decision state. See `FEEDBACK_PROTOCOL.md` and live #5 for validation/review/PR evidence; local files do not establish merge acceptance.
 
-The full local 148-test run passed; the final 40-test packet suite includes one additional boundary test, bringing the current complete suite to 149 tests. Independent review passed all 38 feedback tests and found no remaining blockers. Repository validation (46 paths), payload consistency and diff checks passed; see `docs/ISSUE_5_VALIDATION.md` and the PR for current full-suite/merge evidence.
+The full local 148-test run and final 40-test packet suite passed; the initial PR head passed all 149 tests on Linux. GitHub review identified missing POSIX directory synchronization; the correction and eight regressions passed all 46 final feedback tests independently. The current full suite contains 157 tests. Repository validation (46 paths), payload consistency and diff checks passed; see `docs/ISSUE_5_VALIDATION.md` and PR #18 for current full-suite/review-resolution/merge evidence. Windows namespace persistence across power loss remains explicitly unverified.
 
 ## Exact continuation
 
