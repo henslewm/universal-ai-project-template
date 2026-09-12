@@ -67,6 +67,8 @@ Use [`WORK_PACKET_PROTOCOL.md`](WORK_PACKET_PROTOCOL.md) to define bounded tasks
 
 [`MODEL_ROUTING.md`](MODEL_ROUTING.md) adds deterministic capability/effort routing with risk floors, cost-per-accepted-result estimates, bounded escalation and provider fallback. It saves replayable local decision records. The shipped provider resources are disabled synthetic examples; the router does not call models or activate autonomy.
 
+[`FEEDBACK_PROTOCOL.md`](FEEDBACK_PROTOCOL.md) adds durable dispatch reservations, cumulative task/tier limits, repeated-failure escalation, focused evidence context and architect/human holds. Its local event ledger survives restarts and preserves budgets across contract repairs. Model execution and independent acceptance remain separate gates.
+
 ## Native entrypoints
 
 | Surface | Native entrypoint | Shared files it loads or directs the model to read |

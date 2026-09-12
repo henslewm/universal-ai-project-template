@@ -132,6 +132,8 @@ The architect may override this per task.
 
 Do not blindly traverse every tier. High-risk or inherently complex work may start at T3 or T4.
 
+`FEEDBACK_PROTOCOL.md` implements the local bounded controller: durable reservations, per-task/per-tier limits, repeated-failure fingerprints, focused escalation context and finite architect repair/recovery. It preserves budgets across revisions and blocks worker dispatch on architecture conflict; confirmed architecture changes enter a human-decision state. Model execution, live evidence and GitHub publication remain separate integrations.
+
 ## Review economy
 
 Reviewers should receive the smallest sufficient context:

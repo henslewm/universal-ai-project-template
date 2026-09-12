@@ -99,6 +99,11 @@ def validate_contract(contract) -> list[str]:
     tiers = contract["escalation_path"]
     if any(t <= routing["min_tier"] or t > routing["max_tier"] for t in tiers) or tiers != sorted(tiers):
         errors.append("escalation_path: tiers must strictly increase above min_tier and within max_tier")
+    for tier, cap in contract["retry_budget"].get("max_attempts_by_tier", {}).items():
+        if int(tier) not in [routing["min_tier"]] + tiers:
+            errors.append("retry_budget: per-tier override is outside the authorized worker path")
+        if cap > contract["retry_budget"]["max_attempts"]:
+            errors.append("retry_budget: per-tier override exceeds the total attempt limit")
     criteria = [entry["id"] for entry in contract["acceptance_criteria"]]
     for field in ("acceptance_criteria", "validation", "sources"):
         ids = [entry["id"] for entry in contract[field]]

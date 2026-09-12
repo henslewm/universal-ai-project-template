@@ -47,6 +47,8 @@ Each recorded dispatch attempt contains its sequence, resource/provider IDs, tie
 
 Availability filters are explicit caller inputs. Filtering a disabled/unavailable resource does not consume an attempt. A recorded `PROVIDER_UNAVAILABLE` dispatch does consume one total attempt, excludes that provider for the rest of this revision/role history, and tries eligible alternatives at the same tier before higher authorized tiers. This gives fallback a finite bound. A recovered provider requires a deliberate recovery/history policy in the later executor; do not erase failed attempts to make it eligible.
 
+Issue #5 supplies explicit local recovery in `FEEDBACK_PROTOCOL.md`: a bounded architect resumption can mark an outage as `PROVIDER_RECOVERED` in derived routing history while preserving its original immutable result, cost and attempt count. This consumes a total attempt but is not an objective `FAIL`. The router treats it as a supplied recovery assertion, not verified provider health.
+
 ## Selection and stopping rules
 
 1. Validate the packet, configuration, binding and history. Workers require `READY` or `IN_PROGRESS`; reviewers require `REVIEW`. Packet states are metadata: the eventual executor must independently enforce the active bootstrap, complete dependency graph, permissions and acceptance gates.

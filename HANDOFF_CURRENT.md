@@ -1,23 +1,23 @@
 # Current Handoff
 
 - **Prepared:** 2026-09-12 UTC
-- **From:** Issue #4 implementation and review
-- **To:** Model-router acceptance / master orientation
-- **Branch:** issue-4-model-router
-- **Scope:** Issue #4 only; locked master #14 title/body is unchanged.
+- **From:** Issue #5 implementation and validation
+- **To:** Feedback acceptance / master orientation
+- **Branch:** issue-5-bounded-feedback
+- **Scope:** Issue #5 only; locked master #14 title/body is unchanged.
 
-## Verified foundation
+## Accepted foundation
 
-Issue #2 is closed through merged PR #15 at `500a7205fa671e7104671d25446d07e4ed8558c7`. Issue #3 is closed through merged PR #16 at `e8dce9030fd4f02cd58ee99cfaae53bd88230f01`. The master comments link actual completion evidence. #3's accepted head passed 71 tests in GitHub CI; its final renderer correction also passed independent local review and 39 packet tests.
+#2 is closed through merged PR #15 (`500a7205fa671e7104671d25446d07e4ed8558c7`). #3 is closed through PR #16 (`e8dce9030fd4f02cd58ee99cfaae53bd88230f01`). #4 is closed through PR #17 (`e7c7c9c4fdf4221e25d877b00fe1e4d74debccba`); all 110 tests passed locally and remotely, and independent/automatic reviews reported no remaining blockers. Completion comments are linked from master #14.
 
-After #3 closure, the master was reread and #4 selected as the sole active child. #4 introduces provider-independent configuration, offline economic routing, exact tier/effort and risk/complexity controls, bounded escalation/fallback, optional supplied observations and saved decision replay. See `MODEL_ROUTING.md` and live Issue #4 for validation, review and PR evidence. No local file substitutes for live acceptance records.
+The master was reread after #4 closure; #5 is the sole active child. It adds durable pre-dispatch reservations, replayed task state, cumulative/per-tier budgets, repeated-failure evidence, focused context and finite architect repair/recovery. Confirmed architecture changes and changed/unavailable approval enter a sticky human-decision state. See `FEEDBACK_PROTOCOL.md` and live #5 for validation/review/PR evidence; local files do not establish merge acceptance.
 
-All 110 repository tests passed. The independent reviewer reran all 39 router tests and reported no remaining blockers; repository validation (42 paths), payload consistency and diff checks also passed. See `docs/ISSUE_4_VALIDATION.md` for exact evidence and limitations.
+The full local 148-test run passed; the final 40-test packet suite includes one additional boundary test, bringing the current complete suite to 149 tests. Independent review passed all 38 feedback tests and found no remaining blockers. Repository validation (46 paths), payload consistency and diff checks passed; see `docs/ISSUE_5_VALIDATION.md` and the PR for current full-suite/merge evidence.
 
 ## Exact continuation
 
-Complete the #4 validate/review/commit/push/PR/check/merge/close sequence, attach evidence to #4 and master comments, then reread locked master #14 before selecting #5. The user authorized continuing through #13, strictly one child at a time. Do not overlap child implementation or change the master title/body. Detailed domain and canonical legal-branch rollout remain #9/#10/#11; six issue forms belong to #6, and the full intake-to-first-task-graph demonstration belongs to #13.
+Complete #5 validation, independent review, commit/push, PR checks/review, merge and closure with evidence in child/master comments. Then reread locked master #14 before starting #6. The user authorized continuing through #13, strictly one child at a time. Preserve the six issue-form clarification in #6 and automatic intake-to-first-task-graph demonstration in #13. Canonical legal-branch/domain rollout remains #9/#10/#11. Do not edit the master title/body or delete construction branches without the later required approval.
 
 ## Boundaries
 
-No provider credentials or live paid calls, permission changes or real-project activation were needed. Router resources are disabled fictional examples, and saved decisions always carry `execution_authorized: false`. Role-bound histories and observations are supplied assertions; replay is local reproducibility, not authentication, complete accounting or verified acceptance. Per-role API estimates are not a project spending ceiling or live billing guard. Install `requirements-work-packets.txt` for packet/router tools; bootstrap remains standard-library-only. Keep subsequent execution, feedback, GitHub ledger, review and telemetry work inside their owning issues.
+All provider/example execution is synthetic; no live model calls, credentials, paid usage or real-project activation were needed. The controller records supplied validation/cost/scope assertions and a saved graph, not authenticated outcomes or live prerequisite freshness. #7 must enforce current dependency/permission checks, deadlines, real validation and usage accounting; #6 publishes/reconstructs authoritative state; #8 enforces independent acceptance. Keep one ledger per managed task, preserve pending reservations and cumulative budgets, and never use a new directory or ordinary blocker recovery to bypass a human hold.

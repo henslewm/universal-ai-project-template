@@ -123,6 +123,30 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertEqual(json.loads(routed.stdout)["status"], "ROUTED")
                     self.assertFalse(json.loads(routed.stdout)["execution_authorized"])
                     self.run_cli(root / "scripts/model_router.py", "verify", ledger)
+                    options = root / "synthetic-feedback-options.json"
+                    write(options, {key: read(request)[key] for key in (
+                        "task_class", "input_tokens", "output_tokens", "unavailable_providers", "unavailable_resources")})
+                    feedback_ledger = root / "synthetic-feedback-ledger"
+                    self.run_cli(root / "scripts/feedback.py", "init", feedback_ledger,
+                                 "--root", root, "--packet", packet, "--graph", packet,
+                                 "--policy", root / "config/feedback.example.json", "--config", config,
+                                 "--architect", "Synthetic architect")
+                    dispatched = self.run_cli(root / "scripts/feedback.py", "next", feedback_ledger,
+                                              "--root", root, "--config", config, "--options", options)
+                    intent = json.loads(dispatched.stdout)
+                    self.assertEqual(intent["status"], "DISPATCH")
+                    result = root / "synthetic-feedback-result.json"
+                    write(result, {"dispatch_id": intent["dispatch_id"], "outcome": "PASS",
+                        "summary": "Synthetic distribution check", "scope_status": "within", "architecture_conflict": False,
+                        "validation": [{"check_id": check["id"], "passed": True, "failure_code": "", "expected": "", "actual": "",
+                                        "evidence": ["Synthetic check only"]} for check in revision["contract"]["validation"]],
+                        "evidence": ["Synthetic evidence only"], "discoveries": [], "api_cost_usd": 0,
+                        "cost_evidence": "No model invoked; synthetic test"})
+                    completed = self.run_cli(root / "scripts/feedback.py", "complete", feedback_ledger, result)
+                    self.assertEqual(json.loads(completed.stdout)["status"], "REVIEW_PENDING")
+                    replayed = self.run_cli(root / "scripts/feedback.py", "status", feedback_ledger)
+                    self.assertEqual(json.loads(replayed.stdout)["total_attempts"], 1)
+                    self.run_cli(root / "scripts/feedback.py", "render", feedback_ledger)
 
     def test_interactive_only_asks_missing_material_domain_field(self):
         for profile in FIXTURES:

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-12 — Issue #5 bounded feedback controller
+
+- Reserve worker intents durably before dispatch and replay immutable events to recover task state and cumulative usage.
+- Enforce total/per-tier limits, stable repeated-failure escalation, focused context, finite repair/recovery/diagnosis allowances and sticky architecture/approval holds.
+- Require complete objective-check reports before moving to independent review; preserve raw failures, explicit provider recovery and bounded comment evidence views.
+- Validate concurrency, crash/refusal paths and generated-profile delivery with synthetic records; retain actual acceptance in #5 and its PR.
+
 ## 2026-09-12 — Issue #4 capability router and economic governor
 
 - Add provider-independent configuration with disabled fictional examples for LM Studio, Mistral, Claude and OpenAI/Codex.

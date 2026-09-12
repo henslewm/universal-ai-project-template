@@ -73,6 +73,8 @@ For architected work, follow `WORK_PACKET_PROTOCOL.md`. The canonical JSON packe
 
 These tools record local metadata. They do not execute work, authenticate roles, verify external evidence, publish issues, or grant autonomy. Before actual autonomous work, the existing bootstrap activation gate still applies. Use `MODEL_ROUTING.md` for offline resource selection and its replayable local decision ledger. Domain-specific substantive validators, live review gates and execution remain separate controls.
 
+Use `FEEDBACK_PROTOCOL.md` for bounded attempts: retain one authoritative task ledger, reserve before dispatch, preserve cumulative limits and failure evidence, and honor architect/human holds. A worker result cannot revise a contract or override failed objective checks. The feedback controller consumes supplied evidence; actual execution and independent acceptance must still verify it.
+
 ## Connector selection
 
 Use `CONNECTOR_PLAN.md` as the project-specific authority. Default to least privilege:
