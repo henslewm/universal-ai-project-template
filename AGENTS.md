@@ -21,7 +21,9 @@ Then inspect `git status`, the current branch, and the newest relevant commits.
 
 ## Bootstrap / autonomy gate
 
-If `config/bootstrap.json` exists, validate it before autonomous substantive work with `python scripts/validate_bootstrap.py config/bootstrap.json --require-active`. A generated repository or completed intake is not authorization to begin autonomous execution. Continue autonomously only when the bootstrap state is `ACTIVE`, explicit approval is recorded, and the stored material-architecture fingerprint matches. If the file is absent in a newly generated/retrofitted project, follow `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md` to create the architecture package and obtain approval.
+Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` from the repository root. Continue autonomously only after successful validation confirms `ACTIVE`, explicit approval, and a matching material-architecture fingerprint. A missing, invalid, or inactive bootstrap file, or an unavailable runtime/validator, means autonomy is not authorized. Resume bootstrap through `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md`; orientation, intake, and preparation of the approval package may continue within existing permissions. Generated files, completed intake, or assumed approval do not satisfy the gate.
+
+After activation, routine work within the approved scope and existing permissions may proceed without renewed approval for each step. User-reserved actions, material architecture changes, and consequential external actions still require their applicable explicit authority; activation does not expand tool or connector permissions.
 
 ## Core behavior
 

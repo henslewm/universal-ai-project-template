@@ -9,6 +9,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from validate_bootstrap import validate as validate_bootstrap
+
 ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED = [
@@ -23,6 +25,8 @@ REQUIRED = [
     "skills/complex-project-bootstrapper/SKILL.md",
     ".agents/skills/complex-project-bootstrapper/SKILL.md",
     ".claude/skills/complex-project-bootstrapper/SKILL.md",
+    "BOOTSTRAP_PROTOCOL.md", "prompts/INTERACTIVE_BOOTSTRAP.md",
+    "config/bootstrap.schema.json", "scripts/validate_bootstrap.py", "scripts/bootstrap_gate.py",
 ]
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z0-9_]+\}\}")
@@ -81,6 +85,15 @@ def main() -> int:
             error(errors, f"CLAUDE.md imports missing file: {match}")
 
     template_mode = bool(project.get("template_mode", True)) if project else True
+    bootstrap_path = ROOT / "config/bootstrap.json"
+    if bootstrap_path.exists():
+        try:
+            bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+            errors.extend(validate_bootstrap(bootstrap, ROOT))
+        except (OSError, ValueError) as exc:
+            error(errors, f"Invalid config/bootstrap.json: {exc}")
+    elif not template_mode:
+        error(errors, "Generated project is missing config/bootstrap.json; autonomy is OFF")
     if not template_mode:
         # Check only files that bootstrap_project.py must tailor. The repository also
         # intentionally carries reusable example/template assets and documentation

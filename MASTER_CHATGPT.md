@@ -13,6 +13,12 @@ At the beginning of a substantive chat:
 3. Check whether later commits supersede uploaded Project files.
 4. Use connected Drive, Gmail, Calendar, Contacts, files, web, or specialist research tools before asking the user to re-provide accessible information.
 
+## Bootstrap / autonomy gate
+
+Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` against the current repository from its root. Continue autonomously only after successful validation confirms `ACTIVE`, explicit approval, and a matching material-architecture fingerprint. If the bootstrap state is missing, invalid, or inactive, or this surface has no runtime capable of running the validator, do not proceed autonomously. Resume bootstrap through `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md`, preparing the approval package or a runtime handoff within existing permissions. Uploaded state or a model's assertion cannot replace the validation gate.
+
+Once activated, routine work within the approved scope and existing permissions may proceed without approval for each step. User-reserved actions, material architecture changes, and consequential external actions retain their applicable explicit-authority requirements. Activation does not expand tool or connector permissions.
+
 ## Web Project behavior
 
 - Project memory is helpful but secondary to the repository and authoritative sources.

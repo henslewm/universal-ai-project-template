@@ -14,6 +14,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from bootstrap_gate import collect_intake, new_state, profile_from_template, render_review, write_state
+from validate_bootstrap import PROFILES, validate
+
 EXCLUDE_NAMES = {
     ".git", "dist", "build", "__pycache__", ".pytest_cache",
     "universal-ai-project-template.zip", "skill.zip"
@@ -37,10 +40,13 @@ def ask(prompt: str, default: str = "") -> str:
 
 
 def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
-    name = str(raw.get("project_name") or raw.get("name") or "AI Project").strip()
+    for field in ("project_name", "name", "project_slug", "objective", "problem_statement", "domain", "domain_profile", "risk_tier", "sensitivity", "target_date", "jurisdiction_or_version", "owner"):
+        if field in raw and not isinstance(raw[field], str):
+            raise ValueError(f"{field} must be a string")
+    name = str(raw.get("project_name") or raw.get("name") or "").strip()
     raw["project_name"] = name
     raw["project_slug"] = slugify(str(raw.get("project_slug") or name))
-    raw["objective"] = str(raw.get("objective") or "Define and complete the project outcome.").strip()
+    raw["objective"] = str(raw.get("objective") or "").strip()
     raw["problem_statement"] = str(raw.get("problem_statement") or raw["objective"]).strip()
 
     list_fields = [
@@ -51,9 +57,10 @@ def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
         value = raw.get(field, [])
         if isinstance(value, str):
             value = split_list(value)
-        raw[field] = [str(item).strip() for item in value if str(item).strip()]
+        if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+            raise ValueError(f"{field} must be a list of nonblank strings or a delimited string")
+        raw[field] = [item.strip() for item in value]
 
-    raw["success_criteria"] = raw["success_criteria"] or ["The required deliverables satisfy the project charter and validation passes."]
     raw["deliverables"] = raw["deliverables"] or ["Project-specific analysis or implementation", "Current handoff and state records"]
     raw["ai_clients"] = raw["ai_clients"] or ["chatgpt", "codex", "claude", "claude-code"]
     raw["connectors"] = raw["connectors"] or ["github", "web"]
@@ -64,7 +71,10 @@ def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
     raw["target_date"] = str(raw.get("target_date") or "").strip()
     raw["jurisdiction_or_version"] = str(raw.get("jurisdiction_or_version") or "").strip()
     raw["owner"] = str(raw.get("owner") or os.environ.get("USER") or "Project owner").strip()
-    raw["connector_permissions"] = dict(raw.get("connector_permissions") or {})
+    permissions = raw.get("connector_permissions", {})
+    if not isinstance(permissions, dict) or any(not isinstance(key, str) or not isinstance(value, str) or not value.strip() for key, value in permissions.items()):
+        raise ValueError("connector_permissions must map connector names to nonblank permission strings")
+    raw["connector_permissions"] = dict(permissions)
     for connector in raw["connectors"]:
         raw["connector_permissions"].setdefault(connector, "read")
     if "github" in raw["connectors"]:
@@ -73,47 +83,6 @@ def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
     raw["template_version"] = "1.0.0"
     raw["created"] = date.today().isoformat()
     return raw
-
-
-def interactive_answers() -> dict[str, Any]:
-    print("\nAnswer the minimum project intake. Comma-separate multiple items.\n")
-    name = ask("1. Project name")
-    objective = ask("   One-sentence desired outcome")
-    success = ask("2. Observable definition of done")
-    deliverables = ask("   Required deliverables")
-    target = ask("   Target date or urgency", "")
-    domain = ask("3. Domain", "other")
-    jurisdiction = ask("   Jurisdiction, product version, or governing standard", "")
-    risk = ask("   Risk tier: low, medium, high, critical", "medium")
-    sensitivity = ask("   Sensitivity: public, internal, private, restricted", "private")
-    sources = ask("4. Authoritative source locations", "")
-    clients = ask("5. AI clients", "chatgpt,codex,claude,claude-code")
-    connectors = ask("6. Connectors", "github,web")
-    workflows = ask("7. Repeated workflows that may deserve skills", "")
-    formats = ask("   Required output formats", "markdown")
-    constraints = ask("8. Non-negotiable constraints or approval gates", "")
-    out_of_scope = ask("   Explicitly out of scope", "")
-    owner = ask("   Project owner", os.environ.get("USER", "Project owner"))
-    return normalize_answers({
-        "project_name": name,
-        "objective": objective,
-        "problem_statement": objective,
-        "success_criteria": split_list(success),
-        "deliverables": split_list(deliverables),
-        "target_date": target,
-        "domain": domain,
-        "jurisdiction_or_version": jurisdiction,
-        "risk_tier": risk,
-        "sensitivity": sensitivity,
-        "source_locations": split_list(sources),
-        "ai_clients": split_list(clients),
-        "connectors": split_list(connectors),
-        "repeatable_workflows": split_list(workflows),
-        "output_formats": split_list(formats),
-        "constraints": split_list(constraints),
-        "out_of_scope": split_list(out_of_scope),
-        "owner": owner,
-    })
 
 
 def locate_template_root(explicit: str | None) -> Path:
@@ -280,7 +249,7 @@ def write_project_files(dest: Path, answers: dict[str, Any]) -> None:
 
     state = f"""# Project State
 
-- **Status:** Active — initialized
+- **Status:** SETUP — autonomy OFF
 - **Last verified:** {today}
 - **Current phase:** Foundation
 - **Active branch:** main
@@ -302,13 +271,13 @@ def write_project_files(dest: Path, answers: dict[str, Any]) -> None:
 
 - Confirm authoritative source access.
 - Index the first controlling sources.
-- Convert the highest-priority deliverable into a bounded task.
+- Complete the proposed foundation in `config/bootstrap.json`.
 
 ## Next three actions
 
-1. Review and approve `PROJECT_CHARTER.md`, `CONNECTOR_PLAN.md`, and `SKILL_PLAN.md`.
-2. Add or connect the authoritative sources listed in `SOURCE_INDEX.md`.
-3. Create the first task with observable success criteria and begin execution.
+1. Follow `prompts/INTERACTIVE_BOOTSTRAP.md` to resolve material intake gaps.
+2. Run `python scripts/bootstrap_gate.py review` and review `BOOTSTRAP_REVIEW.md`.
+3. Only after explicit user approval, run `python scripts/bootstrap_gate.py activate`; verify with `python scripts/validate_bootstrap.py config/bootstrap.json --require-active`.
 """
     (dest / "PROJECT_STATE.md").write_text(state, encoding="utf-8")
 
@@ -405,7 +374,7 @@ Enable an existing trusted skill when it fits the workflow. Create a custom skil
 
 - **Prepared:** {today}
 - **From:** Project bootstrap workflow
-- **To:** First execution session
+- **To:** Foundation review session
 - **Branch / verified commit:** main / commit pending until Git initialization completes
 
 ## Active objective
@@ -415,7 +384,7 @@ Enable an existing trusted skill when it fits the workflow. Create a custom skil
 ## Completed and verified
 
 - Project-specific charter, state, connector plan, skill plan, risks, source index, and platform adapters were generated from intake.
-- Repository validation must pass before execution begins.
+- Repository validation checks setup integrity; autonomy additionally requires the explicit activation gate.
 
 ## Sources relied upon
 
@@ -430,7 +399,7 @@ Enable an existing trusted skill when it fits the workflow. Create a custom skil
 
 ## Exact next action
 
-Review the charter and connect/index the first controlling sources, then define the first bounded task.
+Complete `config/bootstrap.json` using `prompts/INTERACTIVE_BOOTSTRAP.md`, present `BOOTSTRAP_REVIEW.md`, and record explicit approval with `python scripts/bootstrap_gate.py activate`. Do not begin autonomous execution while setup is incomplete or approval is absent.
 
 ## Do not assume
 
@@ -517,6 +486,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--interactive", action="store_true", help="Ask the concise intake questions")
     parser.add_argument("--answers", help="Path to JSON answers")
+    parser.add_argument("--profile", choices=sorted(PROFILES), help="Canonical domain; otherwise recovered from the intake or template")
     parser.add_argument("--destination", required=True, help="New project directory, or . to tailor a GitHub-template repository in place")
     parser.add_argument("--template-root", help="Explicit template root")
     parser.add_argument("--no-git", action="store_true", help="Do not initialize Git")
@@ -525,18 +495,45 @@ def main() -> int:
     parser.add_argument("--visibility", choices=["private", "public", "internal"], default="private")
     args = parser.parse_args()
 
-    if args.answers:
-        raw = json.loads(Path(args.answers).read_text(encoding="utf-8"))
-        answers = normalize_answers(raw)
-    elif args.interactive:
-        answers = interactive_answers()
-    else:
+    if not args.answers and not args.interactive:
         parser.error("Use --interactive or --answers <file>.")
-
     source = locate_template_root(args.template_root)
     destination = Path(args.destination).expanduser().resolve()
+    # Never overwrite an existing project's approval or durable user records.
+    if (destination / "config/bootstrap.json").exists():
+        parser.error("Project already has bootstrap state. Revise it with scripts/bootstrap_gate.py review; rebootstrap is refused.")
+    existing_path = destination / "config/project.json"
+    raw = {}
+    if existing_path.exists():
+        existing = json.loads(existing_path.read_text(encoding="utf-8"))
+        if not existing.get("template_mode", True):
+            parser.error("Existing initialized project: preserve its records and follow the retrofit/review protocol.")
+    if args.answers:
+        raw = json.loads(Path(args.answers).read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            parser.error("Answers must be a JSON object")
+    profile = args.profile or raw.get("domain_profile") or (raw.get("domain") if raw.get("domain") in PROFILES else None) or profile_from_template(source)
+    if profile not in PROFILES:
+        parser.error("Select a canonical domain with --profile")
+    if args.interactive:
+        raw = collect_intake(raw, profile)
+    proposal = raw.pop("bootstrap", {})
+    if not isinstance(proposal, dict):
+        parser.error("bootstrap proposal must be an object")
+    raw["domain_profile"] = profile
+    raw["domain"] = profile
+    answers = normalize_answers(raw)
     copy_template(source, destination)
+    profile_file = source / "templates" / profile / "PROFILE.md"
+    if profile_file.exists():
+        (destination / "DOMAIN_PROFILE.md").write_bytes(profile_file.read_bytes())
     write_project_files(destination, answers)
+    data = new_state(answers, proposal, destination)
+    errors = validate(data, destination)
+    if errors:
+        raise SystemExit("Invalid bootstrap intake: " + "; ".join(errors))
+    write_state(destination, data)
+    (destination / "BOOTSTRAP_REVIEW.md").write_text(render_review(data), encoding="utf-8")
 
     validator = destination / "scripts" / "validate_project.py"
     validation = run([sys.executable, str(validator)], destination, check=False)
@@ -562,9 +559,10 @@ def main() -> int:
     print(git_status)
     print(publish_status)
     print("\nNext steps:")
-    print("1. Review PROJECT_CHARTER.md, CONNECTOR_PLAN.md, and SKILL_PLAN.md.")
-    print("2. Connect/index the first authoritative sources.")
-    print("3. Create the first bounded task and begin work.")
+    print("1. Complete the foundation in config/bootstrap.json using prompts/INTERACTIVE_BOOTSTRAP.md.")
+    print("2. Run python scripts/bootstrap_gate.py review and present BOOTSTRAP_REVIEW.md to the user.")
+    print("3. Only explicit approval via python scripts/bootstrap_gate.py activate enables autonomy.")
+    print("Autonomy: OFF. Generating files or initializing Git never activates a project.")
     if not args.github:
         owner = args.github_owner or "OWNER"
         existing_origin = run(["git", "remote", "get-url", "origin"], destination, check=False) if shutil.which("git") else None
@@ -577,4 +575,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, TypeError, EOFError) as exc:
+        print(f"BOOTSTRAP BLOCKED: {exc}", file=sys.stderr)
+        raise SystemExit(1)

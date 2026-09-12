@@ -7,15 +7,31 @@
     "Priority actions have owners and deadlines",
     "Another model can continue from the handoff without the chat transcript"
   ],
-  "deliverables": ["Verified chronology", "Issue matrix", "Action plan"],
+  "deliverables": [
+    "Verified chronology",
+    "Issue matrix",
+    "Action plan"
+  ],
   "target_date": "2026-09-30",
   "domain": "legal",
   "jurisdiction_or_version": "North Carolina",
   "risk_tier": "critical",
   "sensitivity": "restricted",
   "owner": "Example Owner",
-  "ai_clients": ["chatgpt", "codex", "claude", "claude-code"],
-  "connectors": ["github", "google-drive", "gmail", "google-calendar", "web", "midpage"],
+  "ai_clients": [
+    "chatgpt",
+    "codex",
+    "claude",
+    "claude-code"
+  ],
+  "connectors": [
+    "github",
+    "google-drive",
+    "gmail",
+    "google-calendar",
+    "web",
+    "midpage"
+  ],
   "connector_permissions": {
     "github": "read-and-project-write",
     "google-drive": "read",
@@ -24,9 +40,26 @@
     "web": "read",
     "midpage": "read"
   },
-  "source_locations": ["Google Drive legal folder", "Gmail correspondence", "Court docket"],
-  "repeatable_workflows": ["evidence chronology update", "contradiction audit"],
-  "output_formats": ["markdown", "docx", "pdf"],
-  "constraints": ["Preserve originals", "No filing or sending without explicit approval"],
-  "out_of_scope": ["Representing any person as counsel"]
+  "source_locations": [
+    "Google Drive legal folder",
+    "Gmail correspondence",
+    "Court docket"
+  ],
+  "repeatable_workflows": [
+    "evidence chronology update",
+    "contradiction audit"
+  ],
+  "output_formats": [
+    "markdown",
+    "docx",
+    "pdf"
+  ],
+  "constraints": [
+    "Preserve originals",
+    "No filing or sending without explicit approval"
+  ],
+  "out_of_scope": [
+    "Representing any person as counsel"
+  ],
+  "domain_profile": "family-law"
 }
