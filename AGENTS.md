@@ -19,6 +19,10 @@ Read these files in order:
 
 Then inspect `git status`, the current branch, and the newest relevant commits.
 
+## Bootstrap / autonomy gate
+
+If `config/bootstrap.json` exists, validate it before autonomous substantive work with `python scripts/validate_bootstrap.py config/bootstrap.json --require-active`. A generated repository or completed intake is not authorization to begin autonomous execution. Continue autonomously only when the bootstrap state is `ACTIVE`, explicit approval is recorded, and the stored material-architecture fingerprint matches. If the file is absent in a newly generated/retrofitted project, follow `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md` to create the architecture package and obtain approval.
+
 ## Core behavior
 
 - Treat the repository, not prior chat memory, as the durable state.
