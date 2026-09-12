@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "domain_profile": "software-hardware",
+  "state": "ACTIVE",
+  "project": {"name": "Negative Test", "objective": "Test the approval validator", "definition_of_done": ["Rejected by validator"], "non_goals": [], "constraints": []},
+  "architecture": {"summary": "Test architecture", "boundaries": ["Test boundary"], "milestones": ["Test milestone"], "dependencies": []},
+  "sources": ["Repository"],
+  "risks": [],
+  "routing": {"policy": "Test policy"},
+  "human_gates": ["Architecture change"],
+  "domain": {},
+  "approval": {"approved": false, "approved_by": null, "approved_at": null, "architecture_fingerprint": null}
+}
