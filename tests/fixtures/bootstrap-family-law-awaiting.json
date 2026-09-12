@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "domain_profile": "family-law",
+  "state": "AWAITING_APPROVAL",
+  "project": {
+    "name": "Representative NC Family Law Matter",
+    "objective": "Maintain an evidence-first case research and preparation workspace.",
+    "definition_of_done": [
+      "Approved case architecture and source model are recorded."
+    ],
+    "non_goals": [
+      "Unapproved external legal action"
+    ],
+    "constraints": [
+      "Allegations remain distinct from verified facts"
+    ]
+  },
+  "architecture": {
+    "summary": "Separate procedure, evidence, financial, parenting, discovery, and legal issue workstreams.",
+    "boundaries": [
+      "Material case-strategy changes require a new architecture decision"
+    ],
+    "milestones": [
+      "Source baseline",
+      "Issue matrices",
+      "Preparation outputs"
+    ],
+    "dependencies": [
+      "Source baseline -> Issue matrices",
+      "Issue matrices -> Preparation outputs"
+    ]
+  },
+  "sources": [
+    "Repository",
+    "Controlling orders and filed records",
+    "Primary legal authority"
+  ],
+  "risks": [
+    "Disputed allegations may be mistaken for verified facts"
+  ],
+  "routing": {
+    "policy": "Use low-cost tiers for bounded source organization and strong review for consequential legal analysis."
+  },
+  "human_gates": [
+    "Material architecture change",
+    "Consequential external legal action"
+  ],
+  "domain": {
+    "posture": "Fictional NC family-law research matter; source: synthetic docket fixture.",
+    "objectives_and_deadlines": "Organize synthetic records for research; no actual deadline or pending filing.",
+    "evidence": "Synthetic docket and order fixtures; preserve originals and distinguish allegations from verified facts."
+  },
+  "approval": {
+    "approved": false,
+    "approved_by": null,
+    "approved_at": null,
+    "architecture_fingerprint": null
+  },
+  "workflow": {
+    "policy": "One bounded issue per task; link validation and independent review in a PR; accept only inside the approved foundation."
+  },
+  "unresolved": [],
+  "configuration": {},
+  "documents": {}
+}

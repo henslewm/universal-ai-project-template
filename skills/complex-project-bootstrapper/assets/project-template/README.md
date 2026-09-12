@@ -7,46 +7,59 @@ The repository is the durable source of truth. Each AI surface gets a small nati
 ## What this template solves
 
 - Starts a complicated project with one reusable intake prompt.
-- Asks only the missing, decision-relevant questions in one compact batch.
+- Reuses verified intake and asks only missing, decision-relevant questions in stages.
 - Produces a tailored project charter, state file, source ledger, risk register, connector plan, and skill plan.
 - Gives Codex and Claude Code native instruction files they automatically discover.
 - Gives ChatGPT and Claude web exact Project instructions and a minimal file/source list.
 - Creates portable `SKILL.md` workflows for Codex, ChatGPT, and Claude Code.
 - Preserves session handoffs so another model can continue from the same branch and state.
 - Validates the repository before work is committed or handed off.
+- Keeps generated projects inactive until the architecture package is ready and the user explicitly approves its fingerprint.
 
 ## Fastest start
 
 ### From the base template repository
 
-Create a separate tailored repository:
+Choose a canonical profile: `software-hardware`, `family-law`, or `civil-rights-nc`. Create a separate project in a new/empty directory:
 
 ```bash
-python scripts/bootstrap_project.py --interactive --destination ../my-project
+python scripts/bootstrap_project.py --interactive --profile software-hardware --destination ../my-project --no-git
 ```
 
-After using GitHub **Use this template**, tailor that new repository in place:
+After using GitHub **Use this template**, tailor the uninitialized repository in place:
 
 ```bash
-python scripts/bootstrap_project.py --interactive --destination .
+python scripts/bootstrap_project.py --interactive --profile software-hardware --destination . --no-git
 ```
 
-For a separate local project, publish it with GitHub CLI:
+To reuse verified intake, add `--answers verified-intake.json`; interactive mode asks only missing common and profile orientation fields. The generator writes tailored files, `config/bootstrap.json` in `INTAKE` with autonomy off, and `BOOTSTRAP_REVIEW.md` with readiness gaps. `--no-git` keeps preparation separate from Git initialization or publishing. Rebootstrap of an initialized project is refused; preserve existing records through a retrofit or revise its existing bootstrap package.
+
+### Review and activate the foundation
+
+Use [`prompts/INTERACTIVE_BOOTSTRAP.md`](prompts/INTERACTIVE_BOOTSTRAP.md) to complete the architecture, sources, risks, routing, GitHub workflow, reserved actions, and domain orientation in `config/bootstrap.json`. Resolve the `unresolved` architecture blockers, then run from the generated project's root:
 
 ```bash
-gh auth login
-gh repo create henslewm/my-project --private --source ../my-project --remote origin --push
+python scripts/bootstrap_gate.py review
 ```
 
-For an in-place repository created with **Use this template**, the remote already exists; the bootstrapper commits the tailored state and you only need:
+Review revokes any previous approval first, snapshots `config/project.json`, hashes `PROJECT_CHARTER.md`, `CONNECTOR_PLAN.md`, `SKILL_PLAN.md`, and `DOMAIN_PROFILE.md`, and checks readiness. Success writes `AWAITING_APPROVAL` and the review package. Present `BOOTSTRAP_REVIEW.md` and those documents to the user.
+
+Only after explicit user authorization for the approval interaction, run:
 
 ```bash
-git push -u origin HEAD
+python scripts/bootstrap_gate.py activate
+python scripts/validate_bootstrap.py config/bootstrap.json --require-active
 ```
+
+Activation presents the exact package and asks for the user's identity and `APPROVE <fingerprint>`; there is no noninteractive autoapprove option. The receipt lives in `config/bootstrap.json`, while the review file remains the pre-approval proposal. The fingerprint binds project/architecture data, sources, risks, routing, human gates, `domain`, `workflow`, `unresolved`, configuration, and document hashes.
+
+Every new session must pass `--require-active` against the current configuration and documents before autonomous substantive work. Missing, invalid, or inactive state, stale bindings, or no available runtime means no autonomy. Resume bootstrap/review or prepare a runtime handoff. After activation, routine approved-scope work can continue within existing permissions; reserved actions and consequential external writes retain their explicit-authority requirements. See [`BOOTSTRAP_PROTOCOL.md`](BOOTSTRAP_PROTOCOL.md) for the full state and recovery rules.
+
+The local gate prevents normal workflow bypass and detects stale approvals. It does not authenticate humans or constrain actors who rewrite gate code or approval records. Activation does not configure providers, change permissions, initialize Git, or publish a repository. See [`docs/GITHUB_PUBLISH.md`](docs/GITHUB_PUBLISH.md) for publishing when authorized.
 
 ### From an AI chat
 
-Open [`prompts/BOOTSTRAP_NEW_PROJECT.md`](prompts/BOOTSTRAP_NEW_PROJECT.md), paste it into ChatGPT, Codex, Claude, or Claude Code, and answer the compact intake block. A repository-capable client should run the bootstrap script; a web-only client should produce the completed files or an archive plus the publish command.
+Open [`prompts/BOOTSTRAP_NEW_PROJECT.md`](prompts/BOOTSTRAP_NEW_PROJECT.md), paste it into ChatGPT, Codex, Claude, or Claude Code, and answer only missing intake questions. A repository-capable client runs the setup/review flow; a web-only client without a validator runtime prepares files and a runtime handoff while autonomy remains off.
 
 ## Native entrypoints
 
@@ -107,4 +120,4 @@ Use a private repository for personal, legal, regulated, proprietary, or identif
 
 ## Template status
 
-This repository intentionally contains placeholders. Generated project repositories set `config/project.json -> template_mode` to `false`; validation then rejects unresolved placeholders.
+This repository intentionally contains placeholders. Generated project repositories set `config/project.json -> template_mode` to `false`; repository validation then rejects unresolved placeholders. That setting is not activation: generated bootstrap state remains `INTAKE` until explicit approval. Canonical templates carry snapshots of existing domain documents; detailed domain schemas and workflows remain assigned to #9/#10/#11.

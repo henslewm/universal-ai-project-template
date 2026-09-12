@@ -35,6 +35,14 @@ Before substantive work:
 3. Inspect the newest relevant commits or handoff if another model may have worked since the last session.
 4. Reuse facts already established. Ask only questions whose answers materially change the plan and cannot be obtained from connected sources or the repository.
 
+## Bootstrap / autonomy gate
+
+Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` from the repository root. Autonomous execution requires successful validation of the current repository state: `ACTIVE`, explicit user approval, and a matching material-architecture fingerprint.
+
+If `config/bootstrap.json` is missing, invalid, or inactive, or the runtime/validator is unavailable, do not proceed autonomously. Resume the appropriate bootstrap stage using `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md`. Orientation, intake, and preparation or revision of the approval package may continue within existing permissions. Neither generated files, completed intake, stale uploaded state, nor a model's assertion substitutes for successful validation and approval of the exact architecture package.
+
+After activation, perform routine work within the approved scope and existing permissions without requesting approval for every step. Follow the recorded human gates for user-reserved actions. Material architecture changes require resolution and renewed approval under the bootstrap protocol. Activation does not grant broader tool or connector access or remove the explicit-authority requirement for consequential external actions.
+
 ## Work standard
 
 - Lead with the actual outcome, decision, defect, or next action.

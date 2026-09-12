@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "domain_profile": "software-hardware",
+  "state": "ACTIVE",
+  "project": {
+    "name": "Negative Test",
+    "objective": "Test the approval validator",
+    "definition_of_done": [
+      "Rejected by validator"
+    ],
+    "non_goals": [],
+    "constraints": []
+  },
+  "architecture": {
+    "summary": "Test architecture",
+    "boundaries": [
+      "Test boundary"
+    ],
+    "milestones": [
+      "Test milestone"
+    ],
+    "dependencies": []
+  },
+  "sources": [
+    "Repository"
+  ],
+  "risks": [],
+  "routing": {
+    "policy": "Test policy"
+  },
+  "human_gates": [
+    "Architecture change"
+  ],
+  "domain": {
+    "baseline": "Fictional serial test adapter; no physical device. Source: synthetic fixture specification.",
+    "interfaces": "Line-based loopback interface, v1 synthetic specification.",
+    "validation_resources": "Local simulator only; physical hardware claims remain unverified."
+  },
+  "approval": {
+    "approved": false,
+    "approved_by": null,
+    "approved_at": null,
+    "architecture_fingerprint": null
+  },
+  "workflow": {
+    "policy": "One bounded issue per task; link validation and independent review in a PR; accept only inside the approved foundation."
+  },
+  "unresolved": [],
+  "configuration": {},
+  "documents": {}
+}

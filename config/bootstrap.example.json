@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "domain_profile": "software-hardware",
+  "state": "AWAITING_APPROVAL",
+  "project": {
+    "name": "Representative Hardware Project",
+    "objective": "Deliver a verified hardware-connected software capability.",
+    "definition_of_done": [
+      "Approved architecture is decomposed into independently verifiable work."
+    ],
+    "non_goals": [
+      "Unapproved hardware redesign"
+    ],
+    "constraints": [
+      "Physical hardware claims require representative evidence"
+    ]
+  },
+  "architecture": {
+    "summary": "Separate protocol, transport, device abstraction, application logic and validation boundaries.",
+    "boundaries": [
+      "Workers may not change public interfaces without architecture approval"
+    ],
+    "milestones": [
+      "Baseline",
+      "Implementation",
+      "Integration verification"
+    ],
+    "dependencies": [
+      "Baseline -> Implementation",
+      "Implementation -> Integration verification"
+    ]
+  },
+  "sources": [
+    "Repository",
+    "Authoritative hardware/protocol documentation"
+  ],
+  "risks": [
+    "Simulation may diverge from physical hardware"
+  ],
+  "routing": {
+    "policy": "Assign the cheapest capability tier expected to satisfy objective acceptance criteria."
+  },
+  "human_gates": [
+    "Material architecture change",
+    "Consequential external action"
+  ],
+  "domain": {
+    "baseline": "Fictional serial test adapter; no physical device. Source: synthetic fixture specification.",
+    "interfaces": "Line-based loopback interface, v1 synthetic specification.",
+    "validation_resources": "Local simulator only; physical hardware claims remain unverified."
+  },
+  "approval": {
+    "approved": false,
+    "approved_by": null,
+    "approved_at": null,
+    "architecture_fingerprint": null
+  },
+  "workflow": {
+    "policy": "One bounded issue per task; link validation and independent review in a PR; accept only inside the approved foundation."
+  },
+  "unresolved": [],
+  "configuration": {},
+  "documents": {}
+}
