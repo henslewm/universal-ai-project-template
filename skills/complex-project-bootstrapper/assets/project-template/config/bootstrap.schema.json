@@ -335,6 +335,15 @@
               "pattern": "\\S"
             },
             "maxItems": 0
+          },
+          "risks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            }
           }
         }
       }

@@ -4,11 +4,11 @@ Verified locally on 2026-09-12 UTC with Python 3.12.8 on Windows. The initial cl
 
 ## Results
 
-- `python -m unittest discover -s tests -v`: **29 tests passed** (23.193 seconds in the final local run).
+- `python -m unittest discover -s tests -v`: **32 tests passed** (24.572 seconds in the final local run).
 - `python scripts/validate_project.py`: **passed**, 31 required paths.
 - `python scripts/sync_skills.py --check`: **passed**, zero payload drift.
 - `git diff --check`: **passed**.
-- Independent read-only review identified a Windows Git line-ending portability defect and malformed intake coercion. Both were fixed and independently reproduced as passing regressions. No remaining findings in that final delta review. A subsequent failed-copy approval inheritance edge was reproduced, fixed by excluding approval files from template copies, and covered by a command-path regression.
+- Independent read-only review identified a Windows Git line-ending portability defect and malformed intake coercion. Both were fixed and independently reproduced as passing regressions. No remaining findings in that final delta review. A subsequent failed-copy approval inheritance edge was reproduced, fixed by excluding approval files from template copies, and covered by a command-path regression. GitHub review then identified placeholder-prefixed values and an empty risk list; both readiness gaps were repaired with schema/runtime and CLI regressions.
 
 ## Acceptance coverage
 
@@ -18,7 +18,7 @@ Verified locally on 2026-09-12 UTC with Python 3.12.8 on Windows. The initial cl
 | Every supported distribution | Root script, repository-native skill and an isolated installed standalone skill, each across all three profiles |
 | Generation cannot approve | Generated state remains INTAKE/inactive even if an answers file supplies ACTIVE/approved values; startup requires an explicit valid receipt; failed generation from an approved source cannot inherit its receipt |
 | Explicit decision required | Activation rejected during intake, without input, with generic yes, and with a wrong fingerprint; matching synthetic identity/decision accepted |
-| Readiness is mechanical | Blank/placeholder/wrong-type fields, missing orientation, unresolved blockers, unknown dependency nodes and cycles rejected |
+| Readiness is mechanical | Blank/placeholder-prefixed/wrong-type fields, an empty risk assessment, missing orientation, unresolved blockers, unknown dependency nodes and cycles rejected |
 | Approved foundation stays bound | Every fingerprint section, changed connector permissions and every bound governing document invalidate activation; an explicit review revokes previous approval |
 | Existing work preserved | In-place rebootstrap of an active project fails without altering its records; uninitialized template in-place generation remains supported |
 | Durable restart | Valid approval survives local Git commit and fresh clone, including forced CRLF-to-LF document normalization |

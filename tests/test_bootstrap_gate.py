@@ -82,9 +82,9 @@ class BootstrapGateTests(unittest.TestCase):
 
     def test_blank_placeholder_and_wrong_types_cannot_activate_with_fresh_hash(self):
         paths = [("project", "name"), ("project", "objective"), ("architecture", "summary"), ("routing", "policy"), ("workflow", "policy")]
-        arrays = [("project", "definition_of_done"), ("architecture", "boundaries"), ("architecture", "milestones"), ("sources",), ("human_gates",)]
+        arrays = [("project", "definition_of_done"), ("architecture", "boundaries"), ("architecture", "milestones"), ("sources",), ("risks",), ("human_gates",)]
         for path in paths + arrays:
-            for invalid in ("", "   ", "{{UNRESOLVED}}", "TBD", {}, 123, None):
+            for invalid in ("", "   ", "{{UNRESOLVED}}", "TBD", "TBD later", "TODO: fill this in", "[TBD] architecture", "To be determined after intake", {}, 123, None):
                 with self.subTest(path=path, invalid=invalid):
                     data = self.load("config/bootstrap.example.json")
                     container = data if len(path) == 1 else data[path[0]]
@@ -127,6 +127,15 @@ class BootstrapGateTests(unittest.TestCase):
             data = self.load("config/bootstrap.example.json")
             data["architecture"]["dependencies"] = edges
             self.assertTrue(MODULE.validate(data))
+
+    def test_empty_risk_assessment_cannot_be_reviewed_or_activated(self):
+        data = self.load("config/bootstrap.example.json")
+        data["risks"] = []
+        self.assertTrue(MODULE.validate(data))
+        self.assertTrue(MODULE.validate(self.approve(data)))
+
+    def test_unknowns_can_be_described_in_a_concrete_risk_assessment(self):
+        self.assertTrue(MODULE.meaningful("Unknown hardware behavior requires simulator evidence and physical verification."))
 
 
 if __name__ == "__main__":

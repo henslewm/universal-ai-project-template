@@ -34,8 +34,15 @@ DOMAIN_FIELDS = {
 
 
 def meaningful(value: Any) -> bool:
-    return (isinstance(value, str) and bool(value.strip())
-            and value.strip().lower() not in {"tbd", "todo", "unknown", "unresolved", "not specified"}
+    if not isinstance(value, str) or not value.strip():
+        return False
+    candidate = value.strip().lstrip("[(*#- ")
+    placeholder = re.match(
+        r"(?:tbd|t\.b\.d\.?|todo|fixme|not[ -]specified|"
+        r"to[ -]be[ -](?:determined|decided|defined|confirmed|provided|specified))(?=$|[\s:.,;)\]-])",
+        candidate, flags=re.I,
+    )
+    return (not placeholder and candidate.lower().rstrip(" .:)]") not in {"unknown", "unresolved"}
             and not re.search(r"\{\{.*?\}\}", value))
 
 
@@ -100,7 +107,7 @@ def activation_errors(data: dict[str, Any]) -> list[str]:
             value = data[section][field]
             if not value or (isinstance(value, str) and not meaningful(value)):
                 errors.append(f"{section}.{field} is required before review/ACTIVE")
-    for field in ("sources", "human_gates"):
+    for field in ("sources", "risks", "human_gates"):
         if not data[field]:
             errors.append(f"{field} is required before review/ACTIVE")
     for field in DOMAIN_FIELDS[data["domain_profile"]]:

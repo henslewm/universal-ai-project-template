@@ -10,7 +10,7 @@
 
 The normal generator now writes inactive bootstrap state and a review packet. The explicit activation command requires a complete package, user identity, and approval of its exact fingerprint. Project configuration, governing documents, domain rules, GitHub workflow and the other material foundation sections are approval-bound. All native startup paths fail closed. Standalone/native payloads are synchronized and CI checks their consistency.
 
-29 tests passed locally, including fresh interactive flows for all three profiles, root/native/standalone entrypoints, approval refusal and invalidation, initialized-project preservation, malformed inputs, and approval portability through a Windows-line-ending Git commit/clone. Independent review confirmed its two additional findings were repaired. See `docs/ISSUE_2_VALIDATION.md`.
+32 tests passed locally, including fresh interactive flows for all three profiles, root/native/standalone entrypoints, approval refusal and invalidation, initialized-project preservation, malformed inputs, and approval portability through a Windows-line-ending Git commit/clone. Independent review confirmed its two additional findings were repaired. See `docs/ISSUE_2_VALIDATION.md`.
 
 ## Exact continuation
 

@@ -176,6 +176,19 @@ class BootstrapIntegrationTests(unittest.TestCase):
         write(root / "config/bootstrap.json", data)
         self.run_cli(root / "scripts/bootstrap_gate.py", "review", "--root", root, ok=False)
 
+    def test_review_refuses_placeholder_phrases_and_unassessed_risks(self):
+        for field, value in (("architecture", "TBD later"), ("risks", [])):
+            with self.subTest(field=field):
+                root = self.generate()
+                data = read(root / "config/bootstrap.json")
+                if field == "architecture":
+                    data[field]["summary"] = value
+                else:
+                    data[field] = value
+                write(root / "config/bootstrap.json", data)
+                self.run_cli(root / "scripts/bootstrap_gate.py", "review", "--root", root, ok=False)
+                self.active_check(root, False)
+
     def test_project_configuration_and_all_bound_documents_invalidate_approval(self):
         root = self.generate()
         self.activate(root)
