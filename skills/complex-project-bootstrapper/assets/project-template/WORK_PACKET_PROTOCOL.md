@@ -2,6 +2,8 @@
 
 The architect gives a worker one bounded contract: what to produce, permitted context and scope, interfaces, tests/evidence, capability and effort bounds, retry budget, review tier, and escalation path. `config/work-packet.schema.json` is the canonical structural contract for all three domain profiles. `scripts/work_packet.py` uses that schema directly; it adds cross-field, history and dependency checks.
 
+`retry_budget.max_attempts_by_tier` optionally sets caps for specific tiers in the authorized worker path; each cap is a positive integer no greater than `max_attempts`. The feedback controller freezes effective limits and retains cumulative task/tier counters across contract repairs. See `FEEDBACK_PROTOCOL.md` for durable reservations, repeated-failure controls and architect/human holds.
+
 These are **local metadata tools**. Creating a packet or recording `READY`, `ACCEPTED`, `MERGED` or `VERIFIED` does not execute anything, authenticate an actor, verify an external result, publish a GitHub record or grant autonomy. Actual execution must still pass `scripts/validate_bootstrap.py config/bootstrap.json --require-active` and the project's applicable permissions. Future harness, review, ledger and domain implementations must verify the assertions recorded here before relying on them.
 
 ## Install the packet-tool dependency

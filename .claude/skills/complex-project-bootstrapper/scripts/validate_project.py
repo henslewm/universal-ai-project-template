@@ -34,6 +34,7 @@ REQUIRED = [
     "examples/work-packets/civil-rights-nc.contract.json",
     "MODEL_ROUTING.md", "config/model-router.schema.json", "config/model-router.example.json",
     "scripts/model_router.py",
+    "FEEDBACK_PROTOCOL.md", "config/feedback.schema.json", "config/feedback.example.json", "scripts/feedback.py",
 ]
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z0-9_]+\}\}")

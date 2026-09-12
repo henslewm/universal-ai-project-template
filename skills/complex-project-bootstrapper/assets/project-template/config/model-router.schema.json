@@ -367,7 +367,8 @@
             "BLOCKED",
             "NEEDS_ESCALATION",
             "ARCHITECTURE_CONFLICT",
-            "PROVIDER_UNAVAILABLE"
+            "PROVIDER_UNAVAILABLE",
+            "PROVIDER_RECOVERED"
           ]
         },
         "api_cost_usd": {

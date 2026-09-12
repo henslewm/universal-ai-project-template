@@ -381,6 +381,42 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 20
+            },
+            "max_attempts_by_tier": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "propertyNames": {
+                "pattern": "^[0-4](?![\\s\\S])"
+              },
+              "properties": {
+                "0": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                },
+                "1": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                },
+                "2": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                },
+                "3": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                },
+                "4": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                }
+              },
+              "description": "Optional per-tier attempt caps frozen when the feedback controller initializes. Runtime rejects tiers outside the worker minimum plus escalation path and caps above the global max_attempts."
             }
           }
         },

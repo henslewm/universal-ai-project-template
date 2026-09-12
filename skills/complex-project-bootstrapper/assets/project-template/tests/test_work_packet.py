@@ -65,6 +65,17 @@ def reordered(value):
 
 
 class ContractTests(unittest.TestCase):
+    def test_optional_per_tier_caps_remain_inside_the_authorized_total_budget(self):
+        contract = fixture()
+        contract["retry_budget"]["max_attempts_by_tier"] = {"1": 2, "3": 1}
+        self.assertEqual(work_packet.validate_contract(contract), [])
+        original = copy.deepcopy(contract)
+        for caps in ({}, {"0": 1}, {"1": 3}, {"1": 0}, {"5": 1}, {"1\n": 1}, {"1": True}):
+            with self.subTest(caps=caps):
+                candidate = copy.deepcopy(original)
+                candidate["retry_budget"]["max_attempts_by_tier"] = caps
+                self.assertTrue(work_packet.validate_contract(candidate))
+
     def test_all_profile_examples_create_independent_valid_snapshots(self):
         for profile in PROFILES:
             with self.subTest(profile=profile):
