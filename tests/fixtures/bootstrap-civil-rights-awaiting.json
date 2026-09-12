@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "domain_profile": "civil-rights-nc",
+  "state": "AWAITING_APPROVAL",
+  "project": {
+    "name": "Representative NC Civil Rights Matter",
+    "objective": "Maintain claim-by-claim, defendant-by-defendant litigation research with verified authority and evidence mapping.",
+    "definition_of_done": ["Approved claim architecture, defendant/capacity map, and source model are recorded."],
+    "non_goals": ["Unapproved filing or external communication"],
+    "constraints": ["Primary authority must support consequential legal propositions"]
+  },
+  "architecture": {
+    "summary": "Separate defendants, capacities, claims, threshold defenses, evidence, remedies, and procedural posture.",
+    "boundaries": ["Material changes to forum, defendant set, capacity theory, or controlling claim theory require a new architecture decision"],
+    "milestones": ["Source baseline", "Claim and defense matrices", "Drafting and review"],
+    "dependencies": ["Claim and defense matrices depend on source baseline"]
+  },
+  "sources": ["Repository", "Filed record and authenticated evidence", "Primary federal and North Carolina authority"],
+  "risks": ["Threshold defenses may dispose of otherwise plausible claims"],
+  "routing": {"policy": "Use low-cost tiers for bounded evidence organization and strong independent review for high-stakes claim analysis."},
+  "human_gates": ["Material architecture change", "Consequential external legal action"],
+  "domain": {"extension_status": "Detailed civil-rights fields are owned by issue #11"},
+  "approval": {"approved": false, "approved_by": null, "approved_at": null, "architecture_fingerprint": null}
+}
