@@ -71,7 +71,7 @@ Do not create process artifacts that add no decision value. Do create a decision
 
 For architected work, follow `WORK_PACKET_PROTOCOL.md`. The canonical JSON packet defines scope, interfaces, acceptance checks, model/effort bounds, review and escalation. Use `scripts/work_packet.py` to validate it, generate its GitHub issue view, or record a revision/state transition. The latest revision snapshot is the sole current contract. Preserve earlier snapshots and events; a contract revision resets readiness. Workers report bounded outcomes and must not revise their own contracts or accept their own work.
 
-These tools record local metadata. They do not execute work, authenticate roles, verify external evidence, publish issues, or grant autonomy. Before actual autonomous work, the existing bootstrap activation gate still applies. Domain-specific substantive validators, live review gates, provider routing and execution remain separate controls.
+These tools record local metadata. They do not execute work, authenticate roles, verify external evidence, publish issues, or grant autonomy. Before actual autonomous work, the existing bootstrap activation gate still applies. Use `MODEL_ROUTING.md` for offline resource selection and its replayable local decision ledger. Domain-specific substantive validators, live review gates and execution remain separate controls.
 
 ## Connector selection
 

@@ -115,6 +115,8 @@ Local inference has zero marginal API charge but not zero cost: repeated failure
 
 The task contract specifies a **capability tier**, not a vendor name. Provider mappings may change without changing architecture.
 
+`MODEL_ROUTING.md` implements offline selection through `scripts/model_router.py`: exact contract tiers/effort, risk/complexity floors, estimates of accepted-result cost, bounded escalation/fallback and saved decision replay. Its example resources are disabled and fictional. Actual execution still requires the active bootstrap and permission/dependency/review gates; a routing record grants no execution authority.
+
 ## Default bounded escalation
 
 The architect may override this per task.

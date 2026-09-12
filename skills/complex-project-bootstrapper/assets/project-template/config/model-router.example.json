@@ -1,0 +1,229 @@
+{
+  "schema_version": "1.0",
+  "policy": {
+    "version": "synthetic-disabled-example-1.0",
+    "risk_floor": {
+      "low": 0,
+      "medium": 1,
+      "high": 3,
+      "critical": 4
+    },
+    "complexity_floor": {
+      "low": 0,
+      "medium": 2,
+      "high": 3
+    },
+    "min_acceptance": {
+      "low": 0.5,
+      "medium": 0.65,
+      "high": 0.8,
+      "critical": 0.9
+    },
+    "failures_per_tier": 2,
+    "max_review_attempts": 2,
+    "role_api_budget_usd": 5,
+    "wall_second_usd": 0.001,
+    "review_minute_usd": 0.05,
+    "regression_usd": 5,
+    "prior_samples": 5
+  },
+  "providers": [
+    {
+      "id": "lmstudio",
+      "adapter": "lmstudio",
+      "credential_env": null
+    },
+    {
+      "id": "mistral",
+      "adapter": "mistral",
+      "credential_env": "EXAMPLE_MISTRAL_API_KEY"
+    },
+    {
+      "id": "claude",
+      "adapter": "anthropic",
+      "credential_env": "EXAMPLE_CLAUDE_API_KEY"
+    },
+    {
+      "id": "openai",
+      "adapter": "openai",
+      "credential_env": "EXAMPLE_OPENAI_API_KEY"
+    }
+  ],
+  "resources": [
+    {
+      "id": "lmstudio-synthetic-t0",
+      "provider_id": "lmstudio",
+      "model": "fictional-lmstudio-tier-0-example-only",
+      "enabled": false,
+      "tier": 0,
+      "context_window": 16000,
+      "input_million_usd": 0,
+      "output_million_usd": 0,
+      "efforts": {
+        "low": {
+          "acceptance_probability": 0.6,
+          "latency_seconds": 5,
+          "context_churn_tokens": 100,
+          "review_minutes": 5,
+          "regression_probability": 0.1
+        }
+      }
+    },
+    {
+      "id": "lmstudio-synthetic-t1",
+      "provider_id": "lmstudio",
+      "model": "fictional-lmstudio-tier-1-example-only",
+      "enabled": false,
+      "tier": 1,
+      "context_window": 32000,
+      "input_million_usd": 0,
+      "output_million_usd": 0,
+      "efforts": {
+        "low": {
+          "acceptance_probability": 0.68,
+          "latency_seconds": 10,
+          "context_churn_tokens": 200,
+          "review_minutes": 4,
+          "regression_probability": 0.08
+        },
+        "medium": {
+          "acceptance_probability": 0.7,
+          "latency_seconds": 15,
+          "context_churn_tokens": 250,
+          "review_minutes": 4,
+          "regression_probability": 0.07
+        }
+      }
+    },
+    {
+      "id": "mistral-synthetic-t2",
+      "provider_id": "mistral",
+      "model": "fictional-mistral-tier-2-example-only",
+      "enabled": false,
+      "tier": 2,
+      "context_window": 64000,
+      "input_million_usd": 0.2,
+      "output_million_usd": 0.4,
+      "efforts": {
+        "medium": {
+          "acceptance_probability": 0.76,
+          "latency_seconds": 15,
+          "context_churn_tokens": 300,
+          "review_minutes": 3,
+          "regression_probability": 0.06
+        },
+        "high": {
+          "acceptance_probability": 0.78,
+          "latency_seconds": 20,
+          "context_churn_tokens": 350,
+          "review_minutes": 3,
+          "regression_probability": 0.05
+        }
+      }
+    },
+    {
+      "id": "claude-synthetic-t3",
+      "provider_id": "claude",
+      "model": "fictional-claude-tier-3-example-only",
+      "enabled": false,
+      "tier": 3,
+      "context_window": 128000,
+      "input_million_usd": 0.5,
+      "output_million_usd": 1,
+      "efforts": {
+        "high": {
+          "acceptance_probability": 0.84,
+          "latency_seconds": 20,
+          "context_churn_tokens": 400,
+          "review_minutes": 2,
+          "regression_probability": 0.04
+        },
+        "very_high": {
+          "acceptance_probability": 0.86,
+          "latency_seconds": 25,
+          "context_churn_tokens": 450,
+          "review_minutes": 2,
+          "regression_probability": 0.03
+        }
+      }
+    },
+    {
+      "id": "claude-synthetic-t4",
+      "provider_id": "claude",
+      "model": "fictional-claude-tier-4-example-only",
+      "enabled": false,
+      "tier": 4,
+      "context_window": 256000,
+      "input_million_usd": 1,
+      "output_million_usd": 2,
+      "efforts": {
+        "high": {
+          "acceptance_probability": 0.92,
+          "latency_seconds": 25,
+          "context_churn_tokens": 500,
+          "review_minutes": 1,
+          "regression_probability": 0.02
+        },
+        "very_high": {
+          "acceptance_probability": 0.94,
+          "latency_seconds": 30,
+          "context_churn_tokens": 550,
+          "review_minutes": 1,
+          "regression_probability": 0.01
+        }
+      }
+    },
+    {
+      "id": "openai-synthetic-t3",
+      "provider_id": "openai",
+      "model": "fictional-openai-tier-3-example-only",
+      "enabled": false,
+      "tier": 3,
+      "context_window": 128000,
+      "input_million_usd": 0.5,
+      "output_million_usd": 1,
+      "efforts": {
+        "high": {
+          "acceptance_probability": 0.84,
+          "latency_seconds": 20,
+          "context_churn_tokens": 400,
+          "review_minutes": 2,
+          "regression_probability": 0.04
+        },
+        "very_high": {
+          "acceptance_probability": 0.86,
+          "latency_seconds": 25,
+          "context_churn_tokens": 450,
+          "review_minutes": 2,
+          "regression_probability": 0.03
+        }
+      }
+    },
+    {
+      "id": "openai-synthetic-t4",
+      "provider_id": "openai",
+      "model": "fictional-openai-tier-4-example-only",
+      "enabled": false,
+      "tier": 4,
+      "context_window": 256000,
+      "input_million_usd": 1,
+      "output_million_usd": 2,
+      "efforts": {
+        "high": {
+          "acceptance_probability": 0.92,
+          "latency_seconds": 25,
+          "context_churn_tokens": 500,
+          "review_minutes": 1,
+          "regression_probability": 0.02
+        },
+        "very_high": {
+          "acceptance_probability": 0.94,
+          "latency_seconds": 30,
+          "context_churn_tokens": 550,
+          "review_minutes": 1,
+          "regression_probability": 0.01
+        }
+      }
+    }
+  ]
+}
