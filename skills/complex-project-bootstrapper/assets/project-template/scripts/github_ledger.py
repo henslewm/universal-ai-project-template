@@ -58,10 +58,10 @@ def config_valid(config):
         require(valid_branch(branch), "Unsafe branch name")
 
 
-def authority(config, root):
+def authority(config, root, profile=None):
     config_valid(config)
     require(config["enabled"], "GitHub ledger writes are disabled")
-    anchor = feedback.active_anchor(root)
+    anchor = feedback.active_anchor(root, profile)
     project = wp.read_json(Path(root) / "config/project.json")
     permissions = project.get("connector_permissions", {})
     require(isinstance(permissions, dict) and permissions.get("github") == "read-and-project-write",
@@ -146,6 +146,12 @@ def entry_for(task_id, row):
     return {"id": router.digest(summary), "summary": summary, "status": "new", "claim": None, "comment": None}
 
 
+def registry_profile(state):
+    profiles = {row["packet"]["domain_profile"] for row in state["tasks"].values()}
+    require(len(profiles) <= 1, "Registered packets must share one approved domain profile")
+    return next(iter(profiles), None)
+
+
 def validate(state, config, prior=None):
     exact(state, {"schema_version", "config", "anchor", "tasks", "outbox"})
     require(type(state["schema_version"]) is int and state["schema_version"] == 1, "Unsupported registry version")
@@ -164,6 +170,7 @@ def validate(state, config, prior=None):
         if row["pr"]:
             require(row["pr"] not in prs, "Duplicate PR home")
             prs.add(row["pr"])
+    registry_profile(state)
     if state["tasks"]:
         wp.graph_order([row["packet"] for row in state["tasks"].values()])
     reserved_homes = homes | {config["master_issue"]}
@@ -327,7 +334,7 @@ class Ledger:
         return issue
 
     def put_task(self, row, root):
-        anchor = authority(self.config, root)
+        anchor = authority(self.config, root, row["packet"]["domain_profile"])
         state, blob, _ = self.read()
         require(state["anchor"] == anchor, "Current approval differs; registry migration requires a decision")
         prior = copy.deepcopy(state)
@@ -372,6 +379,7 @@ class Ledger:
                     "Authenticated publisher is not allowed; no publication claim was made")
         state, _, _ = self.read()
         require(state["anchor"] == anchor, "Current approval differs")
+        require(authority(self.config, root, registry_profile(state)) == anchor, "Approved project profile differs from the registry")
         # Exactly one publisher holds each operation. Unknown POST results never retry.
         for entry_id in [item["id"] for item in state["outbox"] if item["status"] != "done"]:
             state, blob, commit = self.read()
@@ -403,6 +411,7 @@ class Ledger:
         anchor = authority(self.config, root)
         state, _, _ = self.read()
         require(state["anchor"] == anchor, "Current approval differs")
+        require(authority(self.config, root, registry_profile(state)) == anchor, "Approved project profile differs from the registry")
         row = state["tasks"][task_id]
         self.live_row(row, closing=True)
         entry = next(item for item in state["outbox"] if item["id"] == entry_for(task_id, row)["id"])

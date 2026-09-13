@@ -697,6 +697,17 @@ class LedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Exact state commit"):
             self.client.read(self.client.head() + "\n")
 
+    def test_registry_rejects_packets_from_more_than_one_domain_profile(self):
+        state = self.client.read()[0]
+        first, second = task_row("A", 2), task_row("B", 3)
+        contract = copy.deepcopy(wp.current(second["packet"])["contract"])
+        second["packet"] = wp.create("B", "family-law", contract, "Architect", "Synthetic profile mismatch", timestamp())
+        for task_id, row in (("A", first), ("B", second)):
+            state["tasks"][task_id] = row
+            state["outbox"].append(ledger.entry_for(task_id, row))
+        with self.assertRaisesRegex(ValueError, "share one approved domain profile"):
+            ledger.validate(state, self.config)
+
     def test_every_discovery_requires_its_own_separate_issue(self):
         first = {"summary": "Separate work", "evidence": ["synthetic://discovery-one"]}
         second = {"summary": "Unrelated work", "evidence": ["synthetic://discovery-two"]}
@@ -849,6 +860,25 @@ class AuthorityAndAdapterTests(unittest.TestCase):
         client.initialize(self.directory)
         self.assertEqual(client.read()[0]["anchor"], anchor)
         self.assertEqual([method for method, _, _ in api.mutations], ["POST", "PUT"])
+
+    def test_registered_packet_profile_must_match_the_approved_project(self):
+        approved = wp.read_json(self.directory / "config/bootstrap.json")["domain_profile"]
+        api = MemoryGitHub(self.config)
+        client = ledger.Ledger(self.config, api)
+        client.initialize(self.directory)
+        row = task_row()
+        contract = copy.deepcopy(wp.current(row["packet"])["contract"])
+        row["packet"] = wp.create("TASK-001", "family-law", contract, "Architect", "Synthetic profile mismatch", timestamp())
+        self.assertNotEqual(row["packet"]["domain_profile"], approved)
+        before = list(api.mutations)
+        with self.assertRaisesRegex(ValueError, "Packet profile differs"):
+            client.put_task(row, self.directory)
+        self.assertEqual(api.mutations, before)
+        matching = task_row()
+        self.assertEqual(matching["packet"]["domain_profile"], approved)
+        client.put_task(matching, self.directory)
+        client.publish(self.directory)
+        self.assertEqual(client.read()[0]["tasks"]["TASK-001"]["packet"]["domain_profile"], approved)
 
     def test_disabled_configuration_cannot_mutate_even_with_approval(self):
         self.config["enabled"] = False
