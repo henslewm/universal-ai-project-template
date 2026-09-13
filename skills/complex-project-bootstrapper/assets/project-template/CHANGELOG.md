@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-13 — Issue #7 bounded execution harness
+
+- Add a preparation-and-ingestion adapter that renders only packet-permitted context into a worker brief, emits the exact harness invocation, and never invokes a model or runs the harness command.
+- Refuse a worker report that invents or omits a validation id, grades itself, widens scope, carries credential-like material or exceeds its bound; close an unreported attempt only through an explicit `abandon` with a stated reason.
+- Refuse a dispatch whose brief, rules, declared harness overhead and reserved output cannot fit the window the routed resource is actually served in, closing the spent reservation with the arithmetic as evidence.
+- Bind routed resources to harnesses by configuration with credentials named only by environment variable, and declare a non-Cline adapter so replaceability is demonstrated rather than asserted.
+- Record four operator-executed live runs, including the passing one, with each failure's correction and the limitations carried forward in `docs/ISSUE_7_VALIDATION.md`.
+
 ## 2026-09-12 — Issue #6 GitHub task ledger
 
 - Add canonical task/issue registration, complete packet and feedback publication, exclusive comment claims and pinned recovery.
