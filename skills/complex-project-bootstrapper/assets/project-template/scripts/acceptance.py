@@ -95,6 +95,13 @@ def completed(state, gate):
     return [r for r in state["reviews"] if r["gate"] == gate and r["report"] is not None]
 
 
+def current_completed(state, gate):
+    """Completed reviews of the current submission only. A gate approval recorded before a
+    resubmission examined a superseded artifact and cannot satisfy the gate for this one;
+    the full review history still feeds attempt counting and rejection fingerprints."""
+    return [r for r in completed(state, gate) if r["submission"] == state["resubmissions"]]
+
+
 def deterministic_status(state):
     """Per-validation deterministic gate status from the latest observed check run."""
     checks = state["checks"]
@@ -277,7 +284,8 @@ def apply(state, event):
                                   "gate": opened["gate"], "reviewer": reviewer})
         require(opened["review_id"] == expected, "Review id does not reproduce from its opening record")
         state["reviews"].append({"review_id": opened["review_id"], "gate": opened["gate"],
-                                 "reviewer": copy.deepcopy(reviewer), "report": None, "abandoned": None})
+                                 "reviewer": copy.deepcopy(reviewer), "report": None, "abandoned": None,
+                                 "submission": state["resubmissions"]})
         state.update(status="REVIEW_OPEN", reason="REVIEW_DISPATCHED")
     elif event["kind"] == "REVIEW_RESULT":
         feedback.exact(data, {"report"})
@@ -360,8 +368,8 @@ def apply(state, event):
 
 def approving(state, gate):
     """The review that currently satisfies a review gate, or the stated refusal."""
-    finished = completed(state, gate)
-    require(bool(finished), f"The {gate} gate has no completed review")
+    finished = current_completed(state, gate)
+    require(bool(finished), f"The {gate} gate has no completed review for the current submission")
     latest = finished[-1]
     require(latest["report"]["verdict"] == "APPROVE",
             f"The latest {gate} review did not approve: {latest['report']['verdict']}")
@@ -396,7 +404,7 @@ def gate_summary(state):
     summary = {"deterministic": deterministic_status(state)}
     for gate in REVIEW_GATES:
         if gate in state["gates"]:
-            finished = completed(state, gate)
+            finished = current_completed(state, gate)
             latest = finished[-1] if finished else None
             summary[gate] = {"review_id": latest["review_id"], "reviewer": latest["reviewer"],
                              "verdict": latest["report"]["verdict"]} if latest else None
@@ -657,7 +665,7 @@ def decision_for(state, head):
     """The condensed cross-ledger decision this ledger currently supports."""
     reference = f"acceptance-ledger:{head}"
     if state["accepted"] is not None:
-        finished = completed(state, "model_review")
+        finished = current_completed(state, "model_review")
         if finished:
             latest = finished[-1]
             review_id, reviewer = latest["review_id"], latest["reviewer"]

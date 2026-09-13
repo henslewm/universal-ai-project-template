@@ -592,6 +592,47 @@ class AcceptTests(AcceptanceBase):
         outcome = acceptance.accept(ledger, REVIEWER["actor"])
         self.assertEqual(outcome["status"], "ACCEPTED")
 
+    def test_a_gate_approval_recorded_before_a_resubmission_does_not_satisfy_the_gate(self):
+        # Independent-review finding on Issue #8 itself: without submission binding, a
+        # model_review APPROVE of the superseded artifact plus a post-resubmission
+        # architect_review APPROVE let accept close a submission model_review never examined.
+        ledger, packet = self.start(risk="critical", config=self.config(max_review_attempts=5))
+        contract = wp.current(packet)["contract"]
+        self.checked(ledger)
+        first = self.open_review(ledger)
+        self.ingest(ledger, make_report(first, contract))
+        architect_identity = {"actor": ARCHITECT, "model_family": "opus", "tier": 4}
+        second = self.open_review(ledger, gate="architect_review", reviewer=architect_identity)
+        rejection = make_report(second, contract, reviewer=architect_identity, verdict="REJECT_BOUNDED",
+                                criteria=[{"criterion_id": "AC-VALID", "status": "not_met",
+                                           "evidence": ["Observed defect"]},
+                                          {"criterion_id": "AC-INVALID", "status": "met",
+                                           "evidence": ["Cited from the review packet"]}],
+                                contract_failures=[make_failure()])
+        self.ingest(ledger, rejection)
+        acceptance.append(ledger, "RESUBMIT",
+                          {"result": make_result(packet), "artifact": make_artifact("corrected content\n"),
+                           "implementers": IMPLEMENTERS},
+                          previous_state=acceptance.replay(ledger))
+        self.checked(ledger)
+        third = self.open_review(ledger, gate="architect_review", reviewer=architect_identity)
+        self.ingest(ledger, make_report(third, contract, reviewer=architect_identity))
+        acceptance.append(ledger, "DECISION",
+                          {"decision": {"decider": "Winston", "decision": "approve",
+                                        "reason": "Synthetic explicit user approval"}},
+                          previous_state=acceptance.replay(ledger))
+        acceptance.append(ledger, "WAIVER",
+                          {"waiver": {"operator": "Winston",
+                                      "reason": "Synthetic waiver so only the stale approval blocks"}},
+                          previous_state=acceptance.replay(ledger))
+        with self.assertRaisesRegex(ValueError, "model_review gate has no completed review for the current submission"):
+            acceptance.accept(ledger, REVIEWER["actor"])
+        fourth = self.open_review(ledger)
+        self.ingest(ledger, make_report(fourth, contract))
+        outcome = acceptance.accept(ledger, REVIEWER["actor"])
+        self.assertEqual(outcome["status"], "ACCEPTED")
+        self.assertEqual(outcome["gates"]["model_review"]["review_id"], fourth["review_id"])
+
     def test_user_rejection_is_terminal(self):
         ledger, _ = self.start(risk="critical")
         self.checked(ledger)
