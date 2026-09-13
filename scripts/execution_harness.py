@@ -13,7 +13,7 @@ import model_router as router
 import work_packet as wp
 
 ROOT = Path(__file__).resolve().parent.parent
-PLACEHOLDERS = {"provider", "model", "rules", "brief", "report", "workspace"}
+PLACEHOLDERS = {"provider", "model", "rules", "brief", "report", "workspace", "rundir"}
 ENV_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,99}")
 # Conservative shapes for material that must never reach configuration, briefs, reports or logs.
 SECRETS = (
@@ -116,7 +116,8 @@ def brief(context, routing, binding, dispatch_id):
 def invocation(harness, binding, paths):
     values = {"provider": binding["provider"], "model": binding["model"],
               "rules": str(paths["rules"]), "brief": str(paths["brief"]),
-              "report": str(paths["report"]), "workspace": str(paths["workspace"])}
+              "report": str(paths["report"]), "workspace": str(paths["workspace"]),
+              "rundir": str(paths["rundir"])}
     argv = [harness["command"]] + [argument.format(**values) for argument in harness["argv"]]
     environment = [binding["credential_env"]] if binding["credential_env"] else []
     return {"argv": argv, "required_environment": environment, "api_base": binding["api_base"],
@@ -153,7 +154,8 @@ def dispatch(directory, config, router_config, request, root, destination):
         return {"status": "HARNESS_UNAVAILABLE", "reason": str(exc), "dispatch_id": reserved["dispatch_id"],
                 "prepared": False, "attempt_closed": True, "destination": str(destination),
                 "executed": False, "execution_authorized": False}
-    paths = {"brief": destination / "brief.json", "rules": destination / "BOUNDED_WORKER_RULES.md",
+    paths = {"rundir": destination, "brief": destination / "brief.json",
+             "rules": destination / "BOUNDED_WORKER_RULES.md",
              "report": destination / "report.json", "workspace": destination / "workspace"}
     paths["workspace"].mkdir()
     wp.write_new(paths["brief"], rendered)
@@ -200,6 +202,29 @@ def ingest(directory, config, report_path):
             "independent_acceptance": False}
 
 
+def verify_report(config, brief_path, report_path):
+    """Validate a worker report against its own brief, without a task ledger.
+
+    Used for an operator-run harness demonstration: it proves the report contract holds
+    for a real worker run, and deliberately records nothing and accepts nothing.
+    """
+    config_valid(config)
+    document = wp.read_json(Path(brief_path))
+    feedback.exact(document, {"schema_version", "dispatch_id", "binding", "harness", "bounds",
+                              "contract", "architect_guidance", "prior_failures",
+                              "failure_groups", "worker_rule", "report_contract"})
+    path = Path(report_path)
+    report = wp.read_json(path)
+    report_valid(report, document["contract"], document["dispatch_id"],
+                 config["limits"], path.stat().st_size)
+    return {"valid": True, "dispatch_id": report["dispatch_id"], "outcome": report["outcome"],
+            "scope_status": report["scope_status"],
+            "validation_ids": sorted(check["check_id"] for check in report["validation"]),
+            "checks_passed": sum(1 for check in report["validation"] if check["passed"]),
+            "checks_total": len(report["validation"]), "discoveries": len(report["discoveries"]),
+            "recorded_in_ledger": False, "independent_acceptance": False}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
@@ -214,6 +239,9 @@ def main(argv=None):
     take = commands.add_parser("ingest")
     take.add_argument("ledger", type=Path)
     take.add_argument("report", type=Path)
+    check = commands.add_parser("verify-report")
+    check.add_argument("brief", type=Path)
+    check.add_argument("report", type=Path)
     args = parser.parse_args(argv)
     try:
         config = wp.read_json(args.config)
@@ -221,6 +249,8 @@ def main(argv=None):
             config_valid(config)
             result = {"valid": True, "harnesses": [item["id"] for item in config["harnesses"]],
                       "enabled": config["enabled"], "credentials_embedded": False}
+        elif args.command == "verify-report":
+            result = verify_report(config, args.brief, args.report)
         elif args.command == "dispatch":
             result = dispatch(args.ledger, config, wp.read_json(args.router_config),
                               wp.read_json(args.request), args.root, args.destination)

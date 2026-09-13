@@ -48,7 +48,10 @@ class HarnessConfigTests(unittest.TestCase):
             (lambda c: c["bindings"][0].update(api_base="file:///etc/passwd"), "Unsafe API base"),
             (lambda c: c["harnesses"][0]["argv"].append("--key={provider_secret}"), "Unsupported placeholder"),
             (lambda c: c["harnesses"][0].update(command="{brief}"), "command itself cannot be templated"),
-            (lambda c: c["harnesses"][0]["argv"].remove("{brief}"), "must receive the brief"),
+            (lambda c: c["harnesses"][0].update(argv=[a.replace("{brief}", "") for a in c["harnesses"][0]["argv"]]),
+             "must receive the brief"),
+            (lambda c: c["harnesses"][0].update(argv=[a.replace("{report}", "") for a in c["harnesses"][0]["argv"]]),
+             "must write a report"),
             (lambda c: c["harnesses"][0]["argv"].append("--api-key=sk-abcdefghijklmnopqrstuvwxyz"), "credential-like"),
             (lambda c: c["harnesses"][0]["argv"].append("authorization: Bearer x"), "credential-like"),
         ):
@@ -112,8 +115,10 @@ class HarnessDispatchTests(HarnessBase):
         self.assertFalse((destination / "report.json").exists(), "the worker writes its own report")
         plan = wp.read_json(destination / "invocation.json")
         self.assertEqual(plan["argv"][0], "cline")
-        self.assertIn(str(destination / "brief.json"), plan["argv"])
-        self.assertIn(str(destination / "report.json"), plan["argv"])
+        rendered = "\u0000".join(plan["argv"])
+        for path in ("brief.json", "report.json", "BOUNDED_WORKER_RULES.md", "workspace"):
+            self.assertIn(str(destination / path), rendered)
+        self.assertNotIn("{", rendered, "every placeholder must be substituted")
         self.assertEqual(plan["required_environment"], [])
 
     def test_brief_carries_only_packet_permitted_context_and_stays_bounded(self):
@@ -234,6 +239,29 @@ class HarnessReportTests(HarnessBase):
                 with self.assertRaises(ValueError):
                     harness.report_valid(report, contract, prepared["dispatch_id"],
                                          self.config["limits"], len(json.dumps(report)))
+
+    def test_verify_report_checks_a_run_without_recording_or_accepting_it(self):
+        prepared = self.prepare()
+        brief_path = Path(prepared["destination"]) / "brief.json"
+        _, path = self.report(prepared, outcome="PASS", passed=True)
+        verified = harness.verify_report(self.config, brief_path, path)
+        self.assertTrue(verified["valid"])
+        self.assertEqual(verified["outcome"], "PASS")
+        self.assertEqual(verified["checks_passed"], verified["checks_total"])
+        self.assertFalse(verified["recorded_in_ledger"])
+        self.assertFalse(verified["independent_acceptance"])
+        # Verification must not touch the ledger, so the attempt is still pending.
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+        # It applies the same report contract as ingestion.
+        broken = wp.read_json(path)
+        broken["validation"][0]["check_id"] = "invented-check"
+        wp.write_new(Path(prepared["destination"]) / "broken.json", json.dumps(broken))
+        with self.assertRaisesRegex(ValueError, "and no other id"):
+            harness.verify_report(self.config, brief_path, Path(prepared["destination"]) / "broken.json")
+        # A brief that is not a harness brief is refused rather than trusted.
+        wp.write_new(Path(prepared["destination"]) / "not-a-brief.json", json.dumps({"contract": {}}))
+        with self.assertRaisesRegex(ValueError, "Expected fields"):
+            harness.verify_report(self.config, Path(prepared["destination"]) / "not-a-brief.json", path)
 
     def test_ingest_requires_a_reserved_dispatch(self):
         _, path = self.report({"dispatch_id": "a" * 64, "destination": str(self.base)})

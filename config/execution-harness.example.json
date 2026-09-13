@@ -11,20 +11,35 @@
       "adapter": "cline",
       "command": "cline",
       "argv": [
-        "--provider", "{provider}",
-        "--model", "{model}",
-        "--rules", "{rules}",
-        "--task-file", "{brief}",
-        "--output", "{report}",
-        "--cwd", "{workspace}"
+        "--data-dir",
+        "{rundir}/harness-state",
+        "--cwd",
+        "{rundir}",
+        "--provider",
+        "{provider}",
+        "--model",
+        "{model}",
+        "--thinking",
+        "medium",
+        "--auto-approve",
+        "true",
+        "--json",
+        "Read {rules} and the contract in {brief}. Do exactly what that contract requires inside {workspace}, run its validation, then write your report to {report}."
       ],
-      "description": "Cline CLI as a bounded worker. Confirm the flag names against the installed Cline version before enabling; the adapter never invokes it."
+      "description": "Cline CLI as a bounded worker. Flags confirmed against Cline CLI 3.86.2: --data-dir gives the run its own isolated state so no global Cline configuration is touched, and the worker writes the report itself because the CLI has no output-file flag. Re-confirm the flags against your installed version; this adapter never runs the command."
     },
     {
       "id": "replacement-harness",
       "adapter": "command",
       "command": "example-replacement-harness",
-      "argv": ["--brief", "{brief}", "--report", "{report}", "--workspace", "{workspace}"],
+      "argv": [
+        "--brief",
+        "{brief}",
+        "--report",
+        "{report}",
+        "--workspace",
+        "{workspace}"
+      ],
       "description": "Illustrates that any harness accepting a brief and writing a report can replace Cline without changing packets or contracts."
     }
   ],
