@@ -2,17 +2,30 @@
 
 - **Prepared:** 2026-09-13 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** issue-6-github-ledger
-- **Scope:** Issue #6 only; master #14 is unchanged.
+- **Branch:** issue-7-cline-harness
+- **Latest pushed commit:** `008f409a2962f871a3f421bb403abc41703b9649`
+- **Scope:** Issue #7 only; master #14 is unchanged.
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #6](https://github.com/henslewm/universal-ai-project-template/issues/6) and [PR #19](https://github.com/henslewm/universal-ai-project-template/pull/19). Issues #2 through #5 are closed; latest accepted merge is PR #18 at `7b4f88f982f32db97c9b7ad17b4c042c4503f8fe` with 157 passing GitHub tests. Completion and review evidence are linked in the issues.
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #7](https://github.com/henslewm/universal-ai-project-template/issues/7) and [PR #20](https://github.com/henslewm/universal-ai-project-template/pull/20). Issues #2 through #6 are closed; the latest accepted merge is PR #19 at `5e0a28c62ff9fdaa9c9764713742e97f12061040`, which closed #6 after five automatic review rounds and one independent review. Completion evidence and the limitations carried forward are linked in those issues.
 
-Five automatic review rounds and one independent review have been answered in place. The independent review of `a74a980` found two P1 dead ends (a PR closed without merging, and a lost publication-claim write) plus two P2 and three P3 defects; all are corrected on this branch under ADR-008, with the reviewer's own test-design finding closed as well. Codex then reviewed that remediation and found one P1 and two P2 defects in it, all corrected under ADR-009: the claim-release path was removed because full comment pagination proves only present absence, and publication now commits a distinct `posting` phase so a `claimed` entry is durable proof no POST was attempted and is simply resumable. `docs/ISSUE_6_VALIDATION.md` records each round and `GITHUB_LEDGER_PROTOCOL.md` states the resulting rules. The registry row gained `superseded_prs` and each publication entry gained `author`, so any registry written before this change must be re-read through the current validator.
+#7 delivers a bounded, replaceable worker harness occupying one gap only: between the reservation the feedback controller grants and the result it records. `EXECUTION_HARNESS_PROTOCOL.md` is the contract. `scripts/execution_harness.py` prepares and ingests; it never invokes a model and never runs the harness command. Routing, attempt budgets and scope rules stay outside it, so Cline never becomes the architect. Decisions are ADR-010 and ADR-011.
 
-Next action: confirm current-head GitHub CI and review, answer any remaining findings the same way, then merge PR #19, close #6 with evidence, and reread master #14 before #7. Continue through #13 one child at a time. Live GitHub records determine acceptance, not these documents.
+Working tree is clean and nothing is unpushed. The offline half is complete: 16 harness tests and the full suite of 232 tests pass on Linux and Windows, repository validation passes and the bootstrap distribution check reports 0 differing files.
 
-Open limitation to carry forward: the independent review was performed by the same model family as the implementer and without live GitHub access, not by a different strong model as master #14 prefers. A Codex pass on the final head is still wanted, and the remote-semantics questions it could not settle — percent-encoding of refs, Contents-API SHA rejection, compare status values, PATCH idempotence — remain verified only against documentation and the synthetic fake.
+## The one criterion still unmet
 
-Local tooling note: this checkout has no repository virtualenv; `jsonschema` is installed into a disposable interpreter outside the repository. A venv inside the working tree makes `scripts/validate_project.py` fail on vendored `.pem` files, so keep it outside.
+"A bounded sample task can execute through Cline using LM Studio" is **not yet satisfied**. An operator run on 2026-09-13 against `ektome-qwen2.5-coder-7b-instruct` produced no report at all: the model narrated tool calls as prose, never read the brief, explicitly assumed hypothetical requirements, then claimed in past tense to have completed the work. Session telemetry showed `enableTools: true` and zero tool invocations, so Cline was configured correctly and the model simply did not use tools. Full transcript analysis is in #7.
 
-The template remains unactivated. Connector tests use synthetic isolated GitHub fixtures and supplied feedback evidence, not live model execution or substantive independent acceptance. A pre-POST claim is resumable; an attempted publication with no visible comment stays uncertain and is never retried. Recovery exports are not dispatch authority. Live harness enforcement remains #7 and acceptance machinery #8. No master edits, credentials, permission changes or branch deletion are part of #6.
+Two things follow. The report contract held — the fabricated success reached no record, because no conforming report existed. And the run exposed a stranding path in the harness itself, now fixed under ADR-011: a dispatched attempt producing no report left the reservation pending forever, so `ingest` now refuses a missing or malformed report without touching the reservation, and `abandon` closes it with an operator-stated reason as evidence. Absence is never inferred.
+
+Next action: either retry the live run with a tool-calling-capable local model (`qwen/qwen3.8-27b` is loaded and is the mapped local escalation tier), or accept #7 with this limitation stated explicitly and carry model-capability calibration into #12. That is the maintainer's decision and it is recorded as open in #7. After it is settled: request review on PR #20, answer findings in place, merge, close #7 with evidence, and reread master #14 before #8.
+
+## Environment and tooling notes
+
+The template is deliberately unactivated: `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` reports `BOOTSTRAP INVALID: no such file`, so autonomy on a real project is not authorized and nothing in this work activates it. Everything proceeds as the maintainer's explicitly authorized template maintenance.
+
+`scripts/sync_skills.py` (without `--check`) mirrors the whole tree into the distribution payload; use it rather than copying files by hand, and `--check` is what CI enforces. This checkout has no repository virtualenv, and must not gain one: a venv inside the working tree makes `scripts/validate_project.py` fail on vendored `.pem` files. `jsonschema==4.26.0` is installed into a disposable interpreter outside the repository. Confirm harness flags against the installed harness version before enabling a binding; the committed Cline argv was illustrative and wrong until it was checked against Cline CLI 3.86.2.
+
+## Boundaries
+
+All harness fixtures are synthetic and offline. The adapter records assertions a worker makes about its own validation, cost and scope; those are supplied evidence, not proof. It does not authenticate roles, verify that a model was called, confirm a command ran, or accept work. No credential belongs in configuration, briefs, reports, run directories or logs. Independent acceptance machinery remains #8, and model-performance calibration remains #12. No master edits, credential changes, permission changes or branch deletion are part of #7.
