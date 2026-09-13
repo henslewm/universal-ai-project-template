@@ -72,6 +72,7 @@ class HarnessConfigTests(unittest.TestCase):
             (lambda c: c["limits"].pop("chars_per_token"), "chars_per_token"),
             (lambda c: c["harnesses"][0].pop("context_overhead_tokens"), "context_overhead_tokens"),
             (lambda c: c["bindings"][0].pop("served_context_window"), "served_context_window"),
+            (lambda c: c["limits"].pop("context_growth_reserve_tokens"), "context_growth_reserve_tokens"),
         ):
             with self.subTest(expected=expected):
                 value = configuration()
@@ -184,9 +185,7 @@ class HarnessDispatchTests(HarnessBase):
     def test_brief_carries_only_packet_permitted_context_and_stays_bounded(self):
         prepared = self.prepare()
         brief = wp.read_json(Path(prepared["destination"]) / "brief.json")
-        harness.feedback.exact(brief, {"schema_version", "dispatch_id", "binding", "harness", "paths",
-                                       "bounds", "contract", "architect_guidance", "prior_failures",
-                                       "failure_groups", "worker_rule", "report_contract"})
+        harness.feedback.exact(brief, harness.BRIEF_FIELDS)
         contract = wp.current(self.packet)["contract"]
         self.assertEqual(brief["contract"], contract)
         for required in ("scope", "context_scope", "architecture_boundaries", "non_goals", "validation"):
@@ -213,8 +212,6 @@ class HarnessDispatchTests(HarnessBase):
             # server is loaded with 8192, and the harness prompt alone claims 7000 of them.
             ("served-window-too-small", lambda c: c["bindings"][0].update(served_context_window=8192),
              "is served a 8192-token window"),
-            ("overstated-window", lambda c: c["bindings"][0].update(served_context_window=200000),
-             "more than the 100000 it declares"),
         ):
             with self.subTest(case=name):
                 value = configuration()
@@ -251,10 +248,70 @@ class HarnessDispatchTests(HarnessBase):
                                     "the estimate must not understate the material handed over")
         self.assertEqual(estimate["required_tokens"],
                          estimate["harness_overhead_tokens"] + estimate["brief_tokens"]
-                         + estimate["rules_tokens"] + estimate["reserved_output_tokens"])
+                         + estimate["rules_tokens"] + estimate["reserved_output_tokens"]
+                         + estimate["growth_reserve_tokens"])
         self.assertEqual(estimate["headroom_tokens"],
                          estimate["served_context_window"] - estimate["required_tokens"])
         self.assertGreater(estimate["headroom_tokens"], 0)
+
+    def test_a_binding_overstating_its_window_is_refused_before_a_reservation_is_spent(self):
+        value = configuration()
+        value["bindings"][0].update(served_context_window=200000)
+        with self.assertRaisesRegex(ValueError, "more than the 100000 it declares"):
+            harness.dispatch(self.ledger, value, self.router, options(), self.project, self.base / "overstated")
+        # A configuration contradiction needs no attempt to detect, so it must not cost one.
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"], [])
+        self.assertFalse((self.base / "overstated").exists(), "no run directory for a refused dispatch")
+
+    def test_a_refused_reservation_leaves_no_run_directory_to_block_a_retry(self):
+        blocked = self.fresh_ledger("ledger-held")
+        # An approval anchor that no longer matches this task's INIT holds the reservation.
+        with mock.patch.object(harness.feedback, "active_anchor", return_value="0" * 64):
+            outcome = harness.dispatch(blocked, self.config, self.router, options(), self.project,
+                                       self.base / "held")
+        self.assertEqual(outcome["status"], "NEEDS_DECISION")
+        self.assertFalse(outcome["prepared"])
+        self.assertFalse((self.base / "held").exists(),
+                         "a directory created for an attempt that never existed would block the retry")
+
+    def test_capacity_check_reserves_room_for_the_run_growing_past_its_first_prompt(self):
+        prepared = self.prepare()
+        estimate = prepared["context_estimate"]
+        reserve = self.config["limits"]["context_growth_reserve_tokens"]
+        self.assertGreater(reserve, 0, "the committed example must reserve room for observed growth")
+        self.assertEqual(estimate["growth_reserve_tokens"], reserve)
+        self.assertIn(reserve, [estimate["required_tokens"] - sum(
+            estimate[key] for key in ("harness_overhead_tokens", "brief_tokens", "rules_tokens",
+                                      "reserved_output_tokens"))])
+        # A window that fits the opening prompt but not the run is refused, not dispatched.
+        value = configuration()
+        opening = estimate["required_tokens"] - reserve
+        value["bindings"][0].update(served_context_window=opening + 1)
+        outcome = harness.dispatch(self.fresh_ledger("ledger-growth"), value, self.router, options(),
+                                   self.project, self.base / "growth")
+        self.assertEqual(outcome["status"], "HARNESS_UNAVAILABLE")
+        self.assertRegex(outcome["reason"], "declared growth reserve")
+
+    def test_the_brief_bound_measures_the_file_the_worker_is_handed(self):
+        value = configuration()
+        prepared = harness.dispatch(self.fresh_ledger("ledger-size"), value, self.router, options(),
+                                    self.project, self.base / "sized")
+        delivered = (Path(prepared["destination"]) / "brief.json").read_text(encoding="utf-8")
+        # The readable file is larger than the canonical form, so a bound that measured only the
+        # canonical form would let an oversize brief reach the worker.
+        self.assertGreater(len(delivered), prepared["brief_chars"])
+        value = configuration()
+        value["limits"]["brief_max_chars"] = len(delivered) - 1
+        outcome = harness.dispatch(self.fresh_ledger("ledger-tight"), value, self.router, options(),
+                                   self.project, self.base / "tight")
+        self.assertEqual(outcome["status"], "HARNESS_UNAVAILABLE")
+        self.assertRegex(outcome["reason"], "exceeds its configured bound")
+
+    def test_the_brief_field_set_is_declared_once(self):
+        prepared = self.prepare()
+        document = wp.read_json(Path(prepared["destination"]) / "brief.json")
+        self.assertEqual(set(document), harness.BRIEF_FIELDS)
+        harness.feedback.exact(document, harness.BRIEF_FIELDS)
 
     def test_a_second_dispatch_cannot_reserve_while_one_attempt_is_pending(self):
         prepared = self.prepare()

@@ -12,7 +12,7 @@
     "limits": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["brief_max_chars", "report_max_bytes", "chars_per_token"],
+      "required": ["brief_max_chars", "report_max_bytes", "chars_per_token", "context_growth_reserve_tokens"],
       "properties": {
         "brief_max_chars": {"type": "integer", "minimum": 1000, "maximum": 400000},
         "report_max_bytes": {"type": "integer", "minimum": 200, "maximum": 2000000},
@@ -21,6 +21,12 @@
           "exclusiveMinimum": 0,
           "maximum": 8,
           "description": "Conservative characters-per-token divisor for estimating how much context a brief consumes. Smaller is more conservative."
+        },
+        "context_growth_reserve_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000,
+          "description": "Tokens reserved for the run's own growth after the first prompt: tool results, file reads, command output and repeated iterations. The capacity check covers the opening prompt only, so without this reserve a dispatch that fits at the first turn can still exhaust the window later. Calibrate it from observed runs of comparable packets."
         }
       }
     },

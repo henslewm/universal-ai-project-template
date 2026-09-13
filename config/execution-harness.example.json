@@ -4,7 +4,8 @@
   "limits": {
     "brief_max_chars": 40000,
     "report_max_bytes": 400000,
-    "chars_per_token": 3.5
+    "chars_per_token": 3.5,
+    "context_growth_reserve_tokens": 4000
   },
   "harnesses": [
     {

@@ -27,6 +27,9 @@ SECRETS = (
 )
 REPORT_FIELDS = {"dispatch_id", "outcome", "summary", "scope_status", "architecture_conflict",
                  "validation", "evidence", "discoveries", "api_cost_usd", "cost_evidence"}
+# Declared once: the brief renderer, the ledger-free verifier and the tests all read this.
+BRIEF_FIELDS = {"schema_version", "dispatch_id", "binding", "harness", "paths", "bounds", "contract",
+                "architect_guidance", "prior_failures", "failure_groups", "worker_rule", "report_contract"}
 
 
 def check_fields():
@@ -90,6 +93,22 @@ def routed_resource(router_config, routing):
     return matches[0]
 
 
+def bindings_consistent(config, router_config):
+    """Refuse a binding that claims more context than its routed resource declares.
+
+    This needs no reservation, so it runs before one is spent: a configuration contradiction
+    must not cost a bounded attempt and escalate the task to an architect decision.
+    """
+    declared = {resource["id"]: int(resource["context_window"]) for resource in router_config["resources"]}
+    for binding in config["bindings"]:
+        window = binding["served_context_window"]
+        limit = declared.get(binding["resource_id"])
+        require(window is None or limit is None or int(window) <= limit,
+                f"Binding states {window} served context tokens for resource "
+                f"{binding['resource_id']}, more than the {limit} it declares")
+    return config
+
+
 def context_estimate(config, harness, binding, resource, request, brief_chars, rules_chars):
     """Estimate whether everything the worker must read fits the window it is actually served.
 
@@ -114,9 +133,10 @@ def context_estimate(config, harness, binding, resource, request, brief_chars, r
                 "harness_overhead_tokens": int(harness["context_overhead_tokens"]),
                 "brief_tokens": tokens(brief_chars), "rules_tokens": tokens(rules_chars),
                 "reserved_output_tokens": int(request["output_tokens"])}
+    estimate["growth_reserve_tokens"] = int(config["limits"]["context_growth_reserve_tokens"])
     estimate["required_tokens"] = sum(estimate[key] for key in
                                       ("harness_overhead_tokens", "brief_tokens", "rules_tokens",
-                                       "reserved_output_tokens"))
+                                       "reserved_output_tokens", "growth_reserve_tokens"))
     estimate["headroom_tokens"] = window - estimate["required_tokens"]
     return estimate
 
@@ -193,12 +213,17 @@ def dispatch(directory, config, router_config, request, root, destination):
     """Reserve one bounded attempt and write the worker brief; never run the harness."""
     config_valid(config)
     require(config["enabled"], "Execution harness dispatch is disabled")
+    bindings_consistent(config, router_config)
     destination = Path(destination)
-    destination.mkdir(parents=True, exist_ok=False)
+    # Refuse a reused run directory before spending anything, but create it only once an
+    # attempt actually exists: a refused reservation must not leave a directory that blocks retry.
+    if destination.exists():
+        raise FileExistsError(f"Run directory already exists: {destination}")
     reserved = feedback.reserve(directory, router_config, request, root)
     if reserved["status"] != "DISPATCH":
         return {"status": reserved["status"], "reason": reserved["reason"], "dispatch_id": reserved["dispatch_id"],
                 "prepared": False, "destination": str(destination)}
+    destination.mkdir(parents=True, exist_ok=False)
     paths = {"rundir": destination, "brief": destination / "brief.json",
              "rules": destination / "BOUNDED_WORKER_RULES.md",
              "report": destination / "report.json", "workspace": destination / "workspace"}
@@ -206,16 +231,20 @@ def dispatch(directory, config, router_config, request, root, destination):
         binding, harness = binding_for(config, reserved["routing"])
         document, rendered, readable = brief(reserved["context"], reserved["routing"], binding,
                                              reserved["dispatch_id"], paths)
-        require(len(rendered) <= config["limits"]["brief_max_chars"], "Brief exceeds its configured bound")
+        # Bound and scan the artifact the worker actually receives, not only its canonical form.
+        require(max(len(readable), len(rendered)) <= config["limits"]["brief_max_chars"],
+                "Brief exceeds its configured bound")
         secret_free(rendered, "Worker brief")
+        secret_free(readable, "Worker brief")
         require("{" not in document["report_contract"]["write_to"], "The report path must be substituted")
         rules = rules_text()
         estimate = context_estimate(config, harness, binding, routed_resource(router_config, reserved["routing"]),
                                     request, len(readable), len(rules))
         require(estimate["headroom_tokens"] >= 0,
-                f"Brief, rules, harness prompt and reserved output need about {estimate['required_tokens']} "
-                f"tokens, but {binding['resource_id']} is served a {estimate['served_context_window']}-token "
-                "window; enlarge the served window, route a larger resource, or decompose the contract")
+                f"Brief, rules, harness prompt, reserved output and the declared growth reserve need about "
+                f"{estimate['required_tokens']} tokens, but {binding['resource_id']} is served a "
+                f"{estimate['served_context_window']}-token window; enlarge the served window, "
+                "route a larger resource, or decompose the contract")
     except ValueError as exc:
         # The reservation is already spent, so close it with honest evidence rather than leaving it pending.
         feedback.complete(directory, {
@@ -282,9 +311,7 @@ def verify_report(config, brief_path, report_path):
     """
     config_valid(config)
     document = wp.read_json(Path(brief_path))
-    feedback.exact(document, {"schema_version", "dispatch_id", "binding", "harness", "paths", "bounds",
-                              "contract", "architect_guidance", "prior_failures",
-                              "failure_groups", "worker_rule", "report_contract"})
+    feedback.exact(document, BRIEF_FIELDS)
     path = Path(report_path)
     report = wp.read_json(path)
     report_valid(report, document["contract"], document["dispatch_id"],
