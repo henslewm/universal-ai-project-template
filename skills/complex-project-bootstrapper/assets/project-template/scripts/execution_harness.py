@@ -28,6 +28,11 @@ REPORT_FIELDS = {"dispatch_id", "outcome", "summary", "scope_status", "architect
                  "validation", "evidence", "discoveries", "api_cost_usd", "cost_evidence"}
 
 
+def check_fields():
+    """The exact fields a reported validation check needs, read from the controller's own schema."""
+    return sorted(feedback.SCHEMA["$defs"]["validation_check"]["required"])
+
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
@@ -99,18 +104,28 @@ def brief(context, routing, binding, dispatch_id):
         "report_contract": {
             "write_to": "{report}",
             "required_fields": sorted(REPORT_FIELDS),
+            "validation_check_fields": check_fields(),
+            "outcomes": ["PASS", "FAIL", "BLOCKED", "NEEDS_ESCALATION",
+                         "ARCHITECTURE_CONFLICT", "PROVIDER_UNAVAILABLE"],
+            "scope_status_values": ["within", "violated", "unknown"],
             "rules": [
                 "Report exactly these fields as one JSON object; any other field is refused.",
                 "dispatch_id must be the value above; a report without it is refused.",
                 "Report one validation check per contract validation id, and no other ids.",
+                "Each validation check is an object with exactly the fields in validation_check_fields."
+                " The contract's validation id goes in check_id, not id. passed is a boolean."
+                " failure_code, expected and actual are strings and may be empty. evidence is a list of strings.",
+                "outcome is one of outcomes; scope_status is one of scope_status_values.",
+                "api_cost_usd is a number and cost_evidence is a string; state them plainly.",
                 "Claim PASS only when every check passed and scope_status is within.",
                 "Record anything outside this contract as a discovery; never widen scope or edit the contract.",
                 "Never include credentials, tokens or private keys in any field.",
             ],
         },
     }
-    rendered = wp.canonical(document)
-    return document, rendered
+    # Measure and scan the canonical form, but hand the worker an indented file: a line-based
+    # reader truncates one very long line, and a worker must not need a workaround to read its brief.
+    return document, wp.canonical(document), json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
 def invocation(harness, binding, paths):
@@ -140,7 +155,7 @@ def dispatch(directory, config, router_config, request, root, destination):
                 "prepared": False, "destination": str(destination)}
     try:
         binding, harness = binding_for(config, reserved["routing"])
-        document, rendered = brief(reserved["context"], reserved["routing"], binding, reserved["dispatch_id"])
+        document, rendered, readable = brief(reserved["context"], reserved["routing"], binding, reserved["dispatch_id"])
         require(len(rendered) <= config["limits"]["brief_max_chars"], "Brief exceeds its configured bound")
         secret_free(rendered, "Worker brief")
     except ValueError as exc:
@@ -158,7 +173,7 @@ def dispatch(directory, config, router_config, request, root, destination):
              "rules": destination / "BOUNDED_WORKER_RULES.md",
              "report": destination / "report.json", "workspace": destination / "workspace"}
     paths["workspace"].mkdir()
-    wp.write_new(paths["brief"], rendered)
+    wp.write_new(paths["brief"], readable)
     wp.write_new(paths["rules"], rules_text())
     plan = invocation(harness, binding, paths)
     wp.write_new(destination / "invocation.json", json.dumps(plan, indent=2, ensure_ascii=False))

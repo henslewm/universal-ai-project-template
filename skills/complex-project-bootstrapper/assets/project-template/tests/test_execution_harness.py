@@ -121,6 +121,38 @@ class HarnessDispatchTests(HarnessBase):
         self.assertNotIn("{", rendered, "every placeholder must be substituted")
         self.assertEqual(plan["required_environment"], [])
 
+    def test_brief_is_readable_line_by_line_and_states_the_whole_report_contract(self):
+        prepared = self.prepare()
+        path = Path(prepared["destination"]) / "brief.json"
+        text = path.read_text(encoding="utf-8")
+        # A line-based reader must not need a workaround: the brief is indented, not one long line.
+        self.assertGreater(len(text.splitlines()), 20)
+        self.assertLess(max(len(line) for line in text.splitlines()), 2000)
+        contract = wp.read_json(path)["report_contract"]
+        self.assertEqual(contract["validation_check_fields"],
+                         sorted(harness.feedback.SCHEMA["$defs"]["validation_check"]["required"]))
+        self.assertIn("check_id", contract["validation_check_fields"])
+        self.assertNotIn("id", contract["validation_check_fields"])
+        rules = " ".join(contract["rules"])
+        self.assertIn("check_id, not id", rules)
+        # Every value the validator enforces is stated, so a compliant worker can actually comply.
+        self.assertEqual(sorted(contract["required_fields"]), sorted(harness.REPORT_FIELDS))
+        self.assertIn("PROVIDER_UNAVAILABLE", contract["outcomes"])
+        self.assertEqual(contract["scope_status_values"], ["within", "violated", "unknown"])
+        # A report built strictly from the stated contract is accepted.
+        report = {field: None for field in contract["required_fields"]}
+        report.update(dispatch_id=prepared["dispatch_id"], outcome="PASS", scope_status="within",
+                      summary="Built only from the fields the brief states.", architecture_conflict=False,
+                      evidence=["command, stdout and exit code"], discoveries=[], api_cost_usd=0,
+                      cost_evidence="Local worker; no metered usage.",
+                      validation=[{"check_id": check["id"], "passed": True, "failure_code": "",
+                                   "expected": "checker exits 0", "actual": "checker exited 0",
+                                   "evidence": ["python workspace/check.py -> ALL CHECKS PASSED"]}
+                                  for check in wp.read_json(path)["contract"]["validation"]])
+        wp.write_new(Path(prepared["destination"]) / "report.json", json.dumps(report, indent=2))
+        ingested = harness.ingest(self.ledger, self.config, Path(prepared["destination"]) / "report.json")
+        self.assertEqual(ingested["outcome"], "PASS")
+
     def test_brief_carries_only_packet_permitted_context_and_stays_bounded(self):
         prepared = self.prepare()
         brief = wp.read_json(Path(prepared["destination"]) / "brief.json")
