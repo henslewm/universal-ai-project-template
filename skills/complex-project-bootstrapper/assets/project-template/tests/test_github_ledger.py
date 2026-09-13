@@ -697,6 +697,41 @@ class LedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Exact state commit"):
             self.client.read(self.client.head() + "\n")
 
+    def test_ref_prefix_collisions_are_refused_before_mutation(self):
+        self.register(task_row("TASK-001", 2))
+        for branch in ("main/task", "task-TASK-001/retry", self.config["state_branch"] + "/retry"):
+            with self.subTest(branch=branch):
+                row = task_row("TASK-002", 3)
+                row["branch"] = branch
+                before = list(self.api.mutations)
+                with self.assertRaisesRegex(ValueError, "path prefix"):
+                    self.register(row)
+                self.assertEqual(self.api.mutations, before)
+        nested = task_row("TASK-003", 4)
+        nested["branch"] = "team/task"
+        self.register(nested)
+        parent = task_row("TASK-004", 5)
+        parent["branch"] = "team"
+        before = list(self.api.mutations)
+        with self.assertRaisesRegex(ValueError, "path prefix"):
+            self.register(parent)
+        self.assertEqual(self.api.mutations, before)
+        for field, other in (("state_branch", "accepted_branch"), ("accepted_branch", "state_branch")):
+            config = copy.deepcopy(self.config)
+            config[field] = config[other] + "/nested"
+            with self.assertRaisesRegex(ValueError, "path prefix"):
+                ledger.config_valid(config)
+        repository = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, repository, True)
+        subprocess.run(["git", "init", "-q", str(repository)], check=True, timeout=30)
+        subprocess.run(["git", "-c", "user.email=synthetic@example.invalid", "-c", "user.name=Synthetic",
+                        "commit", "-q", "--allow-empty", "-m", "Synthetic ref probe"], cwd=repository, check=True, timeout=30)
+        subprocess.run(["git", "update-ref", "refs/heads/main", "HEAD"], cwd=repository, check=True, timeout=30)
+        collision = subprocess.run(["git", "update-ref", "refs/heads/main/task", "HEAD"], cwd=repository,
+                                   capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(collision.returncode, 0)
+        self.assertIn("cannot create", collision.stderr)
+
     def test_registry_rejects_packets_from_more_than_one_domain_profile(self):
         state = self.client.read()[0]
         first, second = task_row("A", 2), task_row("B", 3)

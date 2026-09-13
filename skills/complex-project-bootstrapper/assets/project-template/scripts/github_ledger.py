@@ -45,6 +45,11 @@ def valid_branch(value):
             and all(part and not part.startswith(".") and not part.endswith((".lock", ".")) for part in value.split("/")))
 
 
+def ref_conflict(name, existing):
+    # Git stores refs as paths, so refs/heads/a and refs/heads/a/b cannot both exist.
+    return any(other.startswith(name + "/") or name.startswith(other + "/") for other in existing)
+
+
 def config_valid(config):
     schema = wp.read_json(ROOT / "config/github-ledger.schema.json")
     errors = wp.schema_errors(wp.Draft202012Validator(schema), config)
@@ -54,6 +59,7 @@ def config_valid(config):
     require(all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?", login) for login in config["publishers"]), "Unsafe publisher login")
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}", config["repository"]), "Unsafe repository name")
     require(config["state_branch"] != config["accepted_branch"], "State and accepted branches must differ")
+    require(not ref_conflict(config["state_branch"], {config["accepted_branch"]}), "Configured branch refs conflict; one is a path prefix of the other")
     for branch in (config["state_branch"], config["accepted_branch"]):
         require(valid_branch(branch), "Unsafe branch name")
 
@@ -165,7 +171,9 @@ def validate(state, config, prior=None):
         require(row["issue"] != config["master_issue"] and row["issue"] not in homes, "Duplicate or master issue home")
         homes.add(row["issue"])
         if row["branch"]:
-            require(row["branch"] not in branches | {config["state_branch"], config["accepted_branch"]}, "Duplicate or reserved implementation branch")
+            taken = branches | {config["state_branch"], config["accepted_branch"]}
+            require(row["branch"] not in taken, "Duplicate or reserved implementation branch")
+            require(not ref_conflict(row["branch"], taken), "Implementation branch ref conflicts; one name is a path prefix of another")
             branches.add(row["branch"])
         if row["pr"]:
             require(row["pr"] not in prs, "Duplicate PR home")
