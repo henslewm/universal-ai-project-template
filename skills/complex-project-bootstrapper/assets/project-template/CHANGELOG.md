@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-13 — Issue #8 independent acceptance gates
+
+- Add the acceptance controller: one append-only hash-chained ledger per reviewed task, filling the gap between the feedback controller's REVIEW_PENDING and the packet's REVIEW → ACCEPTED transition.
+- Independently re-execute the contract's declared validation commands as the deterministic gate — the single deliberate exception to the metadata-only pattern — recording observed exit codes, bounded output and a workspace digest, and failing closed to non-implementer attestation for checks without a command.
+- Assign risk-tier gate floors in the work-packet layer (low deterministic; medium + model review; high + cross-family; critical + architect review and user decision); packets and configuration can only tighten, and contract repair can no longer change risk or the review block.
+- Render bounded, credential-scanned minimal-context review packets from ledger records only, separating worker-supplied claims from independently observed results; enforce five reviewer verdicts with structural refusals, submission-bound gate satisfaction, and a hard cross-family gate with recorded waiver.
+- Return bounded rejections to the worker inside the same frozen budget with the contract failures in the next brief, escalate repeated identical rejections, and let acceptance — never a lone approval — close the task ledger.
+- Dogfood the machinery on Issue #8's own diff: a Gate D failure contradicting the implementer's clean-run claim, a real gate-bypass finding from a minimal-context reviewer, the regression-tested correction, and acceptance only after re-review; record in `docs/ISSUE_8_VALIDATION.md`.
+
 ## 2026-09-13 — Issue #7 bounded execution harness
 
 - Add a preparation-and-ingestion adapter that renders only packet-permitted context into a worker brief, emits the exact harness invocation, and never invokes a model or runs the harness command.
