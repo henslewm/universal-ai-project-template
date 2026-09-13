@@ -34,3 +34,6 @@ build/
 *.zip
 !assets/**/*.zip
 bootstrap-answers.local.json
+
+# Claude desktop app session artifacts saved into the working folder
+Claude outputs/

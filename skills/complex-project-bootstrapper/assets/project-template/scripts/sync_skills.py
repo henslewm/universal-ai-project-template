@@ -9,7 +9,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / 'skills/complex-project-bootstrapper'
-EXCLUDED = {'.git', '__pycache__', '.pytest_cache', '.venv', 'venv', 'dist', 'build', 'assets'}
+# 'Claude outputs' is where the Claude desktop app saves session artifacts when the working
+# folder is this repository; those are personal working files, never template payload.
+EXCLUDED = {'.git', '__pycache__', '.pytest_cache', '.venv', 'venv', 'dist', 'build', 'assets',
+            'Claude outputs'}
 
 
 def files_under(root: Path):
