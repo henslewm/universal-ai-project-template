@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "task_id": "SHB-04-adapter",
+  "validation_id": "VAL-HIL",
+  "level": "hardware_in_loop",
+  "device_identity": "FICTIONAL SYNTH-SENSOR-1 board rev A, asset tag SYN-0001. No such device exists; this record illustrates the shape only.",
+  "firmware_version": "0.0.0-synthetic",
+  "test_setup": "Fictional bench: sensor on a USB serial bridge at 9600 8N1, host running sample/ on Python 3.12, one read through SensorDevice(SerialAdapter). Illustrative, not an observation.",
+  "expected_behavior": "One read request frame A1 01 01 A1 elicits one reply frame carrying a two-byte reading.",
+  "observed_behavior": "Illustrative only: reply A1 02 00 2A 89 observed once; decoded reading 42. This sentence is fiction and establishes nothing.",
+  "outcome": "pass",
+  "observed_at": "2026-09-13T00:00:00Z",
+  "operator": "Bench operator (fictional)",
+  "artifacts": [
+    {
+      "reference": "bench-capture-0001.log (fictional; not present)"
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+{
+  "title": "SYNTH-FRAME-1 protocol codec",
+  "parent": {
+    "objective": "Bring up a host-side bridge for the fictional SYNTH-SENSOR-1 so that every component is verified independently and no hardware behavior is claimed before it is observed.",
+    "milestone": "Protocol layer verified against golden vectors"
+  },
+  "goal": "Encode and decode SYNTH-FRAME-1 frames as pure functions and name every invalid-frame cause deterministically.",
+  "non_goals": [
+    "Communicate with, or claim behavior of, any physical device.",
+    "Implement transport, timeouts or device sequencing."
+  ],
+  "scope": {
+    "allowed": [
+      "Implement sample/synth_bridge/codec.py and sample/tests/test_codec.py."
+    ],
+    "prohibited": [
+      "Edit transport, device, adapter or telemetry modules.",
+      "Change the frame layout or golden vectors."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Frame layout",
+      "description": "TAG 0xA1, LEN, PAYLOAD[LEN] (LEN <= 16), XOR checksum over TAG..PAYLOAD."
+    },
+    {
+      "name": "Golden vectors",
+      "description": "The valid and invalid vectors embedded in sample/tests/test_codec.py."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Codec module",
+      "description": "encode, encode_read_request, decode, decode_reading with no I/O."
+    },
+    {
+      "name": "Verification record",
+      "description": "Automated test outcome for every golden vector."
+    }
+  ],
+  "interface": {
+    "name": "synth_bridge.codec",
+    "version": "1.0",
+    "description": "Pure byte-frame functions; decode returns (payload, None) or (None, FrameError)."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "Every vector is synthetic and establishes no real device behavior."
+  ],
+  "sources": [
+    {
+      "id": "SRC-SYNTH-SPEC",
+      "reference": "examples/software-hardware/README.md — SYNTH-FRAME-1 fixture specification",
+      "authority": "Synthetic specification invented for this example; not a manufacturer document."
+    },
+    {
+      "id": "SRC-SAMPLE",
+      "reference": "examples/software-hardware/sample — the synthetic bridge package and its tests",
+      "authority": "Reference implementation for this example only; establishes no real device behavior."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-ROUNDTRIP",
+      "description": "encode then decode returns the original payload for every length 0 through 16."
+    },
+    {
+      "id": "AC-GOLDEN",
+      "description": "Every valid golden vector decodes to its specified payload."
+    },
+    {
+      "id": "AC-INVALID",
+      "description": "Every invalid golden vector returns its specified FrameError code without raising."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-UNIT",
+      "description": "Run the codec unit tests.",
+      "criterion_ids": [
+        "AC-ROUNDTRIP"
+      ],
+      "evidence_required": [
+        "Recorded automated test outcome."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "tests.test_codec.CodecUnitTests"
+        ],
+        "timeout_seconds": 120,
+        "cwd": "sample"
+      }
+    },
+    {
+      "id": "VAL-CONTRACT",
+      "description": "Run the golden-vector contract tests.",
+      "criterion_ids": [
+        "AC-GOLDEN",
+        "AC-INVALID"
+      ],
+      "evidence_required": [
+        "Vector-by-vector expected and observed results.",
+        "Recorded automated test outcome."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "tests.test_codec.CodecContractTests"
+        ],
+        "timeout_seconds": 120,
+        "cwd": "sample"
+      }
+    }
+  ],
+  "complexity": "low",
+  "risk": "low",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 3
+  },
+  "escalation_path": [
+    2,
+    3
+  ],
+  "context_scope": [
+    "This contract.",
+    "sample/synth_bridge/codec.py",
+    "sample/tests/test_codec.py"
+  ],
+  "architecture_boundaries": [
+    "Keep the codec free of I/O and of any transport or device knowledge.",
+    "Do not change the SYNTH-FRAME-1 frame layout."
+  ],
+  "domain": {
+    "synthetic": true,
+    "component": "protocol_codec",
+    "hardware_status": "UNVERIFIED_ON_HARDWARE",
+    "hardware_assumptions": [
+      {
+        "assumption": "A physical SYNTH-SENSOR-1 frames its replies exactly as SYNTH-FRAME-1 specifies; no device has been observed.",
+        "source_id": "SRC-SYNTH-SPEC"
+      }
+    ],
+    "protocol_references": [
+      "SRC-SYNTH-SPEC"
+    ],
+    "validation_levels": {
+      "VAL-UNIT": "unit",
+      "VAL-CONTRACT": "contract"
+    }
+  }
+}

@@ -1,29 +1,84 @@
-# Software and Hardware Interface Project Profile
+# Domain Profile — Software + Hardware Interfaces
 
-## Mission
-Build, debug, validate, and productize software that interacts with physical hardware while minimizing paid-model usage and preventing agent drift, regressions, and unsupported claims of hardware success.
+This is the default `main` specialization of the universal autonomous project template: software
+that interacts with physical hardware, built so that most bounded work can go to cheap or local
+models while no claim of hardware success is ever made on the strength of compilation or
+simulation. `AUTONOMY_CONTROL_PLANE.md` is the controlling workflow policy; the controllers named
+below are the mechanism.
 
-Read `AUTONOMY_CONTROL_PLANE.md` as the controlling workflow policy.
+## Startup gate
 
-## Interactive setup
-Autonomy remains off until setup is approved. Establish the objective and definition of done; repository and known-good baseline; exact hardware models and firmware; interfaces and authoritative manuals; software stack and deployment target; known working and failing paths; test resources; cost/time targets; available model pool; and architecture boundaries requiring user approval.
-
-The architect then presents an architecture diagram, component boundaries, dependency graph, hardware abstraction boundary, test strategy, model-routing policy, first milestone, and stop conditions. Autonomy begins only after approval.
+Autonomy is OFF until interactive intake is complete and the user approves the exact package.
+`scripts/validate_bootstrap.py` requires, for this profile, a meaningful answer to every domain
+orientation field before review or activation: existing baseline; exact hardware identity and
+firmware; interfaces and protocols; authoritative specifications; host and deployment
+environment; known-good and known-failing paths; fixtures, simulators, loopback and
+hardware-in-loop resources; physical-access constraints; and the architecture boundaries whose
+change requires approval. The architect then presents the component boundaries, dependency graph,
+hardware abstraction boundary, verification ladder per component, routing policy, first milestone
+and stop conditions. A placeholder answer is refused, not deferred.
 
 ## Decomposition
-Prefer components that can be validated independently of physical hardware. Separate protocol encoding/decoding, transport, device abstraction, hardware adapter, configuration, persistence, business logic, UI/API, simulation, telemetry, and deployment where applicable. Hardware-facing components should expose contracts that permit simulation or fixture testing when technically possible.
+
+Prefer components that can be validated without physical hardware. Every packet names exactly one
+component from the profile's separation list: protocol codec, transport, device abstraction,
+hardware adapter, configuration, persistence, business logic, UI/API, simulator/fake,
+telemetry/logging, deployment/operations. A packet that spans several is not independently
+testable and is decomposed further. Hardware-facing components expose contracts that a fake or
+loopback can satisfy, so their host-side rules are machine-runnable even when the device is not
+on the bench. `examples/software-hardware/` is a complete worked decomposition.
 
 ## Work packet
-Every issue states objective, non-goals, allowed components, inputs, outputs, interface/version, dependencies, hardware assumptions and source references, acceptance criteria, deterministic tests, simulator tests, hardware-in-loop requirements, evidence required, model tier/effort, retry budget, escalation path, and architecture boundaries the worker may not alter.
 
-## Validation hierarchy
-Static validation -> unit tests -> contract tests -> simulator/loopback -> integration -> hardware-in-loop -> representative field workflow when required. Never infer hardware success from compilation or simulation alone; use `UNVERIFIED_ON_HARDWARE` until representative evidence exists.
+The common contract is unchanged. For this profile the `domain` block is structural, validated by
+`config/domains/software-hardware.schema.json` and `scripts/software_hardware.py` wherever a
+contract is validated:
+
+- `component`: the one separation category.
+- `hardware_assumptions`: every physical behavior the packet relies on, each citing a contract
+  source. Empty means the packet is `NOT_HARDWARE_FACING`.
+- `protocol_references`: the specification sources implemented against; required when any
+  hardware assumption exists.
+- `validation_levels`: every validation id mapped to exactly one rung of the ladder.
+- `hardware_status`: `UNVERIFIED_ON_HARDWARE` or `NOT_HARDWARE_FACING`. A contract cannot declare
+  `VERIFIED_ON_HARDWARE`; it is earned, never authored.
+
+## Verification ladder
+
+static → unit → contract → simulation/loopback → integration → hardware-in-loop → representative
+field workflow where required.
+
+The first five rungs are machine-runnable: each such validation must declare a `command`, and the
+acceptance controller's deterministic gate re-executes it in the reviewed workspace and records
+what it observed (ADR-014). The two hardware rungs must not declare a command: they fail closed to
+an attestation by a non-implementer operator, and that attestation must bind a structured hardware
+evidence record by digest. A hardware rung with a command is refused as a simulator masquerading
+as hardware; a machine rung without one is refused as attestation substituting for a runnable
+check. `software_hardware.py status` derives the earned status from the ledger:
+`VERIFIED_ON_HARDWARE` only for an accepted task whose hardware rungs were all attested. A compile
+or simulation pass never upgrades it.
+
+## Cost posture
+
+Pure functions, codecs, parsers, fixtures, fakes, tests, log analysis and repetitive adapters route
+to the local tiers first; objective failures and risk, never preference, drive escalation. The
+hardware adapter and the integration/field packets carry `high` risk so the acceptance floor adds
+independent model review and the cross-family gate. Hardware runs are operator actions and are
+never dispatched to a worker.
 
 ## GitHub ledger
-Each milestone has one tracking issue containing the dependency-ordered wave plan. Each work packet has one issue. New findings become separate issues. PRs link the work packet and include test evidence. Issue comments record attempts, failures, escalation, hardware observations, and final evidence.
 
-## Architecture-change gate
-Stop for user approval before materially changing protocol assumptions, hardware support scope, public interfaces, persistence architecture, security/authentication model, deployment topology, core framework/language, or hardware abstraction boundary. Routine implementation changes remain autonomous.
+One tracking issue per milestone with its dependency-ordered wave plan; one issue per packet;
+new findings become separate issues; PRs link the packet and carry validation evidence. Hardware
+observations are recorded as bound evidence records and their attestations, not as prose in a
+comment.
 
-## Model routing
-T0 LM Studio handles utility work. T1 LM Studio coder handles bounded functions/tests/adapters. T2 Mistral handles moderate reasoning after local failure. T3 Claude/Codex handles difficult implementation, debugging, and independent review. T4 strongest available Claude/OpenAI model handles architecture, decomposition, integration diagnosis, and architecture-change determination. Objective tests drive correction; loops are bounded.
+## Human-intervention gate
+
+Routine implementation, testing, issue/PR updates, model escalation and bounded refactoring
+proceed autonomously inside the approved architecture. Stop for user approval before materially
+changing protocol assumptions, hardware support scope, public interfaces, persistence
+architecture, the security/authentication model, deployment topology, core framework/language, or
+the hardware abstraction boundary. Any action on physical hardware that can damage it, or any
+claim of hardware verification, is an operator action recorded as evidence, never an autonomous
+step.

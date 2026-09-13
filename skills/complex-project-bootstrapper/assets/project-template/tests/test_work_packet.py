@@ -453,8 +453,8 @@ class DependencyGraphTests(unittest.TestCase):
 
 class RendererTests(unittest.TestCase):
     def test_renderer_is_identical_after_all_json_object_keys_are_reordered(self):
-        value = packet()
-        contract = fixture()
+        value = packet(profile="family-law")
+        contract = fixture("family-law")
         contract["domain"]["nested"] = {"zebra": {"beta": "Second", "alpha": "First"}, "alpha": [1, 2]}
         value = work_packet.revise(value, contract, "Architect", "Synthetic nested extension", STAMP)
         equivalent = json.loads(json.dumps(reordered(value)))
@@ -481,10 +481,10 @@ class RendererTests(unittest.TestCase):
                 self.assertIn("independently prove", rendered)
 
     def test_domain_render_preserves_json_types_keys_and_nested_arrays(self):
-        contract = fixture()
+        contract = fixture("family-law")
         contract["domain"] = {"Exact_Key": [None, "None", True, "True", 1, "1", [], {},
             [False, "false", {"CaseSensitive": "```\n## embedded fence"}]], "exact_key": None}
-        value = work_packet.create("WP-TYPES", "software-hardware", contract, "Architect", "Typed data", STAMP)
+        value = work_packet.create("WP-TYPES", "family-law", contract, "Architect", "Typed data", STAMP)
         rendered = work_packet.render(value)
         block = rendered.split("## Domain\n\n", 1)[1].split("\n\n## Revision provenance", 1)[0]
         lines = block.splitlines()
@@ -496,8 +496,8 @@ class RendererTests(unittest.TestCase):
                          [type(None), str, bool, str, int, str])
 
     def test_renderer_uses_latest_revision_and_escapes_embedded_markup(self):
-        value = packet()
-        contract = fixture()
+        value = packet(profile="family-law")
+        contract = fixture("family-law")
         contract["title"] = "Latest synthetic title"
         contract["goal"] = "<script>alert(1)</script>\n# Injected heading"
         contract["domain"]["nested"] = {"message": "DEEPVALUE"}

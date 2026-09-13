@@ -351,7 +351,7 @@ def apply(state, event):
             if state["repairs"] >= state["policy"]["max_contract_repairs"] or len(state["attempts"]) >= state["total_cap"]:
                 raise ValueError("Contract repair/task attempt budget exhausted")
             revised = diagnosis["revised_contract"]
-            errors = wp.validate_contract(revised)
+            errors = wp.validate_contract(revised, state["packet"]["domain_profile"])
             if errors:
                 raise ValueError("\n".join(errors))
             old = wp.current(state["packet"])["contract"]

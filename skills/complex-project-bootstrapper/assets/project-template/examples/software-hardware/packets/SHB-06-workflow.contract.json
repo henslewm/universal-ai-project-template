@@ -1,0 +1,161 @@
+{
+  "title": "Bridge read workflow: integration and field verification",
+  "parent": {
+    "objective": "Bring up a host-side bridge for the fictional SYNTH-SENSOR-1 so that every component is verified independently and no hardware behavior is claimed before it is observed.",
+    "milestone": "Representative workflow verified over the fake sensor and observed in the field"
+  },
+  "goal": "Run the representative read-and-summarize workflow end to end through adapter, device and telemetry.",
+  "non_goals": [
+    "Change any component interface.",
+    "Infer field behavior from the fake-sensor integration run."
+  ],
+  "scope": {
+    "allowed": [
+      "Implement sample/tests/test_integration.py.",
+      "Record the operator-run field workflow as a hardware evidence record."
+    ],
+    "prohibited": [
+      "Edit codec, transport, device, adapter or telemetry modules.",
+      "Attest the field check as the implementer."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Workflow",
+      "description": "Open adapter; read N times through SensorDevice; log READING or ERROR lines; summarize; close."
+    },
+    {
+      "name": "Field procedure",
+      "description": "SRC-HIL-PROCEDURE: operator runs the workflow against a physical SYNTH-SENSOR-1 in its representative setting."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Integration test",
+      "description": "The workflow over a fake sensor presented as a port, including one corrupted reply."
+    },
+    {
+      "name": "Verification record",
+      "description": "Automated integration outcome."
+    },
+    {
+      "name": "Hardware evidence record",
+      "description": "Bound record of the field run."
+    }
+  ],
+  "interface": {
+    "name": "bridge workflow",
+    "version": "1.0",
+    "description": "Composition only; every component interface is consumed at its recorded version."
+  },
+  "dependencies": [
+    "SHB-03-device",
+    "SHB-04-adapter",
+    "SHB-05-telemetry"
+  ],
+  "assumptions": [
+    "The integration rung is the highest machine-runnable rung; a pass is still simulated success."
+  ],
+  "sources": [
+    {
+      "id": "SRC-SYNTH-SPEC",
+      "reference": "examples/software-hardware/README.md — SYNTH-FRAME-1 fixture specification",
+      "authority": "Synthetic specification invented for this example; not a manufacturer document."
+    },
+    {
+      "id": "SRC-SAMPLE",
+      "reference": "examples/software-hardware/sample — the synthetic bridge package and its tests",
+      "authority": "Reference implementation for this example only; establishes no real device behavior."
+    },
+    {
+      "id": "SRC-HIL-PROCEDURE",
+      "reference": "examples/software-hardware/README.md — operator procedure for hardware-rung attestation",
+      "authority": "Operator procedure; each run's observations are recorded in a bound hardware evidence record."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-WORKFLOW-SIM",
+      "description": "The workflow produces the specified log and summary over the fake sensor, including the corrupted reply."
+    },
+    {
+      "id": "AC-FIELD",
+      "description": "The workflow completes against a physical SYNTH-SENSOR-1 in its representative setting, as observed and recorded by a non-implementer operator."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-INTEGRATION",
+      "description": "Run the end-to-end integration tests over the fake sensor.",
+      "criterion_ids": [
+        "AC-WORKFLOW-SIM"
+      ],
+      "evidence_required": [
+        "Recorded automated test outcome."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "tests.test_integration"
+        ],
+        "timeout_seconds": 120,
+        "cwd": "sample"
+      }
+    },
+    {
+      "id": "VAL-FIELD",
+      "description": "Operator runs the workflow in the field per SRC-HIL-PROCEDURE and records a hardware evidence record.",
+      "criterion_ids": [
+        "AC-FIELD"
+      ],
+      "evidence_required": [
+        "Hardware evidence record digest bound in the attestation.",
+        "Device identity, firmware and setting as observed.",
+        "The produced log and summary."
+      ]
+    }
+  ],
+  "complexity": "medium",
+  "risk": "high",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 3
+  },
+  "escalation_path": [
+    2,
+    3
+  ],
+  "context_scope": [
+    "This contract.",
+    "sample/tests/test_integration.py",
+    "Interfaces of synth_bridge.adapter, synth_bridge.device and synth_bridge.telemetry only."
+  ],
+  "architecture_boundaries": [
+    "No component interface changes; composition only."
+  ],
+  "domain": {
+    "synthetic": true,
+    "component": "business_logic",
+    "hardware_status": "UNVERIFIED_ON_HARDWARE",
+    "hardware_assumptions": [
+      {
+        "assumption": "A physical SYNTH-SENSOR-1 in its representative setting behaves as the fake sensor scripts it to.",
+        "source_id": "SRC-SYNTH-SPEC"
+      }
+    ],
+    "protocol_references": [
+      "SRC-SYNTH-SPEC"
+    ],
+    "validation_levels": {
+      "VAL-INTEGRATION": "integration",
+      "VAL-FIELD": "field"
+    }
+  }
+}

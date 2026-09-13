@@ -16,9 +16,15 @@ FINGERPRINT_FIELDS = ("schema_version", "domain_profile", "project", "architectu
 BOUND_DOCUMENTS = ("PROJECT_CHARTER.md", "CONNECTOR_PLAN.md", "SKILL_PLAN.md", "DOMAIN_PROFILE.md")
 DOMAIN_FIELDS = {
     "software-hardware": {
-        "baseline": "Hardware/firmware and software baseline, with source references",
-        "interfaces": "Protocols/interfaces and authoritative specifications",
-        "validation_resources": "Simulator/HIL resources, known paths and physical-access constraints",
+        "baseline": "Existing repository, software baseline and known-good state, with source references",
+        "hardware_identity": "Exact hardware models, board revisions and firmware versions in scope",
+        "interfaces": "Protocols and interfaces (bus, wire format, transport, timing) with versions",
+        "specifications": "Authoritative manuals, datasheets and specifications, and where they are held",
+        "environment": "Host, toolchain and deployment environment for the software",
+        "known_paths": "Known-good and known-failing paths or workflows, with how each was observed",
+        "validation_resources": "Test fixtures, simulators, loopback and hardware-in-loop resources available",
+        "physical_access": "Physical-access constraints: who can operate the hardware, when, and safety limits",
+        "architecture_boundaries": "Architecture boundaries whose change requires user approval",
     },
     "family-law": {
         "posture": "Court/case posture, controlling orders and source references",

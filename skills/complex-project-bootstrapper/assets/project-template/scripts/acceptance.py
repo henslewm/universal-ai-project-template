@@ -190,7 +190,7 @@ def apply(state, event):
                               "implementers", "result", "artifact", "open_questions"})
         binding, contract = data["binding"], data["contract"]
         feedback.exact(binding, {"task_id", "domain_profile", "revision", "contract_hash"})
-        errors = wp.validate_contract(contract)
+        errors = wp.validate_contract(contract, binding["domain_profile"])
         if errors:
             raise ValueError("; ".join(errors))
         expected = wp.fingerprint(binding["task_id"], binding["domain_profile"],
@@ -261,6 +261,9 @@ def apply(state, event):
                 "A machine-runnable check is executed, never attested over")
         require(attestation["operator"].strip().casefold() not in actors,
                 "An implementation actor cannot attest its own validation")
+        domain = wp.domain_module(state["binding"]["domain_profile"])
+        if domain is not None:
+            domain.validate_attestation(state["contract"], attestation)
         state["attestations"][attestation["validation_id"]] = copy.deepcopy(attestation)
         state["reason"] = "ATTESTATION_RECORDED"
     elif event["kind"] == "REVIEW_OPEN":

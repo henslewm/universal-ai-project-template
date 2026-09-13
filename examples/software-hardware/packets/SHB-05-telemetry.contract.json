@@ -1,0 +1,119 @@
+{
+  "title": "Bridge log summarizer",
+  "parent": {
+    "objective": "Bring up a host-side bridge for the fictional SYNTH-SENSOR-1 so that every component is verified independently and no hardware behavior is claimed before it is observed.",
+    "milestone": "Telemetry utility verified"
+  },
+  "goal": "Summarize bridge log lines into kind counts and the reading range without raising on malformed lines.",
+  "non_goals": [
+    "Read from a device or a transport.",
+    "Persist or transmit summaries."
+  ],
+  "scope": {
+    "allowed": [
+      "Implement sample/synth_bridge/telemetry.py and sample/tests/test_telemetry.py."
+    ],
+    "prohibited": [
+      "Edit any other module.",
+      "Import codec, transport, device or adapter."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Log line format",
+      "description": "KIND [rest]; READING lines carry an integer."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Telemetry module",
+      "description": "summarize(lines) -> counts, reading_min, reading_max."
+    },
+    {
+      "name": "Verification record",
+      "description": "Automated test outcome."
+    }
+  ],
+  "interface": {
+    "name": "synth_bridge.telemetry",
+    "version": "1.0",
+    "description": "Pure text summarizer."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "Log lines are host-generated text; no hardware assumption applies."
+  ],
+  "sources": [
+    {
+      "id": "SRC-SAMPLE",
+      "reference": "examples/software-hardware/sample — the synthetic bridge package and its tests",
+      "authority": "Reference implementation for this example only; establishes no real device behavior."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-COUNTS",
+      "description": "Kinds are counted and the reading range is tracked."
+    },
+    {
+      "id": "AC-MALFORMED",
+      "description": "A malformed reading is counted, never raised."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-SUMMARY",
+      "description": "Run the telemetry tests.",
+      "criterion_ids": [
+        "AC-COUNTS",
+        "AC-MALFORMED"
+      ],
+      "evidence_required": [
+        "Recorded automated test outcome."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "tests.test_telemetry"
+        ],
+        "timeout_seconds": 120,
+        "cwd": "sample"
+      }
+    }
+  ],
+  "complexity": "low",
+  "risk": "low",
+  "routing": {
+    "min_tier": 0,
+    "max_tier": 2,
+    "reasoning_effort": "low",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 3
+  },
+  "escalation_path": [
+    1,
+    2
+  ],
+  "context_scope": [
+    "This contract.",
+    "sample/synth_bridge/telemetry.py",
+    "sample/tests/test_telemetry.py"
+  ],
+  "architecture_boundaries": [
+    "Telemetry stays a pure function of text."
+  ],
+  "domain": {
+    "synthetic": true,
+    "component": "telemetry_logging",
+    "hardware_status": "NOT_HARDWARE_FACING",
+    "hardware_assumptions": [],
+    "protocol_references": [],
+    "validation_levels": {
+      "VAL-SUMMARY": "unit"
+    }
+  }
+}

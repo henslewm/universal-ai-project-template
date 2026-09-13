@@ -42,6 +42,10 @@ def make_contract(risk="low", argv=PASS_ARGV, review=None, cwd=None, timeout=Non
         if timeout is not None:
             command["timeout_seconds"] = timeout
         value["validation"][0]["command"] = command
+    else:
+        # A software-hardware check without a command is only valid at a hardware rung.
+        del value["validation"][0]["command"]
+        value["domain"]["validation_levels"]["VAL-FRAMES"] = "hardware_in_loop"
     if review is not None:
         value["review"] = review
     return value
@@ -84,6 +88,9 @@ def make_artifact(content="diff --git a/parser.py b/parser.py\n+synthetic change
 
 
 IMPLEMENTERS = [{"actor": "Worker", "model_family": "qwen"}]
+# Attestation lines for a hardware-rung check, as scripts/software_hardware.py hardware-evidence prints them.
+HARDWARE_LINES = ["hardware-evidence:sha256=" + "b" * 64, "level=hardware_in_loop", "device=Synthetic unit SN-0",
+                  "firmware=0.0.0-synthetic", "observed_at=2026-09-13T00:00:00Z", "outcome=pass", "operator=Operator"]
 CONTROLLER, ARCHITECT = "Acceptance controller", "Architect"
 REVIEWER = {"actor": "Independent reviewer", "model_family": "sonnet", "tier": 3}
 
@@ -299,7 +306,7 @@ class DeterministicGateTests(AcceptanceBase):
                               previous_state=acceptance.replay(ledger))
         state = acceptance.append(ledger, "ATTESTATION",
                                   {"attestation": {"validation_id": "VAL-FRAMES", "operator": "Operator",
-                                                   "evidence": ["Observed the manual check pass"]}},
+                                                   "evidence": ["Observed the manual check pass", *HARDWARE_LINES]}},
                                   previous_state=acceptance.replay(ledger))
         self.assertTrue(acceptance.deterministic_satisfied(state))
 

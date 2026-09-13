@@ -1,0 +1,151 @@
+{
+  "title": "Sensor device abstraction with fake sensor",
+  "parent": {
+    "objective": "Bring up a host-side bridge for the fictional SYNTH-SENSOR-1 so that every component is verified independently and no hardware behavior is claimed before it is observed.",
+    "milestone": "Device sequencing verified against a fake sensor"
+  },
+  "goal": "Implement request/reply sequencing for one sensor over any Transport, with a scripted fake sensor as its test double.",
+  "non_goals": [
+    "Communicate with, or claim behavior of, any physical device.",
+    "Open a serial port.",
+    "Aggregate or log readings."
+  ],
+  "scope": {
+    "allowed": [
+      "Implement sample/synth_bridge/device.py, sample/synth_bridge/fake_device.py and sample/tests/test_device.py."
+    ],
+    "prohibited": [
+      "Edit codec, transport, adapter or telemetry modules.",
+      "Treat a fake-sensor pass as device compatibility."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Read sequence",
+      "description": "Send encode_read_request(); receive one frame; decode_reading; errors become DeviceError."
+    },
+    {
+      "name": "Fake sensor script",
+      "description": "Scripted readings with optional checksum corruption every N replies."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Device module",
+      "description": "SensorDevice.read() returning a Reading or raising DeviceError."
+    },
+    {
+      "name": "Fake sensor",
+      "description": "FakeSensorTransport answering read requests from a script."
+    },
+    {
+      "name": "Verification record",
+      "description": "Automated fake-sensor test outcome."
+    }
+  ],
+  "interface": {
+    "name": "synth_bridge.device",
+    "version": "1.0",
+    "description": "SensorDevice(transport, timeout_s).read() -> Reading; DeviceError names the codec error code."
+  },
+  "dependencies": [
+    "SHB-01-codec",
+    "SHB-02-transport"
+  ],
+  "assumptions": [
+    "The fake sensor is a simulator; it encodes the specification's expectations, not observed behavior."
+  ],
+  "sources": [
+    {
+      "id": "SRC-SYNTH-SPEC",
+      "reference": "examples/software-hardware/README.md — SYNTH-FRAME-1 fixture specification",
+      "authority": "Synthetic specification invented for this example; not a manufacturer document."
+    },
+    {
+      "id": "SRC-SAMPLE",
+      "reference": "examples/software-hardware/sample — the synthetic bridge package and its tests",
+      "authority": "Reference implementation for this example only; establishes no real device behavior."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-SEQUENCE",
+      "description": "Scripted readings are returned in order through the fake sensor."
+    },
+    {
+      "id": "AC-ERRORS",
+      "description": "Silence surfaces as no reply and a corrupted reply names the codec error code."
+    },
+    {
+      "id": "AC-ECHO-NOT-READING",
+      "description": "A loopback echo is rejected as BAD_PAYLOAD, never accepted as a reading."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-FAKE",
+      "description": "Run the device tests against the fake sensor and loopback.",
+      "criterion_ids": [
+        "AC-SEQUENCE",
+        "AC-ERRORS",
+        "AC-ECHO-NOT-READING"
+      ],
+      "evidence_required": [
+        "Recorded automated test outcome."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "tests.test_device"
+        ],
+        "timeout_seconds": 120,
+        "cwd": "sample"
+      }
+    }
+  ],
+  "complexity": "medium",
+  "risk": "medium",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 3
+  },
+  "escalation_path": [
+    2,
+    3
+  ],
+  "context_scope": [
+    "This contract.",
+    "sample/synth_bridge/device.py",
+    "sample/synth_bridge/fake_device.py",
+    "sample/tests/test_device.py",
+    "Interfaces of synth_bridge.codec and synth_bridge.transport only."
+  ],
+  "architecture_boundaries": [
+    "Request/reply sequencing lives only in device.py.",
+    "Do not change the codec or transport interfaces."
+  ],
+  "domain": {
+    "synthetic": true,
+    "component": "device_abstraction",
+    "hardware_status": "UNVERIFIED_ON_HARDWARE",
+    "hardware_assumptions": [
+      {
+        "assumption": "A physical SYNTH-SENSOR-1 answers each read request with exactly one reply frame or stays silent.",
+        "source_id": "SRC-SYNTH-SPEC"
+      }
+    ],
+    "protocol_references": [
+      "SRC-SYNTH-SPEC"
+    ],
+    "validation_levels": {
+      "VAL-FAKE": "simulation"
+    }
+  }
+}

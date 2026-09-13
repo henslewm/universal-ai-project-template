@@ -38,13 +38,15 @@ The contract contains:
 - finite retry allowance, ordered escalation tiers, minimal context and architecture boundaries;
 - `domain` extension data. Extensions cannot replace or weaken required common fields.
 
+A profile may register domain rules over its `domain` block in `DOMAIN_MODULES` in `scripts/work_packet.py`; `validate_contract` applies them after the common checks wherever a contract is validated — packet validation, feedback contract repair and acceptance initialization — so a profile rule cannot be bypassed by choosing the path. The `software-hardware` profile registers `scripts/software_hardware.py`: one named component per packet, hardware assumptions citing contract sources, every validation mapped to one rung of the verification ladder, a declared `command` required at machine rungs and refused at hardware rungs, and `hardware_status` limited to `UNVERIFIED_ON_HARDWARE` or `NOT_HARDWARE_FACING` because `VERIFIED_ON_HARDWARE` is earned in the acceptance ledger, never authored. `examples/software-hardware/` is the worked decomposition.
+
 Capability tiers are integers 0–4 with the meanings in `AUTONOMY_CONTROL_PLANE.md`. Reasoning effort is the provider-independent classification `low`, `medium`, `high` or `very_high`; the future router maps it to an available provider's settings. Minimum tier must not exceed maximum. Escalation tiers must strictly increase above the starting minimum and remain within maximum. Reviewer tier is a separate policy field. Risk-specific review policy and actual attempt enforcement remain the later review/router/worker controls.
 
 All required descriptions are nonblank. Every acceptance criterion must have a specified validation; criterion references and source/validation/criterion IDs must be valid and unambiguous. Required arrays must be populated except dependencies, assumptions and escalation, which may legitimately be empty. If a task has no external input, explicitly describe its internal fixture or no-input interface. Source records may reference an embedded synthetic specification rather than an external document.
 
 ## Create and render a contract
 
-Three complete, fictional contract examples are under `examples/work-packets/`. The legal examples demonstrate record indexing/extraction, not legal conclusions or real matters. The software example is a synthetic protocol, not physical hardware evidence.
+Three complete, fictional contract examples are under `examples/work-packets/`. The legal examples demonstrate record indexing/extraction, not legal conclusions or real matters. The software example is a synthetic protocol, not physical hardware evidence; its `domain` block is the structural form the software-hardware profile now requires.
 
 Run from the project root; use a new output filename for every operation:
 
