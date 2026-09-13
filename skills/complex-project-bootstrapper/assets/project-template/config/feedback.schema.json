@@ -308,6 +308,100 @@
         }
       },
       "description": "Architect diagnosis metadata. Runtime binds the architecture fingerprint and checks classification dependencies; no human authentication or execution authority is implied."
+    },
+    "review_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_id",
+        "verdict",
+        "reviewer",
+        "summary",
+        "evidence",
+        "contract_failures",
+        "acceptance_reference"
+      ],
+      "properties": {
+        "review_id": {
+          "$ref": "#/$defs/sha256"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "APPROVE",
+            "REJECT_BOUNDED",
+            "NEEDS_EVIDENCE",
+            "NEEDS_ESCALATION",
+            "ARCHITECTURE_CONFLICT"
+          ]
+        },
+        "reviewer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "actor",
+            "model_family",
+            "tier"
+          ],
+          "properties": {
+            "actor": {
+              "$ref": "#/$defs/bounded_text"
+            },
+            "model_family": {
+              "$ref": "#/$defs/bounded_text"
+            },
+            "tier": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            }
+          }
+        },
+        "summary": {
+          "$ref": "#/$defs/summary"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "contract_failures": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "failed_ref",
+              "kind",
+              "what_failed",
+              "corrective_action"
+            ],
+            "properties": {
+              "failed_ref": {
+                "$ref": "#/$defs/bounded_text"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "criterion",
+                  "validation",
+                  "scope"
+                ]
+              },
+              "what_failed": {
+                "$ref": "#/$defs/bounded_text"
+              },
+              "corrective_action": {
+                "$ref": "#/$defs/bounded_text"
+              }
+            }
+          }
+        },
+        "acceptance_reference": {
+          "$ref": "#/$defs/bounded_text"
+        }
+      },
+      "description": "Condensed independent acceptance decision recorded into the task ledger. The gate evidence lives in the acceptance ledger it references; reviewer identity is a recorded declaration, not authentication. A bounded rejection's corrective actions are performable inside the current contract only."
     }
   }
 }

@@ -29,7 +29,8 @@ REPORT_FIELDS = {"dispatch_id", "outcome", "summary", "scope_status", "architect
                  "validation", "evidence", "discoveries", "api_cost_usd", "cost_evidence"}
 # Declared once: the brief renderer, the ledger-free verifier and the tests all read this.
 BRIEF_FIELDS = {"schema_version", "dispatch_id", "binding", "harness", "paths", "bounds", "contract",
-                "architect_guidance", "prior_failures", "failure_groups", "worker_rule", "report_contract"}
+                "architect_guidance", "prior_failures", "failure_groups", "review_rejections",
+                "worker_rule", "report_contract"}
 
 
 def check_fields():
@@ -165,6 +166,7 @@ def brief(context, routing, binding, dispatch_id, paths):
         "architect_guidance": context["architect_guidance"],
         "prior_failures": context["recent_failures"],
         "failure_groups": context["failure_groups"],
+        "review_rejections": context.get("review_rejections", []),
         "worker_rule": context["worker_rule"],
         "report_contract": {
             "write_to": str(paths["report"]),
