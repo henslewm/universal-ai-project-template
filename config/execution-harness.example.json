@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "enabled": false,
+  "limits": {
+    "brief_max_chars": 40000,
+    "report_max_bytes": 400000
+  },
+  "harnesses": [
+    {
+      "id": "cline-cli",
+      "adapter": "cline",
+      "command": "cline",
+      "argv": [
+        "--provider", "{provider}",
+        "--model", "{model}",
+        "--rules", "{rules}",
+        "--task-file", "{brief}",
+        "--output", "{report}",
+        "--cwd", "{workspace}"
+      ],
+      "description": "Cline CLI as a bounded worker. Confirm the flag names against the installed Cline version before enabling; the adapter never invokes it."
+    },
+    {
+      "id": "replacement-harness",
+      "adapter": "command",
+      "command": "example-replacement-harness",
+      "argv": ["--brief", "{brief}", "--report", "{report}", "--workspace", "{workspace}"],
+      "description": "Illustrates that any harness accepting a brief and writing a report can replace Cline without changing packets or contracts."
+    }
+  ],
+  "bindings": [
+    {
+      "resource_id": "lmstudio-synthetic-t0",
+      "harness_id": "cline-cli",
+      "provider": "lmstudio",
+      "model": "example-local-coder-model-replace-me",
+      "api_base": "http://127.0.0.1:1234/v1",
+      "credential_env": null
+    },
+    {
+      "resource_id": "lmstudio-synthetic-t1",
+      "harness_id": "cline-cli",
+      "provider": "lmstudio",
+      "model": "example-local-general-model-replace-me",
+      "api_base": "http://127.0.0.1:1234/v1",
+      "credential_env": null
+    },
+    {
+      "resource_id": "mistral-synthetic-t2",
+      "harness_id": "cline-cli",
+      "provider": "mistral",
+      "model": "example-mistral-model-replace-me",
+      "api_base": null,
+      "credential_env": "EXAMPLE_MISTRAL_API_KEY"
+    }
+  ]
+}
