@@ -554,6 +554,8 @@ class FeedbackTests(unittest.TestCase):
                     value["version"] = "2.0"
                 elif field == "parent":
                     value["objective"] = "Changed objective"
+                elif field == "risk":
+                    revised["risk"] = "critical" if value != "critical" else "low"
                 else:
                     value["unapproved_change"] = True
                 with self.assertRaises(ValueError):

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = wp.read_json(ROOT / "config/feedback.schema.json")
 wp.Draft202012Validator.check_schema(SCHEMA)
 ACTIVE = {"READY", "IN_PROGRESS"}
-PROTECTED = ("parent", "scope", "non_goals", "interface", "dependencies", "architecture_boundaries", "domain")
+PROTECTED = ("parent", "scope", "non_goals", "interface", "dependencies", "architecture_boundaries", "domain", "risk")
 
 
 def shape(name, value):
@@ -105,6 +105,11 @@ def worker_context(state):
                "recent_failures": [{"attempt_id": a["id"], "fingerprint": a["fingerprint"],
                                     "summary": a["result"]["summary"], "validation": a["result"]["validation"]}
                                    for a in failures[-int(state["policy"]["max_history_entries"]):]],
+               # Present only once a rejection exists, so ledgers recorded before this key reproduce.
+               **({"review_rejections": [{"review_id": r["review_id"], "fingerprint": r["fingerprint"],
+                                          "summary": r["summary"], "contract_failures": r["contract_failures"]}
+                                         for r in state["review_rejections"][-int(state["policy"]["max_history_entries"]):]]}
+                  if state["review_rejections"] else {}),
                "worker_rule": "Execution requires a matching reserved dispatch. Execute only this contract. Report unrelated discoveries as issue proposals. Do not revise scope or accept your own result."}
     if len(wp.canonical(context)) > state["policy"]["max_context_chars"]:
         raise ValueError("CONTEXT_LIMIT_REQUIRES_DECOMPOSITION")
@@ -267,7 +272,7 @@ def apply(state, event):
                 "policy": copy.deepcopy(data["policy"]), "router_policy": data["router_config"]["policy"],
                 "anchor": data["anchor"], "architect": data["architect"], "total_cap": cap,
                 "caps": {str(t): min(cap, int(overrides.get(str(t), data["policy"]["max_attempts_by_tier"][str(t)]))) for t in range(5)},
-                "repairs": 0, "resumptions": 0, "diagnoses": 0, "latest_diagnosis": None, "attempts": [], "pending": None, "status": "READY", "reason": "INITIALIZED", "discoveries": []}
+                "repairs": 0, "resumptions": 0, "diagnoses": 0, "latest_diagnosis": None, "attempts": [], "pending": None, "status": "READY", "reason": "INITIALIZED", "discoveries": [], "review_rejections": []}
     if event["kind"] in {"DISPATCH", "HALT"}:
         exact(data, {"config", "options", "plan"})
         expected = plan(state, data["config"], data["options"])
@@ -352,6 +357,10 @@ def apply(state, event):
             old = wp.current(state["packet"])["contract"]
             if any(old[field] != revised[field] for field in PROTECTED):
                 raise ValueError("Contract repair changes a protected scope/interface/architecture field")
+            if old.get("review") != revised.get("review"):
+                # Risk is protected above for the same reason: a repair exists to fix wording,
+                # never to lower the acceptance gates the original risk classification requires.
+                raise ValueError("Contract repair cannot change the assigned acceptance gates")
             if revised["retry_budget"] != old["retry_budget"]:
                 raise ValueError("Contract repair cannot change or reset retry limits")
             packet = wp.revise(state["packet"], revised, data["actor"], diagnosis["reason"], timestamp)
@@ -363,9 +372,70 @@ def apply(state, event):
             state["diagnoses"] += 1
         state["latest_diagnosis"] = {"event_sequence": event["sequence"], "classification": classification,
                                      "reason": diagnosis["reason"], "evidence": diagnosis["evidence"]}
+    elif event["kind"] == "REVIEW":
+        exact(data, {"decision"})
+        apply_review(state, data["decision"], timestamp)
     else:
         raise ValueError("Unknown ledger event kind")
     return state
+
+
+def rejection_fingerprint(failures):
+    normalized = sorted(({"kind": f["kind"], "failed_ref": normalize(f["failed_ref"]),
+                          "what_failed": normalize(f["what_failed"])} for f in failures),
+                        key=lambda item: (item["kind"], item["failed_ref"], item["what_failed"]))
+    return router.digest({"review_failures": normalized})
+
+
+def apply_review(state, decision, timestamp):
+    """Record an independent acceptance decision; the gates themselves live in the acceptance ledger."""
+    shape("review_decision", decision)
+    if state["pending"] or state["status"] != "REVIEW_PENDING":
+        raise ValueError("A review decision requires an unreserved controller awaiting review")
+    verdict, actor = decision["verdict"], decision["reviewer"]["actor"]
+    if (verdict == "REJECT_BOUNDED") != bool(decision["contract_failures"]):
+        raise ValueError("Exactly a bounded rejection names contract failures")
+    contract = wp.current(state["packet"])["contract"]
+    known = ({entry["id"] for entry in contract["acceptance_criteria"]}
+             | {check["id"] for check in contract["validation"]})
+    scope_refs = (set(contract["scope"]["allowed"]) | set(contract["scope"]["prohibited"])
+                  | set(contract["architecture_boundaries"]))
+    for failure in decision["contract_failures"]:
+        refs = scope_refs if failure["kind"] == "scope" else known
+        if failure["failed_ref"] not in refs:
+            raise ValueError("A contract failure must name an existing criterion, validation or scope rule")
+    if verdict == "APPROVE":
+        state["packet"] = wp.transition(state["packet"], "ACCEPTED", "reviewer", actor, decision["summary"],
+                                        decision["evidence"], current_graph(state), timestamp)
+        state.update(status="ACCEPTED", reason="INDEPENDENT_ACCEPTANCE_RECORDED")
+    elif verdict == "REJECT_BOUNDED":
+        fingerprint = rejection_fingerprint(decision["contract_failures"])
+        repeated = any(r["fingerprint"] == fingerprint for r in state["review_rejections"])
+        state["review_rejections"].append({"review_id": decision["review_id"], "fingerprint": fingerprint,
+                                           "summary": decision["summary"], "evidence": decision["evidence"],
+                                           "contract_failures": copy.deepcopy(decision["contract_failures"])})
+        if state["attempts"] and state["attempts"][-1]["routing_outcome"] == "PASS":
+            # Preserve the raw result; the rejection overturns the objective PASS, so the
+            # router may route the bounded corrective attempt within the same frozen budget.
+            state["attempts"][-1].update(routing_outcome="FAIL", fingerprint=fingerprint)
+        if repeated:
+            state["packet"] = wp.transition(state["packet"], "ESCALATED", "reviewer", actor,
+                                            decision["summary"], decision["evidence"], timestamp=timestamp)
+            state.update(status="NEEDS_ARCHITECT", reason="REPEATED_REVIEW_REJECTION")
+        else:
+            state["packet"] = wp.transition(state["packet"], "IN_PROGRESS", "reviewer", actor, decision["summary"],
+                                            decision["evidence"], current_graph(state), timestamp)
+            state.update(status="IN_PROGRESS", reason="REVIEW_REJECTED")
+    elif verdict == "NEEDS_EVIDENCE":
+        state["reason"] = "REVIEW_NEEDS_EVIDENCE"
+    elif verdict == "NEEDS_ESCALATION":
+        state["packet"] = wp.transition(state["packet"], "ESCALATED", "reviewer", actor,
+                                        decision["summary"], decision["evidence"], timestamp=timestamp)
+        state.update(status="NEEDS_ARCHITECT", reason="REVIEW_ESCALATED")
+    else:
+        state["packet"] = wp.transition(state["packet"], "ARCHITECTURE_CONFLICT", "reviewer", actor,
+                                        decision["summary"], decision["evidence"], timestamp=timestamp)
+        state.update(status="ARCHITECTURE_HOLD", reason="ARCHITECT_DIAGNOSIS_REQUIRED")
 
 
 def replay(directory):
@@ -459,6 +529,11 @@ def complete(directory, result, timestamp=None):
     return append(directory, "RESULT", result, timestamp, replay(directory))
 
 
+def review(directory, decision, timestamp=None):
+    # An acceptance decision may be recorded after activation is revoked, like a late result.
+    return append(directory, "REVIEW", {"decision": decision}, timestamp, replay(directory))
+
+
 def diagnose(directory, diagnosis, actor, root, timestamp=None):
     prior = replay(directory)
     shape("diagnosis", diagnosis)
@@ -472,7 +547,7 @@ def summary(state):
             "total_cap": state["total_cap"], "tier_counts": tier_counts(state), "tier_caps": state["caps"],
             "contract_repairs": state["repairs"], "blocker_resumptions": state["resumptions"], "failure_groups": failure_groups(state),
             "architect_diagnoses": state["diagnoses"], "remaining_architect_diagnoses": state["policy"]["max_architect_diagnoses"] - state["diagnoses"],
-            "latest_diagnosis": state["latest_diagnosis"],
+            "latest_diagnosis": state["latest_diagnosis"], "review_rejections": state["review_rejections"],
             "attempts": state["attempts"], "issue_proposals": state["discoveries"]}
 
 
@@ -483,7 +558,9 @@ def render(state):
     def evidence(items):
         return {"count": len(items), "first_references": [reference(item) for item in items[:2]]}
 
-    view = {key: value for key, value in summary(state).items() if key not in {"attempts", "failure_groups", "issue_proposals", "latest_diagnosis"}}
+    view = {key: value for key, value in summary(state).items() if key not in {"attempts", "failure_groups", "issue_proposals", "latest_diagnosis", "review_rejections"}}
+    view["review_rejections"] = [{"review_id": r["review_id"], "fingerprint": r["fingerprint"],
+                                  "summary": reference(r["summary"])} for r in state["review_rejections"]]
     view["attempts"] = [{"attempt_id": a["id"], "tier": a["tier"], "resource_id": a["resource_id"],
                          "routing_outcome": a["routing_outcome"], "fingerprint": a["fingerprint"],
                          "record": f"{int(a['result_event_sequence']):08d}.json" if a.get("result_event_sequence") else "pending",
@@ -519,6 +596,9 @@ def main(argv=None):
     finish = commands.add_parser("complete")
     finish.add_argument("ledger", type=Path)
     finish.add_argument("result", type=Path)
+    decide = commands.add_parser("review")
+    decide.add_argument("ledger", type=Path)
+    decide.add_argument("decision", type=Path)
     diagnostic = commands.add_parser("diagnose")
     diagnostic.add_argument("ledger", type=Path)
     diagnostic.add_argument("diagnosis", type=Path)
@@ -538,6 +618,8 @@ def main(argv=None):
             return 0 if decision["status"] == "DISPATCH" else 2
         elif args.command == "complete":
             state = complete(args.ledger, wp.read_json(args.result))
+        elif args.command == "review":
+            state = review(args.ledger, wp.read_json(args.decision))
         elif args.command == "diagnose":
             state = diagnose(args.ledger, wp.read_json(args.diagnosis), args.actor, args.root)
         else:

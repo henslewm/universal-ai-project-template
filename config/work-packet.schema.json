@@ -98,6 +98,16 @@
       "minimum": 0,
       "maximum": 4
     },
+    "review_gate": {
+      "type": "string",
+      "enum": [
+        "deterministic",
+        "model_review",
+        "cross_family_review",
+        "architect_review",
+        "user_decision"
+      ]
+    },
     "named_description": {
       "type": "object",
       "additionalProperties": false,
@@ -318,6 +328,32 @@
                   "$ref": "#/$defs/nonblank"
                 },
                 "minItems": 1
+              },
+              "command": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "argv"
+                ],
+                "properties": {
+                  "argv": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/nonblank"
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
+                  },
+                  "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3600
+                  },
+                  "cwd": {
+                    "$ref": "#/$defs/nonblank"
+                  }
+                },
+                "description": "Optional architect-declared command that independently re-executes this validation in the reviewed workspace. Absent means the check is not machine-runnable and acceptance requires recorded operator attestation instead. Runtime refuses a cwd that escapes the workspace."
               }
             }
           },
@@ -441,6 +477,24 @@
             "$ref": "#/$defs/nonblank"
           },
           "minItems": 1
+        },
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required_gates"
+          ],
+          "properties": {
+            "required_gates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/review_gate"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "description": "Optional packet-assigned acceptance gates. Runtime refuses a gate set below the floor its risk tier requires: a packet may add gates or raise the reviewer tier, never loosen."
         },
         "domain": {
           "type": "object",

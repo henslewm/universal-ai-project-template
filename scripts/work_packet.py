@@ -10,7 +10,7 @@ import json
 import re
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 try:
     from jsonschema import Draft202012Validator, FormatChecker
@@ -41,6 +41,15 @@ CONTRACT_VALIDATOR = Draft202012Validator(
     format_checker=FORMATS,
 )
 ADVANCED = {"READY", "IN_PROGRESS", "VALIDATING", "REVIEW", "ACCEPTED", "MERGED", "VERIFIED"}
+# Acceptance-gate floors by contract risk. A contract's optional review block may add gates
+# above its floor, never drop below it; the acceptance controller reads this same declaration.
+REVIEW_FLOORS = {
+    "low": frozenset({"deterministic"}),
+    "medium": frozenset({"deterministic", "model_review"}),
+    "high": frozenset({"deterministic", "model_review", "cross_family_review"}),
+    "critical": frozenset({"deterministic", "model_review", "cross_family_review",
+                           "architect_review", "user_decision"}),
+}
 PAUSED = {"BLOCKED", "ESCALATED", "NEEDS_DECISION", "ARCHITECTURE_CONFLICT", "FAILED"}
 EDGES = {
     ("PROPOSED", "ARCHITECTED"): {"architect"},
@@ -89,6 +98,14 @@ def schema_errors(validator, value) -> list[str]:
             for e in sorted(validator.iter_errors(value), key=lambda e: str(list(e.absolute_path)))]
 
 
+def effective_gates(contract) -> set[str]:
+    """The acceptance gates this contract requires: its floor unless it validly tightens."""
+    floor = REVIEW_FLOORS[contract["risk"]]
+    if "review" in contract:
+        return set(contract["review"]["required_gates"]) | set(floor)
+    return set(floor)
+
+
 def validate_contract(contract) -> list[str]:
     errors = schema_errors(CONTRACT_VALIDATOR, contract)
     if errors:
@@ -104,6 +121,22 @@ def validate_contract(contract) -> list[str]:
             errors.append("retry_budget: per-tier override is outside the authorized worker path")
         if cap > contract["retry_budget"]["max_attempts"]:
             errors.append("retry_budget: per-tier override exceeds the total attempt limit")
+    if "review" in contract:
+        gates = set(contract["review"]["required_gates"])
+        missing = REVIEW_FLOORS[contract["risk"]] - gates
+        if missing:
+            errors.append("review: required_gates loosens below the "
+                          f"{contract['risk']}-risk floor; missing: " + ", ".join(sorted(missing)))
+        if "cross_family_review" in gates and "model_review" not in gates:
+            errors.append("review: cross_family_review requires model_review")
+    for check in contract["validation"]:
+        command = check.get("command")
+        if command is None:
+            continue
+        cwd = command.get("cwd", "")
+        if cwd and (PurePosixPath(cwd).is_absolute() or PureWindowsPath(cwd).is_absolute()
+                    or ".." in PureWindowsPath(cwd).parts):
+            errors.append(f"validation/{check['id']}: command cwd must stay inside the reviewed workspace")
     criteria = [entry["id"] for entry in contract["acceptance_criteria"]]
     for field in ("acceptance_criteria", "validation", "sources"):
         ids = [entry["id"] for entry in contract[field]]
@@ -335,6 +368,8 @@ def render(packet) -> str:
             lines.append(markdown_text(str(value)))
 
     for key in SCHEMA["$defs"]["contract"]["properties"]:
+        if key not in latest["contract"]:
+            continue  # Optional blocks such as review render only when the contract assigns them.
         value = latest["contract"][key]
         if key != "title":
             lines.extend([f"## {key.replace('_', ' ').capitalize()}", ""])
