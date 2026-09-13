@@ -267,7 +267,7 @@ class LedgerTests(unittest.TestCase):
         self.api.post_fault = "accepted"
         with self.assertRaisesRegex(ledger.APIError, "lost POST"):
             self.client.publish(self.directory)
-        self.assertEqual(self.client.read()[0]["outbox"][0]["status"], "claimed")
+        self.assertEqual(self.client.read()[0]["outbox"][0]["status"], "posting")
         self.client.publish(self.directory, reconcile_only=True)
         self.assertEqual(self.post_count(), 1)
         self.assertTrue(self.client.audit()["valid"])
@@ -281,18 +281,21 @@ class LedgerTests(unittest.TestCase):
             with self.subTest(reconcile=reconcile), self.assertRaisesRegex(ValueError, "do not retry"):
                 self.client.publish(self.directory, reconcile_only=reconcile)
         self.assertEqual(self.post_count(), 1)
-        self.assertEqual(self.client.read()[0]["outbox"][0]["status"], "claimed")
+        self.assertEqual(self.client.read()[0]["outbox"][0]["status"], "posting")
         self.assertFalse(self.client.audit()["valid"])
 
-    def test_uncertain_claim_response_preserves_claim_without_post(self):
+    def test_uncertain_claim_response_keeps_the_claim_and_posts_nothing(self):
         self.register()
         self.api.put_fault = "accepted"
         with self.assertRaisesRegex(ledger.APIError, "lost Contents"):
             self.client.publish(self.directory)
-        with self.assertRaisesRegex(ValueError, "do not retry"):
-            self.client.publish(self.directory, reconcile_only=True)
+        claimed = self.client.read()[0]["outbox"][0]
+        self.assertEqual(claimed["status"], "claimed")
         self.assertEqual(self.post_count(), 0)
-        self.assertEqual(self.client.read()[0]["outbox"][0]["status"], "claimed")
+        # Reconciliation never posts, so the claim simply survives until a publisher resumes it.
+        self.client.publish(self.directory, reconcile_only=True)
+        self.assertEqual(self.post_count(), 0)
+        self.assertEqual(self.client.read()[0]["outbox"][0]["claim"], claimed["claim"])
 
     def test_lost_receipt_commit_response_reconciles_already_done_operation(self):
         self.register()
@@ -324,7 +327,7 @@ class LedgerTests(unittest.TestCase):
         state, _, commit = self.client.read()
         self.api.comment(2, self.client.body(state["outbox"][0], commit))
         before = list(self.api.mutations)
-        with self.assertRaisesRegex(ValueError, "Unclaimed publication"):
+        with self.assertRaisesRegex(ValueError, "already has a comment"):
             self.client.publish(self.directory)
         self.assertEqual(self.api.mutations, before)
 
@@ -750,34 +753,78 @@ class LedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Duplicate PR home"):
             self.client.put_task(other, self.directory)
 
-    def test_lost_claim_write_can_be_released_only_without_a_visible_receipt(self):
+    def test_interrupted_claim_resumes_while_an_attempted_post_never_retries(self):
         self.register()
         self.api.put_fault = True
         with self.assertRaisesRegex(ValueError, "uncertain"):
             self.client.publish(self.directory)
         stranded = self.client.read()[0]["outbox"][0]
+        # The claim was committed but no POST was attempted, so it is provably safe to resume.
         self.assertEqual(stranded["status"], "claimed")
         self.assertEqual(self.post_count(), 0)
-        # Neither publish nor reconcile may retry an uncertain POST.
+        self.client.publish(self.directory)
+        self.assertEqual(self.post_count(), 1)
+        completed = self.client.read()[0]["outbox"][0]
+        self.assertEqual(completed["status"], "done")
+        self.assertEqual(completed["author"], self.api.login)
+        self.assertTrue(self.client.audit()["valid"])
+        # An attempted POST whose outcome is unknown is never resumed or retried.
+        row = self.register(task_row("TASK-002", 3))
+        state, blob, _ = self.client.read()
+        prior = copy.deepcopy(state)
+        attempted = next(item for item in state["outbox"] if item["summary"]["task_id"] == "TASK-002")
+        attempted["status"], attempted["claim"] = "claimed", "c" * 32
+        self.client.save(state, blob, prior)
+        state, blob, _ = self.client.read()
+        prior = copy.deepcopy(state)
+        next(item for item in state["outbox"] if item["summary"]["task_id"] == "TASK-002")["status"] = "posting"
+        self.client.save(state, blob, prior)
+        before = self.post_count()
         for reconcile in (True, False):
             with self.assertRaisesRegex(ValueError, "no visible receipt"):
                 self.client.publish(self.directory, reconcile_only=reconcile)
-        released = self.client.release(self.directory)
-        self.assertEqual(released["released"], [stranded["id"]])
-        reopened = self.client.read()[0]["outbox"][0]
-        self.assertEqual((reopened["status"], reopened["claim"]), ("new", None))
-        self.assertEqual(reopened["released"], [stranded["claim"]])
-        # Publication then completes normally and exactly once.
+        self.assertEqual(self.post_count(), before)
+        # Nothing may rewind an attempted publication to an unclaimed or claimed state.
+        for status, claim in (("new", None), ("claimed", "c" * 32)):
+            with self.subTest(status=status):
+                state, blob, _ = self.client.read()
+                prior = copy.deepcopy(state)
+                rewound = next(item for item in state["outbox"] if item["summary"]["task_id"] == "TASK-002")
+                rewound["status"], rewound["claim"] = status, claim
+                with self.assertRaisesRegex(ValueError, "Publication state regressed"):
+                    ledger.validate(state, self.config, prior)
+        self.assertEqual(row["packet"]["state"], "READY")
+
+    def test_recorded_receipt_authors_survive_a_publisher_rotation(self):
+        self.register()
         self.client.publish(self.directory)
-        self.assertEqual(self.post_count(), 1)
         self.assertTrue(self.client.audit()["valid"])
-        # A claim whose comment is visible is never releasable, and history cannot be dropped.
+        rotated = configuration()
+        rotated["publishers"] = ["Rotated-Publisher"]
+        successor = ledger.Ledger(rotated, self.api)
+        # The historical receipt keeps its own author, so audit still trusts it.
+        self.assertTrue(successor.audit()["valid"])
         state, blob, _ = self.client.read()
         prior = copy.deepcopy(state)
-        state["outbox"][0]["released"] = []
-        with self.assertRaisesRegex(ValueError, "Release history cannot change"):
+        state["outbox"][0]["author"] = "Rotated-Publisher"
+        with self.assertRaisesRegex(ValueError, "Receipt author changed"):
             ledger.validate(state, self.config, prior)
-        self.assertEqual(self.client.release(self.directory)["released"], [])
+        # A receipt written by an account that is not the recorded author still fails.
+        self.api.comments[2][0]["user"]["login"] = "someone-else"
+        self.assertFalse(successor.audit()["valid"])
+
+    def test_a_new_task_cannot_arrive_with_supersession_history(self):
+        seeded = task_row("TASK-002", 3)
+        seeded["pr"], seeded["superseded_prs"] = None, [20]
+        self.api.pulls[20] = {"head": {"ref": seeded["branch"], "repo": {"full_name": self.config["repository"]}},
+                              "base": {"ref": self.config["accepted_branch"]}, "state": "closed",
+                              "merged": False, "merge_commit_sha": None}
+        before = list(self.api.mutations)
+        with self.assertRaisesRegex(ValueError, "cannot claim superseded PR history"):
+            self.client.put_task(seeded, self.directory)
+        self.assertEqual(self.api.mutations, before)
+        seeded["superseded_prs"] = []
+        self.register(seeded)
 
     def test_forged_publication_cannot_project_an_uncommitted_row(self):
         row = self.register()
@@ -1065,7 +1112,7 @@ class AuthorityAndAdapterTests(unittest.TestCase):
         self.assertEqual(client.read()[0]["anchor"], anchor)
         self.assertEqual([method for method, _, _ in api.mutations], ["POST", "PUT"])
 
-    def test_real_authority_gates_publish_release_and_close(self):
+    def test_real_authority_gates_publish_reconcile_and_close(self):
         api = MemoryGitHub(self.config)
         client = ledger.Ledger(self.config, api)
         client.initialize(self.directory)
@@ -1081,7 +1128,6 @@ class AuthorityAndAdapterTests(unittest.TestCase):
         self.assertEqual(api.issues[row["issue"]]["state"], "closed")
         operations = (lambda: client.publish(self.directory),
                       lambda: client.publish(self.directory, reconcile_only=True),
-                      lambda: client.release(self.directory),
                       lambda: client.close("TASK-001", self.directory))
         # Revoking the bound GitHub project-write permission stops every mutating operation.
         self.project["connector_permissions"] = {"github": "read-only"}

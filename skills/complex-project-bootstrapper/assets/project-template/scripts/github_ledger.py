@@ -158,7 +158,7 @@ def entry_for(task_id, row):
                "event_count": len(row["feedback"]), "row_hash": router.digest(row),
                "acceptance": preview, "pr": row["pr"], "superseded_prs": list(row["superseded_prs"])}
     return {"id": router.digest(summary), "summary": summary, "status": "new", "claim": None,
-            "comment": None, "released": []}
+            "comment": None, "author": None}
 
 
 def registry_profile(state):
@@ -201,18 +201,19 @@ def validate(state, config, prior=None):
             discovery_homes.add(issue)
     ids = set()
     for item in state["outbox"]:
-        exact(item, {"id", "summary", "status", "claim", "comment", "released"})
+        exact(item, {"id", "summary", "status", "claim", "comment", "author"})
         require(item["id"] == router.digest(item["summary"]) and item["id"] not in ids, "Duplicate or corrupt publication id")
         require(len(json.dumps(item["summary"], ensure_ascii=False).encode("utf-8")) < 55_000, "Publication exceeds its safe comment size")
         ids.add(item["id"])
         require(item["summary"]["task_id"] in state["tasks"] and item["summary"]["issue"] == state["tasks"][item["summary"]["task_id"]]["issue"], "Publication has no canonical home")
-        require(item["status"] in {"new", "claimed", "done"}, "Invalid publication state")
-        require(isinstance(item["released"], list) and len(set(item["released"])) == len(item["released"]) and
-                all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value) for value in item["released"]) and
-                item["claim"] not in item["released"], "Released claims must be distinct and retired")
+        require(item["status"] in {"new", "claimed", "posting", "done"}, "Invalid publication state")
         require((item["status"] == "new" and item["claim"] is None and item["comment"] is None) or
                 (item["status"] != "new" and isinstance(item["claim"], str) and re.fullmatch(r"[0-9a-f]{32}", item["claim"]) and
-                 ((item["status"] == "claimed" and item["comment"] is None) or (item["status"] == "done" and number(item["comment"])))), "Invalid publication claim/receipt")
+                 ((item["status"] in {"claimed", "posting"} and item["comment"] is None) or
+                  (item["status"] == "done" and number(item["comment"])))), "Invalid publication claim/receipt")
+        require((item["author"] is None) == (item["status"] != "done"), "A completed receipt records its author")
+        require(item["author"] is None or (isinstance(item["author"], str) and
+                re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?", item["author"])), "Unsafe receipt author")
     for task_id, row in state["tasks"].items():
         projections = [item for item in state["outbox"] if item["summary"]["task_id"] == task_id]
         require(projections and projections[-1]["summary"] == entry_for(task_id, row)["summary"],
@@ -220,6 +221,9 @@ def validate(state, config, prior=None):
     if prior:
         require(state["anchor"] == prior["anchor"], "Approval cannot be replaced inside an existing registry")
         require(set(prior["tasks"]) <= set(state["tasks"]), "Tasks cannot be removed")
+        for fresh in set(state["tasks"]) - set(prior["tasks"]):
+            require(not state["tasks"][fresh]["superseded_prs"],
+                    "A newly registered task cannot claim superseded PR history")
         for task_id, old in prior["tasks"].items():
             new = state["tasks"][task_id]
             require(new["issue"] == old["issue"], "Canonical task home cannot change")
@@ -244,19 +248,16 @@ def validate(state, config, prior=None):
                     "A new publication must project the row being committed")
         for old, new in zip(prior["outbox"], state["outbox"]):
             require(old["id"] == new["id"] and old["summary"] == new["summary"], "Publication history changed")
+            # A POST is attempted only from the durable posting phase, so a claimed entry is provably pre-POST.
             require((old["status"], new["status"]) in {("new", "new"), ("new", "claimed"), ("claimed", "claimed"),
-                                                       ("claimed", "done"), ("done", "done"), ("claimed", "new")}, "Publication state regressed")
-            if (old["status"], new["status"]) == ("claimed", "new"):
-                # Releasing a claim retires it permanently; the operation itself proves no comment exists.
-                require(new["claim"] is None and new["comment"] is None and
-                        new["released"] == old["released"] + [old["claim"]],
-                        "A released claim must be recorded and cleared together")
-            else:
-                require(new["released"] == old["released"], "Release history cannot change")
-                if old["claim"]:
-                    require(new["claim"] == old["claim"], "Publication claim changed")
-                if old["comment"]:
-                    require(new["comment"] == old["comment"], "Publication receipt changed")
+                                                       ("claimed", "posting"), ("posting", "posting"),
+                                                       ("posting", "done"), ("done", "done")}, "Publication state regressed")
+            if old["claim"]:
+                require(new["claim"] == old["claim"], "Publication claim changed")
+            if old["comment"]:
+                require(new["comment"] == old["comment"], "Publication receipt changed")
+            if old["author"]:
+                require(new["author"] == old["author"], "Receipt author changed")
     require(len(wp.canonical(state).encode("utf-8")) <= MAX_BYTES, "Registry capacity reached; preserve it and propose a storage migration before more work")
     return state
 
@@ -412,7 +413,9 @@ class Ledger:
         if not matches:
             return None
         comment = matches[0]
-        require(comment["user"]["login"].lower() in {name.lower() for name in self.config["publishers"]}, "Untrusted publication author")
+        # A recorded receipt keeps its own author so a later publisher rotation cannot invalidate history.
+        allowed = {entry["author"].lower()} if entry["author"] else {name.lower() for name in self.config["publishers"]}
+        require(comment["user"]["login"].lower() in allowed, "Untrusted publication author")
         match = re.search(r"/blob/([0-9a-f]{40})/\.autonomy/ledger\.json\n$", comment["body"])
         require(match is not None and comment["body"] == self.body(entry, match[1]), "Publication content was edited or corrupted")
         recorded = self.read(match[1])[0]
@@ -435,51 +438,33 @@ class Ledger:
             if item["status"] == "done":
                 continue
             comment = self.matches(item)
-            if item["status"] == "new":
-                require(comment is None, "Unclaimed publication already exists; investigate before adopting")
+            if item["status"] == "posting":
+                # A POST was attempted; only a visible receipt resolves it, and it is never retried.
+                require(comment is not None, "Attempted publication has no visible receipt; do not retry an uncertain POST")
+            else:
+                require(comment is None, "Unpublished operation already has a comment; investigate before adopting")
                 if reconcile_only:
                     continue
-                item["status"], item["claim"] = "claimed", uuid.uuid4().hex
-                commit = self.save(state, blob, prior)  # CAS claim before POST.
+                if item["status"] == "new":
+                    item["status"], item["claim"] = "claimed", uuid.uuid4().hex
+                    commit = self.save(state, blob, prior)  # CAS the exclusive claim.
+                    state, blob, _ = self.read()
+                    prior = copy.deepcopy(state)
+                    item = next(value for value in state["outbox"] if value["id"] == entry_id)
+                # A recorded claim is provably pre-POST, so an interrupted publisher resumes it here.
+                item["status"] = "posting"
+                commit = self.save(state, blob, prior)  # CAS the intent to POST, before posting.
                 self.api.call("POST", f"issues/{item['summary']['issue']}/comments", {"body": self.body(item, commit)})
                 comment = self.matches(item)
-                require(comment is not None, "POST outcome is not visible; preserve claim and reconcile later")
-            else:
-                require(comment is not None, "Claimed publication has no visible receipt; do not retry an uncertain POST")
+                require(comment is not None, "POST outcome is not visible; preserve the record and reconcile later")
             state, blob, _ = self.read()
             prior = copy.deepcopy(state)
             current = next(value for value in state["outbox"] if value["id"] == entry_id)
             require(current["claim"] == item["claim"], "Publication ownership changed")
             current["status"], current["comment"] = "done", comment["id"]
+            current["author"] = comment["user"]["login"]
             self.save(state, blob, prior)
         return self.head()
-
-    def release(self, root, entry=None):
-        """Retire a publication claim only on positive evidence that no comment exists."""
-        anchor = authority(self.config, root)
-        login = self.api.identity()
-        require(login.lower() in {name.lower() for name in self.config["publishers"]},
-                "Authenticated publisher is not allowed; no claim was released")
-        state, _, _ = self.read()
-        require(state["anchor"] == anchor, "Current approval differs")
-        require(authority(self.config, root, registry_profile(state)) == anchor, "Approved project profile differs from the registry")
-        targets = [item["id"] for item in state["outbox"]
-                   if item["status"] == "claimed" and (entry is None or item["id"] == entry)]
-        require(entry is None or targets, "No claimed publication has that id")
-        released = []
-        for entry_id in targets:
-            state, blob, _ = self.read()
-            prior = copy.deepcopy(state)
-            item = next(value for value in state["outbox"] if value["id"] == entry_id)
-            if item["status"] != "claimed":
-                continue
-            require(self.matches(item) is None,
-                    "A visible receipt exists; complete the publication instead of releasing its claim")
-            item["released"] = item["released"] + [item["claim"]]
-            item["status"], item["claim"] = "new", None
-            self.save(state, blob, prior)
-            released.append(entry_id)
-        return {"released": released, "commit": self.head()}
 
     def close(self, task_id, root):
         anchor = authority(self.config, root)
@@ -580,8 +565,6 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("init", "publish", "reconcile"):
         commands.add_parser(name)
-    free = commands.add_parser("release")
-    free.add_argument("--entry")
     put = commands.add_parser("put")
     put.add_argument("row", type=Path)
     close = commands.add_parser("close")
@@ -610,8 +593,6 @@ def main(argv=None):
             result = {"commit": ledger.put_task(wp.read_json(args.row), args.root)}
         elif args.command in {"publish", "reconcile"}:
             result = {"commit": ledger.publish(args.root, args.command == "reconcile")}
-        elif args.command == "release":
-            result = ledger.release(args.root, args.entry)
         elif args.command == "close":
             result = {"state": ledger.close(args.task_id, args.root)["state"]}
         elif args.command == "recover":

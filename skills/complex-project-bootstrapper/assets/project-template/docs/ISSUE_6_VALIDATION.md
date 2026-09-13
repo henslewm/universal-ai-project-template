@@ -89,3 +89,15 @@ The reviewer noted that `LedgerTests` patches `authority` wholesale, so the appr
 ### Verification
 
 All 57 ledger tests passed in 29.018 seconds and the full suite passed all 214 tests in 105.656 seconds. Repository validation passed 57 required paths and the bootstrap distribution check reported 0 differing files. Current-head GitHub CI and review results remain in PR #19 and issue #6.
+
+### Fifth review round
+
+Codex returned on `5c6e01496e446184557f289d06cbb17de4b8407b` with one P1 and two P2 findings, all against the remediation above. All three are corrected; the P1 reversed part of ADR-008 and is recorded as **ADR-009**.
+
+**P1 — a released claim could double-publish.** `release` treated "no comment visible across every page" as proof that the POST never took effect. Full pagination proves only present absence: a comment GitHub accepted before a timeout can become visible later, after the claim was retired, and the next publication would then post a second copy. The fix removes `release` entirely and makes the pre-POST state resumable instead. Publication now moves through three committed phases — `claimed` takes the exclusive claim, `posting` records that a POST is about to be attempted, `done` records the receipt — and the comment is posted only from `posting`. A `claimed` entry is therefore durable proof that no POST was attempted, so any publisher may resume it and the original dead end disappears without any evidence-free retirement. A `posting` entry with no visible comment stays uncertain indefinitely, is never resumed or retried, and has no command that retires it. The regression confirms the lost claim write leaves `claimed` with zero comments posted, resumes to exactly one comment and a clean audit, and that an attempted publication refuses both publish and reconcile and cannot be rewound to `claimed` or `new`.
+
+**P2 — publisher rotation invalidated historical receipts.** Relaxing the frozen configuration let `publishers` change while `matches` still validated every historical comment against the current allowlist, so rotating out an author made immutable, previously valid receipts read as untrusted. Each completed receipt now records its own author, which is immutable once written and is what validates that comment; the rotated allowlist applies only to new publications. The regression rotates publishers, confirms audit still trusts the existing receipt, confirms the recorded author cannot be changed, and confirms a comment rewritten by a different account still fails.
+
+**P2 — seeded supersession history.** The prior-state loop never inspected newly added tasks, so a first registration could assert an arbitrary `superseded_prs` list, permanently reserving PR numbers against their real tasks and fabricating append-only history without ever performing a replacement. A task's first registration must now carry an empty list, refused before any GitHub mutation.
+
+All 59 ledger tests passed in 31.653 seconds and the full suite passed all 216 tests in 106.056 seconds. Repository validation passed 57 required paths and the bootstrap distribution check reported 0 differing files.
