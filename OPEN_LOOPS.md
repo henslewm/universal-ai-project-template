@@ -9,6 +9,8 @@
 | OL-006 | High | Model-router acceptance | Maintainer | None; #4 closed and PR #17 merged at e7c7c9c4 | Completion evidence in #4 and master comments | Complete | Closed |
 | OL-007 | High | Bounded-feedback acceptance | Maintainer | None; #5 closed through merged PR #18 at 7b4f88f9 | Completion evidence in #5 and master comments | Complete | Closed |
 | OL-008 | High | GitHub ledger acceptance | Maintainer | None; #6 closed through merged PR #19 at 5e0a28c6 | Completion evidence in #6 and master comments | Complete | Closed |
-| OL-009 | High | Bounded execution harness acceptance | Maintainer | All five acceptance criteria met and evidenced; review PR #20, answer findings, merge and close #7 | Issue #7 acceptance criteria; PR #20 review | Not set | Sole active build issue; awaiting review and merge |
+| OL-009 | High | Bounded execution harness acceptance | Maintainer | None; #7 closed through merged PR #20 at b326dca1 | Completion evidence in #7 and master comments | Complete | Closed |
 | OL-010 | Medium | Live harness run is operator-executed | Maintainer | None; four operator runs recorded in #7 and in docs/ISSUE_7_VALIDATION.md, labelled non-reproducible in CI | Local model availability | Complete | Closed; live runs remain operator actions by design |
+| OL-012 | High | Independent review and acceptance gates | Maintainer | Start #8 in a fresh session from master #14 and #8 only | Issue #8 | Not set | Next unblocked child; not started |
+| OL-013 | Medium | #7 review was same-model-family | Maintainer | Address structurally in #8 rather than by assurance; prefer a different strong model for review when practical | Master #14 goal 9; Issue #8 | Not set | Open; stated in #7's closure |
 | OL-011 | Medium | Local model tier calibration | Maintainer | Carry the run-4 profile into #12; a 27B partially offloaded to system RAM ran a trivial packet in 9 iterations at roughly 7.5 tokens per second | Issue #12 | Not set | Deferred to owning issue |
