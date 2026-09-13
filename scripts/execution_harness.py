@@ -192,6 +192,8 @@ def ingest(directory, config, report_path):
     state = feedback.replay(directory)[0]
     require(state["pending"], "No reserved dispatch is awaiting a report")
     path = Path(report_path)
+    # A worker that wrote nothing is a real outcome, but never an inferred one: say so with `abandon`.
+    require(path.is_file(), f"No worker report at {path}; record the attempt with abandon instead of inferring it")
     report = wp.read_json(path)
     report_valid(report, wp.current(state["packet"])["contract"], state["pending"],
                  config["limits"], path.stat().st_size)
@@ -225,6 +227,32 @@ def verify_report(config, brief_path, report_path):
             "recorded_in_ledger": False, "independent_acceptance": False}
 
 
+def abandon(directory, config, reason):
+    """Close a dispatched attempt that produced no usable report, with an explicit recorded reason.
+
+    Absence of a report is never interpreted on its own. The operator states what happened, the
+    attempt is recorded as a failure with that evidence and its fingerprint, and the feedback
+    controller decides whether the budget allows another attempt or the architect is needed.
+    """
+    config_valid(config)
+    state = feedback.replay(directory)[0]
+    require(state["pending"], "No reserved dispatch is awaiting a report")
+    text = str(reason).strip()
+    require(20 <= len(text) <= 2000, "Abandoning an attempt requires a specific recorded reason")
+    secret_free(text, "Abandonment reason")
+    recorded = feedback.complete(directory, {
+        "dispatch_id": state["pending"], "outcome": "FAIL",
+        "summary": "Dispatched worker produced no usable report; the attempt was abandoned with a recorded reason.",
+        "scope_status": "unknown", "architecture_conflict": False, "validation": [],
+        "evidence": [f"attempt-abandoned: {text}"], "discoveries": [], "api_cost_usd": 0,
+        "cost_evidence": "The worker reported no accounting, so no cost is asserted."})
+    return {"status": recorded["status"], "outcome": "FAIL", "dispatch_id": state["pending"],
+            "attempts_used": len(recorded["attempts"]),
+            "remaining_task_attempts": recorded["total_cap"] - len(recorded["attempts"]),
+            "fingerprint": recorded["attempts"][-1].get("fingerprint"),
+            "evidence_preserved": True, "independent_acceptance": False}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
@@ -239,6 +267,9 @@ def main(argv=None):
     take = commands.add_parser("ingest")
     take.add_argument("ledger", type=Path)
     take.add_argument("report", type=Path)
+    give_up = commands.add_parser("abandon")
+    give_up.add_argument("ledger", type=Path)
+    give_up.add_argument("--reason", required=True)
     check = commands.add_parser("verify-report")
     check.add_argument("brief", type=Path)
     check.add_argument("report", type=Path)
@@ -249,6 +280,8 @@ def main(argv=None):
             config_valid(config)
             result = {"valid": True, "harnesses": [item["id"] for item in config["harnesses"]],
                       "enabled": config["enabled"], "credentials_embedded": False}
+        elif args.command == "abandon":
+            result = abandon(args.ledger, config, args.reason)
         elif args.command == "verify-report":
             result = verify_report(config, args.brief, args.report)
         elif args.command == "dispatch":

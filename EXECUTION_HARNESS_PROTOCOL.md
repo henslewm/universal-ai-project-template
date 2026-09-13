@@ -21,6 +21,7 @@ python scripts/execution_harness.py --config config/execution-harness.json valid
 python scripts/execution_harness.py --config config/execution-harness.json verify-report RUNDIR/brief.json RUNDIR/report.json
 python scripts/execution_harness.py --config config/execution-harness.json --root . dispatch LEDGER RUNDIR --router-config config/model-router.json --request request.json
 python scripts/execution_harness.py --config config/execution-harness.json ingest LEDGER RUNDIR/report.json
+python scripts/execution_harness.py --config config/execution-harness.json abandon LEDGER --reason "..."
 ```
 
 ## Worker cycle
@@ -36,6 +37,8 @@ The brief carries only what the packet already permits. It is rendered from the 
 ## Failure, escalation and replaceability
 
 A failed attempt is recorded with its evidence and fingerprint, and the next brief carries that evidence forward. A stronger tier therefore receives what was already tried instead of rebuilding context.
+
+A worker that writes no report, or writes one the validator refuses, is a real outcome but never an inferred one. `ingest` refuses both and leaves the reservation untouched; `abandon` closes it, recording the operator's stated reason as the attempt's evidence. Because nothing was reported, scope is genuinely unknown, so the controller moves to an architect decision rather than looping a worker that may be structurally unable to complete the packet. The reason is required, bounded and credential-checked; absence alone never closes an attempt.
 
 If preparation refuses after the reservation is already spent — no binding for the routed resource, an oversized brief — the attempt is closed as `PROVIDER_UNAVAILABLE` with the refusal as evidence rather than left pending. The controller escalates that to the architect rather than retrying, which is deliberate: a harness that cannot be prepared is an architecture or configuration problem, not a transient failure to loop on.
 

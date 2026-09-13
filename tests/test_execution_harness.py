@@ -263,6 +263,49 @@ class HarnessReportTests(HarnessBase):
         with self.assertRaisesRegex(ValueError, "Expected fields"):
             harness.verify_report(self.config, Path(prepared["destination"]) / "not-a-brief.json", path)
 
+    def test_a_worker_that_writes_nothing_does_not_strand_the_attempt(self):
+        prepared = self.prepare()
+        missing = Path(prepared["destination"]) / "report.json"
+        self.assertFalse(missing.exists())
+        # Absence is refused rather than inferred, and the reservation is still pending.
+        with self.assertRaisesRegex(ValueError, "record the attempt with abandon"):
+            harness.ingest(self.ledger, self.config, missing)
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+        for reason, expected in (("too short", "requires a specific recorded reason"),
+                                 ("api_key: sk-abcdefghijklmnopqrstuvwxyz0123", "credential-like")):
+            with self.subTest(reason=reason):
+                with self.assertRaisesRegex(ValueError, expected):
+                    harness.abandon(self.ledger, self.config, reason)
+        closed = harness.abandon(self.ledger, self.config,
+                                 "The local worker narrated tool calls as prose, never read the brief and wrote no report.")
+        self.assertEqual(closed["outcome"], "FAIL")
+        self.assertTrue(closed["evidence_preserved"])
+        self.assertTrue(closed["fingerprint"])
+        state = harness.feedback.replay(self.ledger)[0]
+        self.assertIsNone(state["pending"], "an abandoned attempt must not stay pending")
+        self.assertIn("attempt-abandoned", state["attempts"][-1]["result"]["evidence"][0])
+        with self.assertRaisesRegex(ValueError, "No reserved dispatch"):
+            harness.abandon(self.ledger, self.config, "Nothing is pending, so there is nothing to abandon here.")
+        # Scope is genuinely unknown when nothing was reported, so the architect decides rather than
+        # the controller looping a worker that may be structurally unable to complete the packet.
+        self.assertEqual(closed["status"], "NEEDS_ARCHITECT")
+        self.assertEqual(state["status"], "NEEDS_ARCHITECT")
+        with self.assertRaisesRegex(ValueError, "Controller hold"):
+            self.prepare("run-after-abandon")
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["scope_status"], "unknown")
+
+    def test_a_refused_malformed_report_can_also_be_abandoned(self):
+        prepared = self.prepare()
+        broken = Path(prepared["destination"]) / "report.json"
+        wp.write_new(broken, json.dumps({"validation": "not even the right shape"}))
+        with self.assertRaises(ValueError):
+            harness.ingest(self.ledger, self.config, broken)
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+        closed = harness.abandon(self.ledger, self.config,
+                                 "The worker wrote a report that does not match the required field set.")
+        self.assertEqual(closed["outcome"], "FAIL")
+        self.assertIsNone(harness.feedback.replay(self.ledger)[0]["pending"])
+
     def test_ingest_requires_a_reserved_dispatch(self):
         _, path = self.report({"dispatch_id": "a" * 64, "destination": str(self.base)})
         with self.assertRaisesRegex(ValueError, "No reserved dispatch"):
