@@ -75,6 +75,8 @@ Packet tools record local metadata. They do not execute work, authenticate roles
 
 Use `FEEDBACK_PROTOCOL.md` for bounded attempts: retain one authoritative task ledger, reserve before dispatch, preserve cumulative limits and failure evidence, and honor architect/human holds. A worker result cannot revise a contract or override failed objective checks. The feedback controller consumes supplied evidence; actual execution and independent acceptance must still verify it.
 
+Use `EXECUTION_HARNESS_PROTOCOL.md` to dispatch a reserved attempt to a bounded worker harness and ingest its report. The harness renders only the context the packet permits, never invokes a model itself, and refuses a report that invents validation ids, grades itself, or widens scope. Cline is the default harness and is replaceable; routing, attempt budgets and scope rules stay outside it.
+
 Use `GITHUB_LEDGER_PROTOCOL.md` to publish/recover canonical packets and full feedback history in an approved initialized project. One task has one canonical issue; comments link committed evidence. Reconcile uncertain publications before retrying. Audit live issue/PR/accepted-commit state and the generated project-state index; do not duplicate task narration in passdown documents. Recovery does not grant dispatch authority.
 
 ## Connector selection
