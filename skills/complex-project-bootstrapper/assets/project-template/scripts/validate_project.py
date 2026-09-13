@@ -35,6 +35,10 @@ REQUIRED = [
     "MODEL_ROUTING.md", "config/model-router.schema.json", "config/model-router.example.json",
     "scripts/model_router.py",
     "FEEDBACK_PROTOCOL.md", "config/feedback.schema.json", "config/feedback.example.json", "scripts/feedback.py",
+    "GITHUB_LEDGER_PROTOCOL.md", "config/github-ledger.schema.json", "config/github-ledger.example.json", "scripts/github_ledger.py",
+    ".github/ISSUE_TEMPLATE/task.yml", ".github/ISSUE_TEMPLATE/blocker.yml", ".github/ISSUE_TEMPLATE/escalation.yml",
+    ".github/ISSUE_TEMPLATE/risk.yml", ".github/ISSUE_TEMPLATE/evidence-gap.yml", ".github/ISSUE_TEMPLATE/architecture-change.yml",
+    ".github/pull_request_template.md",
 ]
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z0-9_]+\}\}")

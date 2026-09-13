@@ -1,23 +1,18 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-12 UTC
-- **From:** Issue #5 implementation and validation
-- **To:** Feedback acceptance / master orientation
-- **Branch:** issue-5-bounded-feedback
-- **Scope:** Issue #5 only; locked master #14 title/body is unchanged.
+- **Prepared:** 2026-09-13 UTC
+- **Repository:** `henslewm/universal-ai-project-template`
+- **Branch:** issue-6-github-ledger
+- **Scope:** Issue #6 only; master #14 is unchanged.
 
-## Accepted foundation
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #6](https://github.com/henslewm/universal-ai-project-template/issues/6) and [PR #19](https://github.com/henslewm/universal-ai-project-template/pull/19). Issues #2 through #5 are closed; latest accepted merge is PR #18 at `7b4f88f982f32db97c9b7ad17b4c042c4503f8fe` with 157 passing GitHub tests. Completion and review evidence are linked in the issues.
 
-#2 is closed through merged PR #15 (`500a7205fa671e7104671d25446d07e4ed8558c7`). #3 is closed through PR #16 (`e8dce9030fd4f02cd58ee99cfaae53bd88230f01`). #4 is closed through PR #17 (`e7c7c9c4fdf4221e25d877b00fe1e4d74debccba`); all 110 tests passed locally and remotely, and independent/automatic reviews reported no remaining blockers. Completion comments are linked from master #14.
+Five automatic review rounds and one independent review have been answered in place. The independent review of `a74a980` found two P1 dead ends (a PR closed without merging, and a lost publication-claim write) plus two P2 and three P3 defects; all are corrected on this branch under ADR-008, with the reviewer's own test-design finding closed as well. Codex then reviewed that remediation and found one P1 and two P2 defects in it, all corrected under ADR-009: the claim-release path was removed because full comment pagination proves only present absence, and publication now commits a distinct `posting` phase so a `claimed` entry is durable proof no POST was attempted and is simply resumable. `docs/ISSUE_6_VALIDATION.md` records each round and `GITHUB_LEDGER_PROTOCOL.md` states the resulting rules. The registry row gained `superseded_prs` and each publication entry gained `author`, so any registry written before this change must be re-read through the current validator.
 
-The master was reread after #4 closure; #5 is the sole active child. It adds durable pre-dispatch reservations, replayed task state, cumulative/per-tier budgets, repeated-failure evidence, focused context and finite architect repair/recovery. Confirmed architecture changes and changed/unavailable approval enter a sticky human-decision state. See `FEEDBACK_PROTOCOL.md` and live #5 for validation/review/PR evidence; local files do not establish merge acceptance.
+Next action: confirm current-head GitHub CI and review, answer any remaining findings the same way, then merge PR #19, close #6 with evidence, and reread master #14 before #7. Continue through #13 one child at a time. Live GitHub records determine acceptance, not these documents.
 
-The full local 148-test run and final 40-test packet suite passed; the initial PR head passed all 149 tests on Linux. GitHub review identified missing POSIX directory synchronization; the correction and eight regressions passed all 46 final feedback tests independently. The current full suite contains 157 tests. Repository validation (46 paths), payload consistency and diff checks passed; see `docs/ISSUE_5_VALIDATION.md` and PR #18 for current full-suite/review-resolution/merge evidence. Windows namespace persistence across power loss remains explicitly unverified.
+Open limitation to carry forward: the independent review was performed by the same model family as the implementer and without live GitHub access, not by a different strong model as master #14 prefers. A Codex pass on the final head is still wanted, and the remote-semantics questions it could not settle — percent-encoding of refs, Contents-API SHA rejection, compare status values, PATCH idempotence — remain verified only against documentation and the synthetic fake.
 
-## Exact continuation
+Local tooling note: this checkout has no repository virtualenv; `jsonschema` is installed into a disposable interpreter outside the repository. A venv inside the working tree makes `scripts/validate_project.py` fail on vendored `.pem` files, so keep it outside.
 
-Complete #5 validation, independent review, commit/push, PR checks/review, merge and closure with evidence in child/master comments. Then reread locked master #14 before starting #6. The user authorized continuing through #13, strictly one child at a time. Preserve the six issue-form clarification in #6 and automatic intake-to-first-task-graph demonstration in #13. Canonical legal-branch/domain rollout remains #9/#10/#11. Do not edit the master title/body or delete construction branches without the later required approval.
-
-## Boundaries
-
-All provider/example execution is synthetic; no live model calls, credentials, paid usage or real-project activation were needed. The controller records supplied validation/cost/scope assertions and a saved graph, not authenticated outcomes or live prerequisite freshness. #7 must enforce current dependency/permission checks, deadlines, real validation and usage accounting; #6 publishes/reconstructs authoritative state; #8 enforces independent acceptance. Keep one ledger per managed task, preserve pending reservations and cumulative budgets, and never use a new directory or ordinary blocker recovery to bypass a human hold.
+The template remains unactivated. Connector tests use synthetic isolated GitHub fixtures and supplied feedback evidence, not live model execution or substantive independent acceptance. A pre-POST claim is resumable; an attempted publication with no visible comment stays uncertain and is never retried. Recovery exports are not dispatch authority. Live harness enforcement remains #7 and acceptance machinery #8. No master edits, credentials, permission changes or branch deletion are part of #6.

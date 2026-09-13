@@ -1,0 +1,70 @@
+name: Risk
+description: Track a task risk with supporting evidence, mitigation, and an owner
+title: "[RISK] "
+labels: ["risk"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue records a risk and proposed response. The canonical JSON packet and controlling project records retain authority. A changed assessment does not silently change routing, scope, or approval; request the applicable architect revision or human decision. Link approved evidence locations without exposing secrets or restricted originals.
+  - type: input
+    id: task_issue
+    attributes:
+      label: Canonical task issue
+      description: Link the authoritative task issue affected by this risk.
+    validations:
+      required: true
+  - type: input
+    id: master_issue
+    attributes:
+      label: Master issue
+      description: Link the controlling project or master issue.
+    validations:
+      required: true
+  - type: textarea
+    id: packet_binding
+    attributes:
+      label: Canonical packet binding
+      description: Link the packet and record task_id, current revision, and complete contract SHA-256.
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Risk scenario and impact
+      description: Describe the possible event, cause, affected outcome, likelihood, and impact. Distinguish observed facts, assumptions, and unknowns.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Proposed risk tier
+      description: This assessment is a proposal until reconciled with the canonical contract.
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical / regulated / legal
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Risk evidence and related records
+      description: Link sources, adverse facts, relevant validation results, and the risk-register entry if one exists. Identify unsupported assumptions.
+    validations:
+      required: true
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Mitigation and decision threshold
+      description: State early warning signals, proposed mitigation, residual risk, and the condition requiring a stop or human decision.
+    validations:
+      required: true
+  - type: textarea
+    id: next_action
+    attributes:
+      label: Next action and risk owner
+      description: Name the responsible owner, next action, needed evidence or decision, and review date if known.
+    validations:
+      required: true
