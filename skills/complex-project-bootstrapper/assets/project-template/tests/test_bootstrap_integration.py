@@ -152,7 +152,8 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     raw_events = [read(path) for path in sorted(feedback_ledger.glob("*.json"))]
                     github_config = read(root / "config/github-ledger.example.json")
                     row = {"issue": 2, "packet": published_packet, "feedback": raw_events,
-                           "branch": "synthetic-task", "pr": None, "acceptance": None, "discoveries": {}}
+                           "branch": "synthetic-task", "pr": None, "superseded_prs": [],
+                           "acceptance": None, "discoveries": {}}
                     registry = {"schema_version": 1, "config": github_config, "anchor": raw_events[0]["data"]["anchor"],
                                 "tasks": {data["task_id"]: row}, "outbox": [github_ledger.entry_for(data["task_id"], row)]}
                     snapshot = root / "synthetic-github-state.json"

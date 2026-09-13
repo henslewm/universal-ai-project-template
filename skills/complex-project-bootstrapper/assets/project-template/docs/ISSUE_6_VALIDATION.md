@@ -57,3 +57,35 @@ Regressions cover a mismatched packet refused before any GitHub mutation, the ma
 The review of `346fc860541d1ae356b95835d63f2a753f4dcf72` reported one P2 finding: branch names were validated only in isolation and for equality, so an accepted branch `main` and a task branch `main/task` both passed while Git cannot hold `refs/heads/main` and `refs/heads/main/task` at the same time. Because a non-null branch binding is immutable, such a task would be permanently stranded, and the same collision can block initialization when the configured state and accepted branches have that prefix relationship. A shared `ref_conflict` check now rejects any configured or registered branch that is a path-component prefix of another, on every read and write. `GITHUB_LEDGER_PROTOCOL.md` states the rule.
 
 Regressions cover a task branch nested under the accepted branch, under the state branch and under another task's branch; a later shallow branch that would contain an existing nested one; both configured-branch prefix directions; and refusal before any GitHub mutation. The test also confirms the underlying constraint with the real `git update-ref`, which reports `'refs/heads/main' exists; cannot create 'refs/heads/main/task'`. All 50 ledger tests passed in 19.842 seconds and the full suite passed all 207 tests in 75.179 seconds; repository validation passed 57 required paths and the bootstrap distribution check reported 0 differing files. Current-head GitHub CI and review results remain in PR #19 and issue #6.
+
+## Independent review remediation
+
+Codex returned no review on `a74a980` within the usual window, so the independent pass was run by a separate reviewer with no implementation context. **Limitation: that reviewer is the same model family as the implementer, not a different strong model as master #14 prefers, and it had no live GitHub access — every remote-semantics question rests on documentation and the synthetic fake.** A Codex pass is still wanted. The full findings are recorded in issue #6. Six were accepted and corrected here; none were dismissed.
+
+### P1 — a PR closed without merging no longer strands the task
+
+`live_row` required the bound PR to be open while `validate` refused to rebind or clear it, so an ordinary rejected-review outcome froze the row, its issue and its audit result with no remedy. A PR binding is now replaced through supersession: the outgoing number is appended to the new `superseded_prs` list in the same write that changes or clears `pr`, one per change, never on an accepted row, and `live_row` requires every superseded number to be a live PR that is closed and was not merged. A merged PR therefore cannot be hidden by superseding it, the list can only grow, and no other task may adopt a superseded number. Regressions walk the whole path: open PR published and audited clean, PR closed unmerged making audit fail, a rebind refused without the record, the recorded supersession accepted and audited clean, a merged supersession failing audit, an attempt to erase the record refused, clearing the binding after the replacement also closes, and a second task refused the superseded number.
+
+### P1 — a stranded publication claim can be released on positive evidence
+
+If the Contents write that records the exclusive claim landed but its response was lost, the comment provably never posted, yet no state transition could express the repair. A new `release` operation retires such a claim only after reading every comment page and finding no matching comment. The retired claim is appended permanently to the entry's `released` list, cannot be reused or removed, and the entry returns to unpublished so exactly one later publication completes it. A claim whose comment is visible is never releasable, and `release` requires the same approval, bound configuration and allowed publisher identity as publication. The regression injects the lost claim write, confirms no comment was posted, confirms neither publish nor reconcile retries the uncertain POST, releases, republishes, and asserts exactly one comment exists and that release history cannot be dropped.
+
+### P2 — a publication must project the row that was committed
+
+`validate` bound an outbox entry only to its own digest, so a writer could append a projection claiming `VERIFIED` with a fabricated acceptance commit, publish it as the canonical issue comment, and still pass audit — including onto a closed task. The newest entry for a task must now equal that task's current projection, and any entry appended in a write must be the projection of the row that write commits. The regression confirms the forgery is refused with and without prior state, that no mutation occurs, and that a superseded-but-genuine projection cannot be replayed after the current one.
+
+### P2 — nested branch names address path-shaped refs
+
+Every ref and compare endpoint used `quote(branch, safe="")`, percent-encoding the separator that makes a nested branch name a ref path, so `team/task` addressed a ref that cannot exist. The tests could not catch it because the synthetic fake called `unquote()` on ref paths and defaulted compare to `ahead`. The fake now refuses an encoded separator the way GitHub would, and a regression initializes a project whose state and accepted branches are both nested, registers nested implementation branches, and asserts the recorded endpoints carry literal separators.
+
+### P3 corrections
+
+Only the identity-bearing configuration — schema version, repository, state branch, accepted branch and master issue — is frozen into the registry, so the protocol's own publisher-rotation step no longer makes an existing registry unreadable; a regression rotates publishers, disables writes, and still reads and audits, while a changed master issue or repository is refused. `reconcile` now runs the publisher-allowlist preflight, because it commits registry writes too. `recover` validates a fetched payload against the operator's configuration rather than the copy embedded in it, and `read` measures the decoded payload instead of trusting the size GitHub reports — the read regression now injects an understated size over an oversized body.
+
+### Test-design correction
+
+The reviewer noted that `LedgerTests` patches `authority` wholesale, so the approval gate was never exercised on `publish` or `close`. A new test in `AuthorityAndAdapterTests` drives `publish`, `reconcile`, `release` and `close` through the real `authority` against a synthetic approved project, then revokes the bound GitHub project-write permission and deactivates the bootstrap, asserting every mutating operation refuses with no GitHub mutation while read-only audit still succeeds.
+
+### Verification
+
+All 57 ledger tests passed in 29.018 seconds and the full suite passed all 214 tests in 105.656 seconds. Repository validation passed 57 required paths and the bootstrap distribution check reported 0 differing files. Current-head GitHub CI and review results remain in PR #19 and issue #6.

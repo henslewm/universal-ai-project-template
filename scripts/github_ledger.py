@@ -22,6 +22,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PATH = ".autonomy/ledger.json"
 MAX_BYTES = 900_000  # GitHub Contents API returns embedded content below 1 MB.
 SHA = re.compile(r"[0-9a-f]{40}")
+# Rotating publishers or disabling writes must not make an existing registry unreadable.
+BINDING = ("schema_version", "repository", "state_branch", "accepted_branch", "master_issue")
 TASK = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
 
 
@@ -98,7 +100,7 @@ def packet_extends(old, new):
 
 
 def row_valid(task_id, row, anchor):
-    exact(row, {"issue", "packet", "feedback", "branch", "pr", "acceptance", "discoveries"})
+    exact(row, {"issue", "packet", "feedback", "branch", "pr", "superseded_prs", "acceptance", "discoveries"})
     require(number(row["issue"]), "Canonical issue must be a positive integer")
     wp.require_valid(row["packet"])
     require(task_id == row["packet"]["task_id"] and TASK.fullmatch(task_id), "Task identity differs")
@@ -116,6 +118,12 @@ def row_valid(task_id, row, anchor):
     require(row["pr"] is None or number(row["pr"]), "Invalid PR number")
     if row["pr"]:
         require(row["branch"] is not None, "PR requires a branch")
+    superseded = row["superseded_prs"]
+    require(isinstance(superseded, list) and all(number(value) for value in superseded) and
+            len(set(superseded)) == len(superseded) and row["pr"] not in superseded,
+            "Superseded PRs must be distinct positive integers and exclude the current PR")
+    if superseded:
+        require(row["branch"] is not None, "A superseded PR requires the task branch")
     receipt = row["acceptance"]
     if receipt is not None:
         exact(receipt, {"commit", "evidence", "review"})
@@ -148,8 +156,9 @@ def entry_for(task_id, row):
                "attempts": len(state["attempts"]) if state else 0,
                "pending_dispatch": state["pending"] if state else None,
                "event_count": len(row["feedback"]), "row_hash": router.digest(row),
-               "acceptance": preview, "pr": row["pr"]}
-    return {"id": router.digest(summary), "summary": summary, "status": "new", "claim": None, "comment": None}
+               "acceptance": preview, "pr": row["pr"], "superseded_prs": list(row["superseded_prs"])}
+    return {"id": router.digest(summary), "summary": summary, "status": "new", "claim": None,
+            "comment": None, "released": []}
 
 
 def registry_profile(state):
@@ -162,7 +171,8 @@ def validate(state, config, prior=None):
     exact(state, {"schema_version", "config", "anchor", "tasks", "outbox"})
     require(type(state["schema_version"]) is int and state["schema_version"] == 1, "Unsupported registry version")
     config_valid(config)
-    require(state["config"] == config, "Registry configuration differs")
+    config_valid(state["config"])
+    require(all(state["config"][key] == config[key] for key in BINDING), "Registry identity configuration differs")
     require(isinstance(state["anchor"], str) and re.fullmatch(r"[0-9a-f]{64}", state["anchor"]), "Invalid approval anchor")
     require(isinstance(state["tasks"], dict) and isinstance(state["outbox"], list), "Invalid registry collections")
     homes, branches, prs = set(), set(), set()
@@ -175,9 +185,9 @@ def validate(state, config, prior=None):
             require(row["branch"] not in taken, "Duplicate or reserved implementation branch")
             require(not ref_conflict(row["branch"], taken), "Implementation branch ref conflicts; one name is a path prefix of another")
             branches.add(row["branch"])
-        if row["pr"]:
-            require(row["pr"] not in prs, "Duplicate PR home")
-            prs.add(row["pr"])
+        for value in ([row["pr"]] if row["pr"] else []) + row["superseded_prs"]:
+            require(value not in prs, "Duplicate PR home")
+            prs.add(value)
     registry_profile(state)
     if state["tasks"]:
         wp.graph_order([row["packet"] for row in state["tasks"].values()])
@@ -191,17 +201,22 @@ def validate(state, config, prior=None):
             discovery_homes.add(issue)
     ids = set()
     for item in state["outbox"]:
-        exact(item, {"id", "summary", "status", "claim", "comment"})
+        exact(item, {"id", "summary", "status", "claim", "comment", "released"})
         require(item["id"] == router.digest(item["summary"]) and item["id"] not in ids, "Duplicate or corrupt publication id")
         require(len(json.dumps(item["summary"], ensure_ascii=False).encode("utf-8")) < 55_000, "Publication exceeds its safe comment size")
         ids.add(item["id"])
         require(item["summary"]["task_id"] in state["tasks"] and item["summary"]["issue"] == state["tasks"][item["summary"]["task_id"]]["issue"], "Publication has no canonical home")
         require(item["status"] in {"new", "claimed", "done"}, "Invalid publication state")
+        require(isinstance(item["released"], list) and len(set(item["released"])) == len(item["released"]) and
+                all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value) for value in item["released"]) and
+                item["claim"] not in item["released"], "Released claims must be distinct and retired")
         require((item["status"] == "new" and item["claim"] is None and item["comment"] is None) or
                 (item["status"] != "new" and isinstance(item["claim"], str) and re.fullmatch(r"[0-9a-f]{32}", item["claim"]) and
                  ((item["status"] == "claimed" and item["comment"] is None) or (item["status"] == "done" and number(item["comment"])))), "Invalid publication claim/receipt")
     for task_id, row in state["tasks"].items():
-        require(entry_for(task_id, row)["id"] in ids, "Current task has no publication intent")
+        projections = [item for item in state["outbox"] if item["summary"]["task_id"] == task_id]
+        require(projections and projections[-1]["summary"] == entry_for(task_id, row)["summary"],
+                "The newest publication for a task must project its committed row")
     if prior:
         require(state["anchor"] == prior["anchor"], "Approval cannot be replaced inside an existing registry")
         require(set(prior["tasks"]) <= set(state["tasks"]), "Tasks cannot be removed")
@@ -212,17 +227,36 @@ def validate(state, config, prior=None):
             prefix(old["feedback"], new["feedback"], "Feedback events")
             if old["acceptance"]:
                 require(new == old, "Accepted task is immutable; create a new task for follow-up work")
-            for name in ("branch", "pr"):
-                require(old[name] is None or new[name] == old[name], f"Existing {name} binding cannot change")
+            require(old["branch"] is None or new["branch"] == old["branch"], "Existing branch binding cannot change")
+            prefix(old["superseded_prs"], new["superseded_prs"], "Superseded PRs")
+            if old["pr"] is not None and new["pr"] != old["pr"]:
+                # A PR closed without merging is recorded, then may be replaced or cleared.
+                require(new["superseded_prs"][len(old["superseded_prs"]):] == [old["pr"]],
+                        "Record the superseded PR before replacing or clearing the binding")
+            else:
+                require(new["superseded_prs"] == old["superseded_prs"],
+                        "Superseded PRs change only when the PR binding changes")
             require(all(new["discoveries"].get(key) == value for key, value in old["discoveries"].items()), "Discovery homes cannot be replaced")
         require(len(state["outbox"]) >= len(prior["outbox"]), "Publication history cannot be removed")
+        for item in state["outbox"][len(prior["outbox"]):]:
+            added = item["summary"]["task_id"]
+            require(added in state["tasks"] and item["summary"] == entry_for(added, state["tasks"][added])["summary"],
+                    "A new publication must project the row being committed")
         for old, new in zip(prior["outbox"], state["outbox"]):
             require(old["id"] == new["id"] and old["summary"] == new["summary"], "Publication history changed")
-            require((old["status"], new["status"]) in {("new", "new"), ("new", "claimed"), ("claimed", "claimed"), ("claimed", "done"), ("done", "done")}, "Publication state regressed")
-            if old["claim"]:
-                require(new["claim"] == old["claim"], "Publication claim changed")
-            if old["comment"]:
-                require(new["comment"] == old["comment"], "Publication receipt changed")
+            require((old["status"], new["status"]) in {("new", "new"), ("new", "claimed"), ("claimed", "claimed"),
+                                                       ("claimed", "done"), ("done", "done"), ("claimed", "new")}, "Publication state regressed")
+            if (old["status"], new["status"]) == ("claimed", "new"):
+                # Releasing a claim retires it permanently; the operation itself proves no comment exists.
+                require(new["claim"] is None and new["comment"] is None and
+                        new["released"] == old["released"] + [old["claim"]],
+                        "A released claim must be recorded and cleared together")
+            else:
+                require(new["released"] == old["released"], "Release history cannot change")
+                if old["claim"]:
+                    require(new["claim"] == old["claim"], "Publication claim changed")
+                if old["comment"]:
+                    require(new["comment"] == old["comment"], "Publication receipt changed")
     require(len(wp.canonical(state).encode("utf-8")) <= MAX_BYTES, "Registry capacity reached; preserve it and propose a storage migration before more work")
     return state
 
@@ -277,14 +311,16 @@ class Ledger:
         self.api = api or GitHub(config["repository"])
 
     def head(self):
-        return self.api.call("GET", "git/ref/heads/" + quote(self.config["state_branch"], safe=""))["object"]["sha"]
+        return self.api.call("GET", "git/ref/heads/" + quote(self.config["state_branch"], safe="/"))["object"]["sha"]
 
     def read(self, commit=None):
         commit = commit or self.head()
         require(isinstance(commit, str) and SHA.fullmatch(commit), "Exact state commit required")
         blob = self.api.call("GET", f"contents/{PATH}?ref={commit}")
-        require(blob.get("encoding") == "base64" and blob.get("size", MAX_BYTES + 1) <= MAX_BYTES, "Missing/oversize state content")
-        raw = base64.b64decode(blob["content"]).decode("utf-8")
+        require(blob.get("encoding") == "base64" and isinstance(blob.get("content"), str), "Missing/oversize state content")
+        decoded = base64.b64decode(blob["content"], validate=False)
+        require(len(decoded) <= MAX_BYTES, "Missing/oversize state content")
+        raw = decoded.decode("utf-8")
         # Reuse strict JSON handling (duplicate keys and nonfinite numbers fail).
         with tempfile.TemporaryDirectory(prefix="autonomy-state-") as temporary:
             path = Path(temporary) / "state.json"
@@ -307,7 +343,7 @@ class Ledger:
     def initialize(self, root):
         anchor = authority(self.config, root)
         self.issue(self.config["master_issue"])
-        base = self.api.call("GET", "git/ref/heads/" + quote(self.config["accepted_branch"], safe=""))["object"]["sha"]
+        base = self.api.call("GET", "git/ref/heads/" + quote(self.config["accepted_branch"], safe="/"))["object"]["sha"]
         self.api.call("POST", "git/refs", {"ref": "refs/heads/" + self.config["state_branch"], "sha": base})
         state = {"schema_version": 1, "config": self.config, "anchor": anchor, "tasks": {}, "outbox": []}
         return self.save(state)
@@ -326,12 +362,16 @@ class Ledger:
             require(pr["head"]["ref"] == row["branch"] and pr["head"]["repo"]["full_name"].lower() == self.config["repository"].lower() and
                     pr["base"]["ref"] == self.config["accepted_branch"], "PR repository/branch binding differs")
             if not row["acceptance"]:
-                require(pr["state"] == "open", "Closed PR has no accepted ledger evidence")
+                require(pr["state"] == "open", "Closed PR has no accepted ledger evidence; supersede it or record acceptance")
+        for number_ in row["superseded_prs"]:
+            superseded = self.api.call("GET", f"pulls/{number_}")
+            require(superseded["state"] == "closed" and not superseded["merged"],
+                    "A superseded PR must be closed without having been merged")
         receipt = row["acceptance"]
         if receipt:
             if pr:
                 require(pr["merged"] and pr["merge_commit_sha"] == receipt["commit"], "Acceptance does not match the merged PR commit")
-            comparison = self.api.call("GET", f"compare/{receipt['commit']}...{quote(self.config['accepted_branch'], safe='')}")
+            comparison = self.api.call("GET", f"compare/{receipt['commit']}...{quote(self.config['accepted_branch'], safe='/')}")
             require(comparison["status"] in {"ahead", "identical"}, "Accepted commit is not on the accepted branch")
         for related in row["discoveries"].values():
             self.issue(related)
@@ -381,10 +421,9 @@ class Ledger:
 
     def publish(self, root, reconcile_only=False):
         anchor = authority(self.config, root)
-        if not reconcile_only:
-            login = self.api.identity()
-            require(login.lower() in {name.lower() for name in self.config["publishers"]},
-                    "Authenticated publisher is not allowed; no publication claim was made")
+        login = self.api.identity()
+        require(login.lower() in {name.lower() for name in self.config["publishers"]},
+                "Authenticated publisher is not allowed; no publication claim was made")
         state, _, _ = self.read()
         require(state["anchor"] == anchor, "Current approval differs")
         require(authority(self.config, root, registry_profile(state)) == anchor, "Approved project profile differs from the registry")
@@ -414,6 +453,33 @@ class Ledger:
             current["status"], current["comment"] = "done", comment["id"]
             self.save(state, blob, prior)
         return self.head()
+
+    def release(self, root, entry=None):
+        """Retire a publication claim only on positive evidence that no comment exists."""
+        anchor = authority(self.config, root)
+        login = self.api.identity()
+        require(login.lower() in {name.lower() for name in self.config["publishers"]},
+                "Authenticated publisher is not allowed; no claim was released")
+        state, _, _ = self.read()
+        require(state["anchor"] == anchor, "Current approval differs")
+        require(authority(self.config, root, registry_profile(state)) == anchor, "Approved project profile differs from the registry")
+        targets = [item["id"] for item in state["outbox"]
+                   if item["status"] == "claimed" and (entry is None or item["id"] == entry)]
+        require(entry is None or targets, "No claimed publication has that id")
+        released = []
+        for entry_id in targets:
+            state, blob, _ = self.read()
+            prior = copy.deepcopy(state)
+            item = next(value for value in state["outbox"] if value["id"] == entry_id)
+            if item["status"] != "claimed":
+                continue
+            require(self.matches(item) is None,
+                    "A visible receipt exists; complete the publication instead of releasing its claim")
+            item["released"] = item["released"] + [item["claim"]]
+            item["status"], item["claim"] = "new", None
+            self.save(state, blob, prior)
+            released.append(entry_id)
+        return {"released": released, "commit": self.head()}
 
     def close(self, task_id, root):
         anchor = authority(self.config, root)
@@ -470,7 +536,7 @@ class Ledger:
             if git("branch", "--show-current") != state["tasks"][task_id]["branch"]:
                 errors.append("Workspace branch differs from the task's registered branch")
             elif state["tasks"][task_id]["branch"]:
-                remote_head = self.api.call("GET", "git/ref/heads/" + quote(state["tasks"][task_id]["branch"], safe=""))["object"]["sha"]
+                remote_head = self.api.call("GET", "git/ref/heads/" + quote(state["tasks"][task_id]["branch"], safe="/"))["object"]["sha"]
                 if head != remote_head:
                     errors.append("Workspace HEAD differs from the published task branch")
             if git("status", "--porcelain", "--untracked-files=all"):
@@ -489,8 +555,9 @@ def project_projection(state, commit):
                       for key, row in state["tasks"].items()}}
 
 
-def recover(state, destination):
-    validate(state, state["config"])
+def recover(state, destination, config=None):
+    # The embedded configuration is remote-supplied; prefer the operator's own when available.
+    validate(state, config if config is not None else state["config"])
     destination = Path(destination)
     destination.mkdir(exist_ok=False)
     wp.write_new(destination / "registry.json", json.dumps(state, indent=2, ensure_ascii=False))
@@ -513,6 +580,8 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("init", "publish", "reconcile"):
         commands.add_parser(name)
+    free = commands.add_parser("release")
+    free.add_argument("--entry")
     put = commands.add_parser("put")
     put.add_argument("row", type=Path)
     close = commands.add_parser("close")
@@ -541,11 +610,14 @@ def main(argv=None):
             result = {"commit": ledger.put_task(wp.read_json(args.row), args.root)}
         elif args.command in {"publish", "reconcile"}:
             result = {"commit": ledger.publish(args.root, args.command == "reconcile")}
+        elif args.command == "release":
+            result = ledger.release(args.root, args.entry)
         elif args.command == "close":
             result = {"state": ledger.close(args.task_id, args.root)["state"]}
         elif args.command == "recover":
             state, _, commit = ledger.read(args.commit)
-            result = {"destination": str(recover(state, args.destination)), "state_commit": commit, "execution_authorized": False}
+            result = {"destination": str(recover(state, args.destination, ledger.config)),
+                      "state_commit": commit, "execution_authorized": False}
         elif args.command == "project-state":
             state, _, commit = ledger.read()
             wp.write_new(args.destination, json.dumps(project_projection(state, commit), indent=2))

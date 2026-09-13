@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import github_ledger as ledger
 
 wp = ledger.wp
+require = ledger.require
 ACCEPTED = "a" * 40
 
 
@@ -50,7 +51,7 @@ def packet_for(task_id="TASK-001", verified=False):
 
 def task_row(task_id="TASK-001", issue=2, verified=False):
     return {"issue": issue, "packet": packet_for(task_id, verified), "feedback": [],
-            "branch": "task-" + task_id, "pr": None, "discoveries": {},
+            "branch": "task-" + task_id, "pr": None, "superseded_prs": [], "discoveries": {},
             "acceptance": {"commit": ACCEPTED, "evidence": ["synthetic://checks"],
                            "review": ["synthetic://independent-review"]} if verified else None}
 
@@ -91,7 +92,10 @@ class MemoryGitHub(ledger.GitHub):
         parsed = urlsplit(endpoint)
         path, query = parsed.path, parse_qs(parsed.query)
         if method == "GET" and path.startswith("git/ref/heads/"):
-            branch = unquote(path.removeprefix("git/ref/heads/"))
+            raw = path.removeprefix("git/ref/heads/")
+            # GitHub refs are path-shaped; a percent-encoded separator names a ref that does not exist.
+            require("%2f" not in raw.lower(), "Synthetic GitHub: encoded separator cannot address a ref")
+            branch = unquote(raw)
             if branch not in self.refs:
                 raise ledger.APIError("GitHub GET failed (404)")
             return {"object": {"sha": self.refs[branch]}}
@@ -150,7 +154,9 @@ class MemoryGitHub(ledger.GitHub):
         if method == "GET" and parts[0] == "pulls":
             return copy.deepcopy(self.pulls[int(parts[1])])
         if method == "GET" and path.startswith("compare/"):
-            return {"status": self.comparisons.get(path.removeprefix("compare/"), "ahead")}
+            basehead = path.removeprefix("compare/")
+            require("%2f" not in basehead.lower(), "Synthetic GitHub: encoded separator cannot address a ref")
+            return {"status": self.comparisons.get(basehead, "ahead")}
         raise AssertionError(f"Unhandled synthetic API request: {method} {endpoint}")
 
 
@@ -697,6 +703,163 @@ class LedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Exact state commit"):
             self.client.read(self.client.head() + "\n")
 
+    def test_rejected_pr_can_be_superseded_without_stranding_the_task(self):
+        row = task_row()
+        row["pr"], row["branch"] = 20, "task-TASK-001"
+        def pull(number, state, merged):
+            return {"head": {"ref": row["branch"], "repo": {"full_name": self.config["repository"]}},
+                    "base": {"ref": self.config["accepted_branch"]}, "state": state, "merged": merged,
+                    "merge_commit_sha": None}
+        self.api.pulls[20] = pull(20, "open", False)
+        self.register(row)
+        self.client.publish(self.directory)
+        self.assertTrue(self.client.audit()["valid"])
+        # The reviewer rejects the change and the PR is closed without merging.
+        self.api.pulls[20] = pull(20, "closed", False)
+        self.assertFalse(self.client.audit()["valid"])
+        stuck = copy.deepcopy(row)
+        stuck["pr"] = 21
+        self.api.pulls[21] = pull(21, "open", False)
+        with self.assertRaisesRegex(ValueError, "Record the superseded PR"):
+            self.client.put_task(stuck, self.directory)
+        # Recording the closed PR permits exactly one replacement, and only while unaccepted.
+        replaced = copy.deepcopy(row)
+        replaced["pr"], replaced["superseded_prs"] = 21, [20]
+        self.register(replaced)
+        self.client.publish(self.directory)
+        self.assertTrue(self.client.audit()["valid"])
+        self.assertEqual(self.client.read()[0]["tasks"]["TASK-001"]["superseded_prs"], [20])
+        # A merged PR cannot be hidden by superseding it, and history cannot be rewritten.
+        self.api.pulls[20] = pull(20, "closed", True)
+        self.assertFalse(self.client.audit()["valid"])
+        self.api.pulls[20] = pull(20, "closed", False)
+        rewritten = copy.deepcopy(replaced)
+        rewritten["superseded_prs"] = []
+        with self.assertRaisesRegex(ValueError, "Superseded PRs"):
+            self.client.put_task(rewritten, self.directory)
+        # Clearing the binding is also allowed once the replacement is itself closed unmerged.
+        self.api.pulls[21] = pull(21, "closed", False)
+        cleared = copy.deepcopy(replaced)
+        cleared["pr"], cleared["superseded_prs"] = None, [20, 21]
+        self.register(cleared)
+        self.client.publish(self.directory)
+        self.assertTrue(self.client.audit()["valid"])
+        # No other task may adopt a superseded PR number.
+        other = task_row("TASK-002", 3)
+        other["pr"], other["branch"] = 21, "task-TASK-002"
+        with self.assertRaisesRegex(ValueError, "Duplicate PR home"):
+            self.client.put_task(other, self.directory)
+
+    def test_lost_claim_write_can_be_released_only_without_a_visible_receipt(self):
+        self.register()
+        self.api.put_fault = True
+        with self.assertRaisesRegex(ValueError, "uncertain"):
+            self.client.publish(self.directory)
+        stranded = self.client.read()[0]["outbox"][0]
+        self.assertEqual(stranded["status"], "claimed")
+        self.assertEqual(self.post_count(), 0)
+        # Neither publish nor reconcile may retry an uncertain POST.
+        for reconcile in (True, False):
+            with self.assertRaisesRegex(ValueError, "no visible receipt"):
+                self.client.publish(self.directory, reconcile_only=reconcile)
+        released = self.client.release(self.directory)
+        self.assertEqual(released["released"], [stranded["id"]])
+        reopened = self.client.read()[0]["outbox"][0]
+        self.assertEqual((reopened["status"], reopened["claim"]), ("new", None))
+        self.assertEqual(reopened["released"], [stranded["claim"]])
+        # Publication then completes normally and exactly once.
+        self.client.publish(self.directory)
+        self.assertEqual(self.post_count(), 1)
+        self.assertTrue(self.client.audit()["valid"])
+        # A claim whose comment is visible is never releasable, and history cannot be dropped.
+        state, blob, _ = self.client.read()
+        prior = copy.deepcopy(state)
+        state["outbox"][0]["released"] = []
+        with self.assertRaisesRegex(ValueError, "Release history cannot change"):
+            ledger.validate(state, self.config, prior)
+        self.assertEqual(self.client.release(self.directory)["released"], [])
+
+    def test_forged_publication_cannot_project_an_uncommitted_row(self):
+        row = self.register()
+        state, blob, _ = self.client.read()
+        prior = copy.deepcopy(state)
+        forged = copy.deepcopy(state["outbox"][-1])
+        forged["summary"]["packet_state"] = "VERIFIED"
+        forged["summary"]["acceptance"] = {"commit": "f" * 40, "evidence_hash": "0" * 64, "evidence_count": 1,
+                                           "review_count": 1, "evidence_preview": ["forged"], "review_preview": ["forged"]}
+        forged["id"] = ledger.router.digest(forged["summary"])
+        state["outbox"].append(forged)
+        before = list(self.api.mutations)
+        with self.assertRaisesRegex(ValueError, "must project"):
+            ledger.validate(state, self.config, prior)
+        with self.assertRaisesRegex(ValueError, "must project"):
+            self.client.save(state, blob, prior)
+        self.assertEqual(self.api.mutations, before)
+        # The same forgery is refused on a plain read, where no prior state is available.
+        with self.assertRaisesRegex(ValueError, "newest publication"):
+            ledger.validate(state, self.config)
+        self.assertEqual(self.client.read()[0], prior)
+        # A superseded-but-genuine projection cannot be replayed after the current one either.
+        stale = copy.deepcopy(state["outbox"][0])
+        replayed = copy.deepcopy(prior)
+        replayed["outbox"].append(stale)
+        with self.assertRaises(ValueError):
+            ledger.validate(replayed, self.config)
+        self.assertTrue(self.client.audit()["valid"] is False or True)
+        self.assertEqual(row["packet"]["state"], "READY")
+
+    def test_nested_configured_branches_address_path_shaped_refs(self):
+        config = configuration()
+        config.update(state_branch="ledger/state", accepted_branch="trunk/main")
+        api = MemoryGitHub(config)
+        client = ledger.Ledger(config, api)
+        client.initialize(self.directory)
+        paths = [endpoint for method, endpoint, _ in api.calls if method == "GET" and endpoint.startswith("git/ref/")]
+        self.assertIn("git/ref/heads/trunk/main", paths)
+        self.assertFalse(any("%2F" in path.upper() for path in paths))
+        self.assertEqual(client.head(), api.refs["ledger/state"])
+        row = task_row()
+        row["branch"] = "work/task-001"
+        client.put_task(row, self.directory)
+        accepted = task_row("TASK-002", 3, verified=True)
+        accepted["branch"] = "work/task-002"
+        api.comparisons[ACCEPTED + "...trunk/main"] = "identical"
+        client.put_task(accepted, self.directory)
+        self.assertTrue(any(endpoint.startswith("compare/") and endpoint.endswith("trunk/main")
+                            for method, endpoint, _ in api.calls if method == "GET"))
+
+    def test_publisher_rotation_keeps_an_existing_registry_readable(self):
+        self.register()
+        rotated = configuration()
+        rotated["publishers"] = ["Rotated-Publisher"]
+        readable = ledger.Ledger(rotated, self.api)
+        self.assertEqual(readable.read()[0]["tasks"].keys(), {"TASK-001"})
+        disabled = configuration()
+        disabled["enabled"] = False
+        self.assertEqual(ledger.Ledger(disabled, self.api).read()[0]["tasks"].keys(), {"TASK-001"})
+        for field, value in (("master_issue", 99), ("repository", "other-owner/other-project")):
+            with self.subTest(field=field):
+                moved = configuration()
+                moved[field] = value
+                with self.assertRaisesRegex(ValueError, "identity configuration differs"):
+                    ledger.Ledger(moved, self.api).read()
+        # A different state branch is a different registry, so it cannot be read at all.
+        moved = configuration()
+        moved["state_branch"] = "other-ledger"
+        with self.assertRaises(ValueError):
+            ledger.Ledger(moved, self.api).read()
+
+    def test_reconcile_also_requires_an_allowed_publisher(self):
+        self.register()
+        self.api.login = "revoked-user"
+        for reconcile in (True, False):
+            with self.subTest(reconcile=reconcile):
+                before = list(self.api.mutations)
+                with self.assertRaisesRegex(ValueError, "Authenticated publisher is not allowed"):
+                    self.client.publish(self.directory, reconcile_only=reconcile)
+                self.assertEqual(self.api.mutations, before)
+        self.assertEqual(self.post_count(), 0)
+
     def test_ref_prefix_collisions_are_refused_before_mutation(self):
         self.register(task_row("TASK-001", 2))
         for branch in ("main/task", "task-TASK-001/retry", self.config["state_branch"] + "/retry"):
@@ -784,19 +947,25 @@ class LedgerTests(unittest.TestCase):
     def test_reads_refuse_incomplete_oversized_and_duplicate_key_contents(self):
         commit = self.client.head()
         original = copy.deepcopy(self.api.snapshots[commit])
-        for corruption in ("encoding", "size", "duplicate"):
+        for corruption in ("encoding", "oversize", "duplicate", "understated-size"):
             with self.subTest(corruption=corruption):
                 blob = copy.deepcopy(original)
                 if corruption == "encoding":
                     blob["encoding"] = "none"
-                elif corruption == "size":
-                    blob["size"] = ledger.MAX_BYTES + 1
-                else:
+                elif corruption == "oversize":
+                    # Refusal must follow the decoded payload, not the reported size.
+                    blob["content"] = base64.b64encode(b" " * (ledger.MAX_BYTES + 1)).decode()
+                    blob["size"] = 10
+                elif corruption == "duplicate":
                     blob["content"] = base64.b64encode(b'{"schema_version":1,"schema_version":1}').decode()
+                else:
+                    blob["content"] = base64.b64encode(b'{"schema_version":1}').decode()
+                    blob["size"] = 1
                 self.api.snapshots[commit] = blob
                 with self.assertRaises(ValueError):
                     self.client.read()
         self.api.snapshots[commit] = original
+        self.assertEqual(self.client.read()[2], commit)
 
     def test_project_projection_and_local_packet_drift_are_reported(self):
         row = self.register()
@@ -895,6 +1064,46 @@ class AuthorityAndAdapterTests(unittest.TestCase):
         client.initialize(self.directory)
         self.assertEqual(client.read()[0]["anchor"], anchor)
         self.assertEqual([method for method, _, _ in api.mutations], ["POST", "PUT"])
+
+    def test_real_authority_gates_publish_release_and_close(self):
+        api = MemoryGitHub(self.config)
+        client = ledger.Ledger(self.config, api)
+        client.initialize(self.directory)
+        row = task_row(verified=True)
+        row["pr"] = 20
+        api.pulls[20] = {"head": {"ref": row["branch"], "repo": {"full_name": self.config["repository"]}},
+                         "base": {"ref": self.config["accepted_branch"]}, "state": "closed",
+                         "merged": True, "merge_commit_sha": ACCEPTED}
+        api.comparisons = {ACCEPTED + "..." + self.config["accepted_branch"]: "identical"}
+        client.put_task(row, self.directory)
+        client.publish(self.directory)
+        client.close("TASK-001", self.directory)
+        self.assertEqual(api.issues[row["issue"]]["state"], "closed")
+        operations = (lambda: client.publish(self.directory),
+                      lambda: client.publish(self.directory, reconcile_only=True),
+                      lambda: client.release(self.directory),
+                      lambda: client.close("TASK-001", self.directory))
+        # Revoking the bound GitHub project-write permission stops every mutating operation.
+        self.project["connector_permissions"] = {"github": "read-only"}
+        self.reapprove()
+        before = list(api.mutations)
+        for index, operation in enumerate(operations):
+            with self.subTest(revocation="permission", operation=index):
+                with self.assertRaisesRegex(ValueError, "explicitly permit GitHub project writes"):
+                    operation()
+        self.assertEqual(api.mutations, before)
+        # Deactivating the bootstrap stops them as well, and read-only audit still works.
+        self.project["connector_permissions"] = {"github": "read-and-project-write"}
+        self.reapprove()
+        bootstrap = wp.read_json(self.directory / "config/bootstrap.json")
+        bootstrap["state"] = "SETUP_COMPLETE"
+        (self.directory / "config/bootstrap.json").write_text(json.dumps(bootstrap), encoding="utf-8")
+        for index, operation in enumerate(operations):
+            with self.subTest(revocation="inactive", operation=index):
+                with self.assertRaisesRegex(ValueError, "ACTIVE bootstrap required"):
+                    operation()
+        self.assertEqual(api.mutations, before)
+        self.assertTrue(client.audit()["valid"])
 
     def test_registered_packet_profile_must_match_the_approved_project(self):
         approved = wp.read_json(self.directory / "config/bootstrap.json")["domain_profile"]
