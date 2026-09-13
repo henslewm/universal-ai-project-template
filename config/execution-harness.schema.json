@@ -12,10 +12,16 @@
     "limits": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["brief_max_chars", "report_max_bytes"],
+      "required": ["brief_max_chars", "report_max_bytes", "chars_per_token"],
       "properties": {
         "brief_max_chars": {"type": "integer", "minimum": 1000, "maximum": 400000},
-        "report_max_bytes": {"type": "integer", "minimum": 200, "maximum": 2000000}
+        "report_max_bytes": {"type": "integer", "minimum": 200, "maximum": 2000000},
+        "chars_per_token": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 8,
+          "description": "Conservative characters-per-token divisor for estimating how much context a brief consumes. Smaller is more conservative."
+        }
       }
     },
     "harnesses": {
@@ -25,7 +31,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "adapter", "command", "argv", "description"],
+        "required": ["id", "adapter", "command", "argv", "context_overhead_tokens", "description"],
         "properties": {
           "id": {"$ref": "#/$defs/identifier"},
           "adapter": {"type": "string", "enum": ["cline", "command"]},
@@ -35,6 +41,12 @@
             "minItems": 1,
             "maxItems": 40,
             "items": {"type": "string", "minLength": 1, "maxLength": 400}
+          },
+          "context_overhead_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Tokens this harness consumes before the brief: its own system prompt, tool definitions and scaffolding. Measure it against the installed harness version."
           },
           "description": {"type": "string", "minLength": 1, "maxLength": 2000}
         }
@@ -47,14 +59,20 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["resource_id", "harness_id", "provider", "model", "api_base", "credential_env"],
+        "required": ["resource_id", "harness_id", "provider", "model", "api_base", "credential_env", "served_context_window"],
         "properties": {
           "resource_id": {"$ref": "#/$defs/identifier"},
           "harness_id": {"$ref": "#/$defs/identifier"},
           "provider": {"type": "string", "minLength": 1, "maxLength": 60},
           "model": {"type": "string", "minLength": 1, "maxLength": 200},
           "api_base": {"type": ["string", "null"], "maxLength": 300},
-          "credential_env": {"type": ["string", "null"], "maxLength": 100}
+          "credential_env": {"type": ["string", "null"], "maxLength": 100},
+          "served_context_window": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "Context window this resource is actually served in, when it differs from the window the router configuration declares. A locally hosted model is served in the window it was loaded with. Null uses the routed declaration; a value above it is refused."
+          }
         }
       }
     }

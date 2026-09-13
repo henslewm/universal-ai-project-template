@@ -3,7 +3,8 @@
   "enabled": false,
   "limits": {
     "brief_max_chars": 40000,
-    "report_max_bytes": 400000
+    "report_max_bytes": 400000,
+    "chars_per_token": 3.5
   },
   "harnesses": [
     {
@@ -26,7 +27,8 @@
         "--json",
         "Read {rules} and the contract in {brief}. Do exactly what that contract requires inside {workspace}, run its validation, then write your report to {report}."
       ],
-      "description": "Cline CLI as a bounded worker. Flags confirmed against Cline CLI 3.86.2: --data-dir gives the run its own isolated state so no global Cline configuration is touched, and the worker writes the report itself because the CLI has no output-file flag. Re-confirm the flags against your installed version; this adapter never runs the command."
+      "description": "Cline CLI as a bounded worker. Flags confirmed against Cline CLI 3.86.2: --data-dir gives the run its own isolated state so no global Cline configuration is touched, and the worker writes the report itself because the CLI has no output-file flag. Re-confirm the flags against your installed version; this adapter never runs the command. Its system prompt and tool definitions consume context before the brief is read: about 6805 tokens were observed on this build, declared conservatively as 7000. Re-measure it for your version; an understated overhead lets a dispatch be prepared that the worker cannot accept.",
+      "context_overhead_tokens": 7000
     },
     {
       "id": "replacement-harness",
@@ -40,7 +42,8 @@
         "--workspace",
         "{workspace}"
       ],
-      "description": "Illustrates that any harness accepting a brief and writing a report can replace Cline without changing packets or contracts."
+      "description": "Illustrates that any harness accepting a brief and writing a report can replace Cline without changing packets or contracts. Its overhead is declared 0 only because this illustration adds no prompt of its own; a real harness must declare what it actually consumes.",
+      "context_overhead_tokens": 0
     }
   ],
   "bindings": [
@@ -50,7 +53,8 @@
       "provider": "lmstudio",
       "model": "example-local-coder-model-replace-me",
       "api_base": "http://127.0.0.1:1234/v1",
-      "credential_env": null
+      "credential_env": null,
+      "served_context_window": 8192
     },
     {
       "resource_id": "lmstudio-synthetic-t1",
@@ -58,7 +62,8 @@
       "provider": "lmstudio",
       "model": "example-local-general-model-replace-me",
       "api_base": "http://127.0.0.1:1234/v1",
-      "credential_env": null
+      "credential_env": null,
+      "served_context_window": 16384
     },
     {
       "resource_id": "mistral-synthetic-t2",
@@ -66,7 +71,8 @@
       "provider": "mistral",
       "model": "example-mistral-model-replace-me",
       "api_base": null,
-      "credential_env": "EXAMPLE_MISTRAL_API_KEY"
+      "credential_env": "EXAMPLE_MISTRAL_API_KEY",
+      "served_context_window": null
     }
   ]
 }

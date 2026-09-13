@@ -25,7 +25,7 @@ def configuration():
     value["enabled"] = True
     value["bindings"] = [{"resource_id": "local", "harness_id": "cline-cli", "provider": "lmstudio",
                           "model": "synthetic-local-coder", "api_base": "http://127.0.0.1:1234/v1",
-                          "credential_env": None}]
+                          "credential_env": None, "served_context_window": None}]
     return value
 
 
@@ -58,6 +58,24 @@ class HarnessConfigTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 value = configuration()
                 mutate(value)
+                with self.assertRaisesRegex(ValueError, expected):
+                    harness.config_valid(value)
+
+    def test_every_harness_declares_its_own_context_overhead_and_the_limits_declare_a_divisor(self):
+        example = wp.read_json(ROOT / "config/execution-harness.example.json")
+        harness.config_valid(example)
+        self.assertGreater(example["limits"]["chars_per_token"], 0)
+        cline = next(item for item in example["harnesses"] if item["adapter"] == "cline")
+        self.assertGreater(cline["context_overhead_tokens"], 0,
+                           "a harness with its own system prompt consumes context before the brief")
+        for drop, expected in (
+            (lambda c: c["limits"].pop("chars_per_token"), "chars_per_token"),
+            (lambda c: c["harnesses"][0].pop("context_overhead_tokens"), "context_overhead_tokens"),
+            (lambda c: c["bindings"][0].pop("served_context_window"), "served_context_window"),
+        ):
+            with self.subTest(expected=expected):
+                value = configuration()
+                drop(value)
                 with self.assertRaisesRegex(ValueError, expected):
                     harness.config_valid(value)
 
@@ -190,6 +208,13 @@ class HarnessDispatchTests(HarnessBase):
              "No harness binding for routed resource"),
             ("oversize-brief", lambda c: c["limits"].update(brief_max_chars=1000),
              "Brief exceeds its configured bound"),
+            # A window the worker cannot physically accept is a refusal, not a run that fails on
+            # its first tool call: the routed resource here declares 100000 tokens, the local
+            # server is loaded with 8192, and the harness prompt alone claims 7000 of them.
+            ("served-window-too-small", lambda c: c["bindings"][0].update(served_context_window=8192),
+             "is served a 8192-token window"),
+            ("overstated-window", lambda c: c["bindings"][0].update(served_context_window=200000),
+             "more than the 100000 it declares"),
         ):
             with self.subTest(case=name):
                 value = configuration()
@@ -206,6 +231,30 @@ class HarnessDispatchTests(HarnessBase):
                 self.assertEqual(state["status"], "NEEDS_ARCHITECT")
                 self.assertEqual(state["attempts"][-1]["result"]["outcome"], "PROVIDER_UNAVAILABLE")
                 self.assertFalse((self.base / name / "brief.json").exists())
+
+    def test_dispatch_measures_the_brief_against_the_window_the_worker_is_served(self):
+        prepared = self.prepare()
+        estimate = prepared["context_estimate"]
+        # The router checked the architect's declared tokens against the declared window. This
+        # accounts for what the harness itself adds, which the router cannot see.
+        self.assertEqual(estimate["declared_context_window"], 100000)
+        self.assertEqual(estimate["served_context_window"], 100000, "no served override was configured")
+        self.assertEqual(estimate["harness_overhead_tokens"],
+                         next(item["context_overhead_tokens"] for item in self.config["harnesses"]
+                              if item["id"] == "cline-cli"))
+        self.assertEqual(estimate["reserved_output_tokens"], options()["output_tokens"])
+        divisor = harness.router.dec(self.config["limits"]["chars_per_token"])
+        text = (Path(prepared["destination"]) / "brief.json").read_text(encoding="utf-8")
+        rules = (Path(prepared["destination"]) / "BOUNDED_WORKER_RULES.md").read_text(encoding="utf-8")
+        for chars, key in ((len(text), "brief_tokens"), (len(rules), "rules_tokens")):
+            self.assertGreaterEqual(harness.router.dec(estimate[key]) * divisor, chars,
+                                    "the estimate must not understate the material handed over")
+        self.assertEqual(estimate["required_tokens"],
+                         estimate["harness_overhead_tokens"] + estimate["brief_tokens"]
+                         + estimate["rules_tokens"] + estimate["reserved_output_tokens"])
+        self.assertEqual(estimate["headroom_tokens"],
+                         estimate["served_context_window"] - estimate["required_tokens"])
+        self.assertGreater(estimate["headroom_tokens"], 0)
 
     def test_a_second_dispatch_cannot_reserve_while_one_attempt_is_pending(self):
         prepared = self.prepare()

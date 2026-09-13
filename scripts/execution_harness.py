@@ -6,6 +6,7 @@ import argparse
 import json
 import re
 import sys
+from decimal import ROUND_CEILING
 from pathlib import Path
 
 import feedback
@@ -80,6 +81,44 @@ def binding_for(config, routing):
     binding = matches[0]
     harness = next(item for item in config["harnesses"] if item["id"] == binding["harness_id"])
     return binding, harness
+
+
+def routed_resource(router_config, routing):
+    identifier = routing["decision"]["selected"]["resource_id"]
+    matches = [item for item in router_config["resources"] if item["id"] == identifier]
+    require(len(matches) == 1, f"Routed resource {identifier} is not in the router configuration")
+    return matches[0]
+
+
+def context_estimate(config, harness, binding, resource, request, brief_chars, rules_chars):
+    """Estimate whether everything the worker must read fits the window it is actually served.
+
+    The router already checks the architect's declared token estimate against the resource's
+    declared window. It cannot check what the harness adds afterwards: the rendered brief, the
+    worker rules, and the harness's own system prompt. A local server also serves a model in a
+    window it was loaded with, which can be far smaller than the model family's declared window,
+    so a binding may state the served window and may never claim more than the resource declares.
+    """
+    divisor = router.dec(config["limits"]["chars_per_token"])
+
+    def tokens(chars):
+        return int((router.dec(chars) / divisor).to_integral_value(rounding=ROUND_CEILING))
+
+    declared = int(resource["context_window"])
+    served = binding["served_context_window"]
+    window = declared if served is None else int(served)
+    require(window <= declared, f"Binding states {window} served context tokens for resource "
+                                f"{resource['id']}, more than the {declared} it declares")
+    estimate = {"declared_context_window": declared, "served_context_window": window,
+                "chars_per_token": config["limits"]["chars_per_token"],
+                "harness_overhead_tokens": int(harness["context_overhead_tokens"]),
+                "brief_tokens": tokens(brief_chars), "rules_tokens": tokens(rules_chars),
+                "reserved_output_tokens": int(request["output_tokens"])}
+    estimate["required_tokens"] = sum(estimate[key] for key in
+                                      ("harness_overhead_tokens", "brief_tokens", "rules_tokens",
+                                       "reserved_output_tokens"))
+    estimate["headroom_tokens"] = window - estimate["required_tokens"]
+    return estimate
 
 
 def brief(context, routing, binding, dispatch_id, paths):
@@ -170,6 +209,13 @@ def dispatch(directory, config, router_config, request, root, destination):
         require(len(rendered) <= config["limits"]["brief_max_chars"], "Brief exceeds its configured bound")
         secret_free(rendered, "Worker brief")
         require("{" not in document["report_contract"]["write_to"], "The report path must be substituted")
+        rules = rules_text()
+        estimate = context_estimate(config, harness, binding, routed_resource(router_config, reserved["routing"]),
+                                    request, len(readable), len(rules))
+        require(estimate["headroom_tokens"] >= 0,
+                f"Brief, rules, harness prompt and reserved output need about {estimate['required_tokens']} "
+                f"tokens, but {binding['resource_id']} is served a {estimate['served_context_window']}-token "
+                "window; enlarge the served window, route a larger resource, or decompose the contract")
     except ValueError as exc:
         # The reservation is already spent, so close it with honest evidence rather than leaving it pending.
         feedback.complete(directory, {
@@ -183,12 +229,12 @@ def dispatch(directory, config, router_config, request, root, destination):
                 "executed": False, "execution_authorized": False}
     paths["workspace"].mkdir()
     wp.write_new(paths["brief"], readable)
-    wp.write_new(paths["rules"], rules_text())
+    wp.write_new(paths["rules"], rules)
     plan = invocation(harness, binding, paths)
     wp.write_new(destination / "invocation.json", json.dumps(plan, indent=2, ensure_ascii=False))
     return {"status": "PREPARED", "reason": reserved["reason"], "dispatch_id": reserved["dispatch_id"],
             "deadline": reserved["deadline"], "prepared": True, "destination": str(destination),
-            "invocation": plan, "brief_chars": len(rendered),
+            "invocation": plan, "brief_chars": len(rendered), "context_estimate": estimate,
             "validation_ids": [check["id"] for check in document["contract"]["validation"]],
             "executed": False, "execution_authorized": False}
 
