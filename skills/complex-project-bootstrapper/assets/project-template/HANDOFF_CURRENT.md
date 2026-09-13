@@ -3,7 +3,7 @@
 - **Prepared:** 2026-09-13 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Branch:** issue-7-cline-harness
-- **Latest pushed commit:** `a2039a3787176c0a4952d5171107c57cee883bcc`
+- **Latest pushed commit:** `dc3db55612375a0e7773aa8e6592c6a2ebb35d4c`
 - **Scope:** Issue #7 only; master #14 is unchanged.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #7](https://github.com/henslewm/universal-ai-project-template/issues/7) and [PR #20](https://github.com/henslewm/universal-ai-project-template/pull/20). Issues #2 through #6 are closed; the latest accepted merge is PR #19 at `5e0a28c62ff9fdaa9c9764713742e97f12061040`, which closed #6 after five automatic review rounds and one independent review. Completion evidence and the limitations carried forward are linked in those issues.
