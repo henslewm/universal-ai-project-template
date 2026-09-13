@@ -697,6 +697,29 @@ class LedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Exact state commit"):
             self.client.read(self.client.head() + "\n")
 
+    def test_every_discovery_requires_its_own_separate_issue(self):
+        first = {"summary": "Separate work", "evidence": ["synthetic://discovery-one"]}
+        second = {"summary": "Unrelated work", "evidence": ["synthetic://discovery-two"]}
+        row, state = self.feedback_row("passed", discoveries=[first, second])
+        keys = [ledger.router.digest(item) for item in state["discoveries"]]
+        self.assertEqual(len(set(keys)), 2)
+        before = list(self.api.mutations)
+        row["discoveries"] = {keys[0]: 4, keys[1]: 4}
+        with self.assertRaisesRegex(ValueError, "own separate issue"):
+            self.register(row)
+        self.assertEqual(self.api.mutations, before)
+        row["discoveries"] = {keys[0]: 4, keys[1]: 5}
+        self.register(row)
+        third = {"summary": "Third finding", "evidence": ["synthetic://discovery-three"]}
+        other, other_state = self.feedback_row("passed", task_id="TASK-002", issue=3, discoveries=[third])
+        key = ledger.router.digest(other_state["discoveries"][0])
+        other["discoveries"] = {key: 5}
+        with self.assertRaisesRegex(ValueError, "own separate issue"):
+            self.register(other)
+        other["discoveries"] = {key: 6}
+        self.register(other)
+        self.assertEqual(self.client.read()[0]["tasks"]["TASK-002"]["discoveries"], {key: 6})
+
     def test_registry_and_comment_capacity_refuse_without_truncation(self):
         row = self.register()
         state, blob, _ = self.client.read()

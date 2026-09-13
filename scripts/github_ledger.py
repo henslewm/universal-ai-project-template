@@ -167,9 +167,13 @@ def validate(state, config, prior=None):
     if state["tasks"]:
         wp.graph_order([row["packet"] for row in state["tasks"].values()])
     reserved_homes = homes | {config["master_issue"]}
+    discovery_homes = set()
     for row in state["tasks"].values():
         require(not (set(row["discoveries"].values()) & reserved_homes),
                 "Discovery homes must be separate from the master and all canonical task issues")
+        for issue in row["discoveries"].values():
+            require(issue not in discovery_homes, "Every discovery needs its own separate issue")
+            discovery_homes.add(issue)
     ids = set()
     for item in state["outbox"]:
         exact(item, {"id", "summary", "status", "claim", "comment"})
