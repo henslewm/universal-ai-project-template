@@ -82,8 +82,12 @@ def binding_for(config, routing):
     return binding, harness
 
 
-def brief(context, routing, binding, dispatch_id):
-    """Render only what the packet already permits, plus the report contract."""
+def brief(context, routing, binding, dispatch_id, paths):
+    """Render only what the packet already permits, plus the report contract.
+
+    Every path the worker needs is substituted here. A brief that still carries a
+    `{placeholder}` forces the worker to guess where to write, which is not its job.
+    """
     contract = context["contract"]
     document = {
         "schema_version": "1.0",
@@ -93,6 +97,8 @@ def brief(context, routing, binding, dispatch_id):
                     "model": binding["model"], "routed_model": routing["decision"]["selected"]["model"],
                     "tier": routing["decision"]["selected"]["tier"],
                     "reasoning_effort": routing["decision"]["selected"]["reasoning_effort"]},
+        "paths": {"workspace": str(paths["workspace"]), "brief": str(paths["brief"]),
+                  "rules": str(paths["rules"]), "report": str(paths["report"])},
         "bounds": {"remaining_task_attempts": context["remaining_task_attempts"],
                    "tier_counts": context["tier_counts"], "tier_caps": context["tier_caps"],
                    "controller_status": context["controller_status"]},
@@ -102,13 +108,14 @@ def brief(context, routing, binding, dispatch_id):
         "failure_groups": context["failure_groups"],
         "worker_rule": context["worker_rule"],
         "report_contract": {
-            "write_to": "{report}",
+            "write_to": str(paths["report"]),
             "required_fields": sorted(REPORT_FIELDS),
             "validation_check_fields": check_fields(),
             "outcomes": ["PASS", "FAIL", "BLOCKED", "NEEDS_ESCALATION",
                          "ARCHITECTURE_CONFLICT", "PROVIDER_UNAVAILABLE"],
             "scope_status_values": ["within", "violated", "unknown"],
             "rules": [
+                "Write the report at exactly the write_to path; another location is not found and not accepted.",
                 "Report exactly these fields as one JSON object; any other field is refused.",
                 "dispatch_id must be the value above; a report without it is refused.",
                 "Report one validation check per contract validation id, and no other ids.",
@@ -153,11 +160,16 @@ def dispatch(directory, config, router_config, request, root, destination):
     if reserved["status"] != "DISPATCH":
         return {"status": reserved["status"], "reason": reserved["reason"], "dispatch_id": reserved["dispatch_id"],
                 "prepared": False, "destination": str(destination)}
+    paths = {"rundir": destination, "brief": destination / "brief.json",
+             "rules": destination / "BOUNDED_WORKER_RULES.md",
+             "report": destination / "report.json", "workspace": destination / "workspace"}
     try:
         binding, harness = binding_for(config, reserved["routing"])
-        document, rendered, readable = brief(reserved["context"], reserved["routing"], binding, reserved["dispatch_id"])
+        document, rendered, readable = brief(reserved["context"], reserved["routing"], binding,
+                                             reserved["dispatch_id"], paths)
         require(len(rendered) <= config["limits"]["brief_max_chars"], "Brief exceeds its configured bound")
         secret_free(rendered, "Worker brief")
+        require("{" not in document["report_contract"]["write_to"], "The report path must be substituted")
     except ValueError as exc:
         # The reservation is already spent, so close it with honest evidence rather than leaving it pending.
         feedback.complete(directory, {
@@ -169,9 +181,6 @@ def dispatch(directory, config, router_config, request, root, destination):
         return {"status": "HARNESS_UNAVAILABLE", "reason": str(exc), "dispatch_id": reserved["dispatch_id"],
                 "prepared": False, "attempt_closed": True, "destination": str(destination),
                 "executed": False, "execution_authorized": False}
-    paths = {"rundir": destination, "brief": destination / "brief.json",
-             "rules": destination / "BOUNDED_WORKER_RULES.md",
-             "report": destination / "report.json", "workspace": destination / "workspace"}
     paths["workspace"].mkdir()
     wp.write_new(paths["brief"], readable)
     wp.write_new(paths["rules"], rules_text())
@@ -227,7 +236,7 @@ def verify_report(config, brief_path, report_path):
     """
     config_valid(config)
     document = wp.read_json(Path(brief_path))
-    feedback.exact(document, {"schema_version", "dispatch_id", "binding", "harness", "bounds",
+    feedback.exact(document, {"schema_version", "dispatch_id", "binding", "harness", "paths", "bounds",
                               "contract", "architect_guidance", "prior_failures",
                               "failure_groups", "worker_rule", "report_contract"})
     path = Path(report_path)

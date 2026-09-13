@@ -135,6 +135,16 @@ class HarnessDispatchTests(HarnessBase):
         self.assertNotIn("id", contract["validation_check_fields"])
         rules = " ".join(contract["rules"])
         self.assertIn("check_id, not id", rules)
+        # The worker must never have to guess a path: every one is substituted, none left templated.
+        document = wp.read_json(path)
+        self.assertEqual(contract["write_to"], str(Path(prepared["destination"]) / "report.json"))
+        self.assertEqual(document["paths"], {
+            "workspace": str(Path(prepared["destination"]) / "workspace"),
+            "brief": str(path), "rules": str(Path(prepared["destination"]) / "BOUNDED_WORKER_RULES.md"),
+            "report": str(Path(prepared["destination"]) / "report.json")})
+        for value in list(document["paths"].values()) + [contract["write_to"]]:
+            self.assertNotIn("{", value, "a templated path would force the worker to guess")
+        self.assertIn("exactly the write_to path", rules)
         # Every value the validator enforces is stated, so a compliant worker can actually comply.
         self.assertEqual(sorted(contract["required_fields"]), sorted(harness.REPORT_FIELDS))
         self.assertIn("PROVIDER_UNAVAILABLE", contract["outcomes"])
@@ -156,8 +166,8 @@ class HarnessDispatchTests(HarnessBase):
     def test_brief_carries_only_packet_permitted_context_and_stays_bounded(self):
         prepared = self.prepare()
         brief = wp.read_json(Path(prepared["destination"]) / "brief.json")
-        harness.feedback.exact(brief, {"schema_version", "dispatch_id", "binding", "harness", "bounds",
-                                       "contract", "architect_guidance", "prior_failures",
+        harness.feedback.exact(brief, {"schema_version", "dispatch_id", "binding", "harness", "paths",
+                                       "bounds", "contract", "architect_guidance", "prior_failures",
                                        "failure_groups", "worker_rule", "report_contract"})
         contract = wp.current(self.packet)["contract"]
         self.assertEqual(brief["contract"], contract)
