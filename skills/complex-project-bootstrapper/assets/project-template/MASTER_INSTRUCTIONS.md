@@ -111,3 +111,9 @@ Before ending a meaningful session:
 7. Add a dated entry to `CHANGELOG.md` for material repository changes.
 8. Run `python scripts/validate_project.py` when execution is available.
 9. Commit a coherent unit only when authorized; never claim a commit or push occurred unless verified.
+
+## Review findings and merge discipline
+
+- Never merge a pull request until an automated Codex review exists whose `commit_id` matches the current head. If the head moves, the prior review is stale: request re-review and name the new SHA. Answer every finding before merging; merge itself still requires the maintainer's explicit go-ahead.
+- Never start or continue the next child issue while the current one has unanswered review findings.
+- GitHub is the only authoritative source for review findings. Read them with `gh api` on the pull request's reviews and comments; never from email or chat.

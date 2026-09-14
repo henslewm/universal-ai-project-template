@@ -303,7 +303,9 @@
           "type": "array",
           "maxItems": 20,
           "uniqueItems": true,
-          "items": {"$ref": "#/$defs/identifier"},
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
           "description": "Optional explicit provider recoveries for RESUME_WORK only; original unavailable receipts remain in the event ledger."
         }
       },
@@ -319,7 +321,9 @@
         "summary",
         "evidence",
         "contract_failures",
-        "acceptance_reference"
+        "acceptance_reference",
+        "binding",
+        "result_dispatch_id"
       ],
       "properties": {
         "review_id": {
@@ -399,9 +403,35 @@
         },
         "acceptance_reference": {
           "$ref": "#/$defs/bounded_text"
+        },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "task_id",
+            "revision",
+            "contract_hash"
+          ],
+          "properties": {
+            "task_id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "contract_hash": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "description": "The task, revision and contract hash the acceptance ledger reviewed. Runtime refuses a decision whose binding differs from this ledger's packet."
+        },
+        "result_dispatch_id": {
+          "$ref": "#/$defs/sha256",
+          "description": "dispatch_id of the worker result the acceptance ledger reviewed; must equal the result of the attempt awaiting review here."
         }
       },
-      "description": "Condensed independent acceptance decision recorded into the task ledger. The gate evidence lives in the acceptance ledger it references; reviewer identity is a recorded declaration, not authentication. A bounded rejection's corrective actions are performable inside the current contract only."
+      "description": "Condensed independent acceptance decision recorded into the task ledger. The gate evidence lives in the acceptance ledger it references; reviewer identity is a recorded declaration, not authentication. The decision is bound to one task revision and one worker result, so a decision from another task's ledger cannot be recorded here. A bounded rejection's corrective actions are performable inside the current contract only."
     }
   }
 }

@@ -88,3 +88,7 @@ python scripts/feedback.py render task-ledger
 ```
 
 `status` is the full derived evidence view; `packet` is a view, not a second controller authority. `render` prepares a bounded comment with counts/outcomes, failure groups, hashed evidence previews and exact immutable result/diagnosis event references. Truncation is marked; raw evidence remains in the ledger. Arbitrary diagnostics stay inside a suitably sized fenced JSON block. Oversized export is refused. #6 publishes/reconstructs records in GitHub; these commands make no external writes.
+
+## Decision binding
+
+An acceptance decision recorded through the `REVIEW` event is bound to one task revision and one worker result: it carries `binding` (task id, revision, contract hash) and `result_dispatch_id`, and the ledger refuses a decision whose binding differs from its packet or whose reviewed result is not the attempt awaiting review. The acceptance controller populates these from its own ledger; a hand-built decision must carry them too. This closes the path where one task's accepted ledger, supplied with another task's feedback ledger, moved an unreviewed task to `ACCEPTED`.

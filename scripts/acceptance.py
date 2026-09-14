@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -277,6 +278,9 @@ def apply(state, event):
         reviewer = opened["reviewer"]
         require(reviewer["actor"].strip().casefold() not in actors,
                 "An implementation actor cannot review its own revision")
+        required_tier = state["contract"]["routing"]["reviewer_tier"]
+        require(reviewer["tier"] >= required_tier,
+                f"Reviewer tier {reviewer['tier']} is below the contract's reviewer_tier {required_tier}")
         if opened["gate"] == "architect_review":
             require(reviewer["actor"] == state["architect"],
                     "Architect review must be performed by the recorded architect")
@@ -476,6 +480,63 @@ def initialize(directory, config, packet, result, artifact, controller, architec
     return append(directory, "INIT", data, timestamp)
 
 
+def stream_digest(stdout_hex, stderr_hex):
+    """One digest over both complete streams; each stream is hashed while it is read."""
+    return hashlib.sha256(f"stdout:{stdout_hex}\nstderr:{stderr_hex}".encode("ascii")).hexdigest()
+
+
+def bounded_capture(argv, cwd, timeout, bound):
+    """Run argv, retaining at most `bound` characters of each stream while hashing all of it.
+
+    The output bound is enforced while the process runs: each reader keeps only a bounded
+    prefix in memory and feeds the complete stream to its hasher, so a noisy or runaway
+    check cannot exhaust the controller before the bound applies.
+    """
+    keep = bound * 4 + 4  # A UTF-8 character is at most four bytes; decode, then cut to `bound`.
+
+    def drain(stream, sink):
+        hasher, kept, total = hashlib.sha256(), bytearray(), 0
+        for chunk in iter(lambda: stream.read(65536), b""):
+            hasher.update(chunk)
+            total += len(chunk)
+            if len(kept) < keep:
+                kept.extend(chunk[:keep - len(kept)])
+        stream.close()
+        sink.update(digest=hasher.hexdigest(), kept=bytes(kept), total=total)
+
+    def finish(sink):
+        text = sink["kept"].decode("utf-8", errors="replace")
+        return text[:bound], sink["total"] > len(sink["kept"]) or len(text) > bound, sink["digest"]
+
+    try:
+        process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+    except OSError as exc:
+        message = str(exc).encode("utf-8")
+        text = message.decode("utf-8")
+        return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
+                "output_truncated": len(text) > bound,
+                "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
+    sinks = ({}, {})
+    readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
+               threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
+    for reader in readers:
+        reader.start()
+    timed_out = False
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        process.kill()
+        process.wait()
+    for reader in readers:
+        reader.join()
+    out, out_cut, out_hex = finish(sinks[0])
+    err, err_cut, err_hex = finish(sinks[1])
+    return {"exit_code": None if timed_out else process.returncode, "timed_out": timed_out,
+            "stdout": out, "stderr": err, "output_truncated": out_cut or err_cut,
+            "output_sha256": stream_digest(out_hex, err_hex)}
+
+
 def run_checks(directory, workspace, timestamp=None):
     """Execute the contract's declared validation commands and record what was observed.
 
@@ -494,37 +555,28 @@ def run_checks(directory, workspace, timestamp=None):
     for check in state["contract"]["validation"]:
         command = check.get("command")
         if command is None:
+            empty = hashlib.sha256(b"").hexdigest()
             results.append({"validation_id": check["id"], "machine_runnable": False, "passed": False,
                             "argv": [], "exit_code": None, "duration_seconds": None, "timed_out": False,
                             "stdout": "", "stderr": "", "output_truncated": False,
-                            "output_sha256": router.digest({"stdout": "", "stderr": ""})})
+                            "output_sha256": stream_digest(empty, empty)})
             continue
         cwd = (workspace / command.get("cwd", ".")).resolve()
         require(cwd == workspace or workspace in cwd.parents, "Check cwd escapes the workspace")
         require(cwd.is_dir(), f"Check cwd does not exist: {cwd}")
         timeout = command.get("timeout_seconds", policy["check_timeout_seconds"])
         started = time.monotonic()
-        timed_out = False
-        try:
-            completed_run = subprocess.run(command["argv"], cwd=cwd, capture_output=True,
-                                           timeout=timeout, shell=False)
-            exit_code, raw_out, raw_err = completed_run.returncode, completed_run.stdout, completed_run.stderr
-        except subprocess.TimeoutExpired as exc:
-            exit_code, raw_out, raw_err, timed_out = None, exc.stdout or b"", exc.stderr or b"", True
-        except OSError as exc:
-            exit_code, raw_out, raw_err = None, b"", str(exc).encode("utf-8")
+        observed = bounded_capture(command["argv"], cwd, timeout, policy["check_output_max_chars"])
         duration = time.monotonic() - started
-        out = raw_out.decode("utf-8", errors="replace") if isinstance(raw_out, bytes) else raw_out
-        err = raw_err.decode("utf-8", errors="replace") if isinstance(raw_err, bytes) else raw_err
-        bound = policy["check_output_max_chars"]
         results.append({"validation_id": check["id"], "machine_runnable": True,
-                        "passed": exit_code == 0 and not timed_out, "argv": list(command["argv"]),
-                        "exit_code": exit_code, "duration_seconds": round(duration, 3),
-                        "timed_out": timed_out, "stdout": out[:bound], "stderr": err[:bound],
-                        "output_truncated": len(out) > bound or len(err) > bound,
-                        "output_sha256": router.digest({"stdout": out, "stderr": err})})
-    files = sorted(path for path in workspace.rglob("*") if path.is_file())
-    require(not any(path.is_symlink() for path in files), "Workspace contains a symlink; refuse to digest it")
+                        "passed": observed["exit_code"] == 0 and not observed["timed_out"],
+                        "argv": list(command["argv"]), "duration_seconds": round(duration, 3), **observed})
+    # Every entry is inspected before filtering to files: a symlinked directory is not a file,
+    # and rglob does not descend into it, so it would otherwise never be seen at all.
+    entries = list(workspace.rglob("*"))
+    require(not workspace.is_symlink() and not any(path.is_symlink() for path in entries),
+            "Workspace contains a symlink; refuse to digest it")
+    files = sorted(path for path in entries if path.is_file())
     require(len(files) <= policy["workspace_digest_max_files"],
             "Workspace exceeds the digest bound; decompose the artifact")
     listing = [{"path": path.relative_to(workspace).as_posix(),
@@ -664,6 +716,8 @@ def ingest_review(directory, report_path, timestamp=None):
 def decision_for(state, head):
     """The condensed cross-ledger decision this ledger currently supports."""
     reference = f"acceptance-ledger:{head}"
+    bound = {"binding": {key: state["binding"][key] for key in ("task_id", "revision", "contract_hash")},
+             "result_dispatch_id": state["result"]["dispatch_id"]}
     if state["accepted"] is not None:
         finished = current_completed(state, "model_review")
         if finished:
@@ -676,13 +730,13 @@ def decision_for(state, head):
         evidence += [f"review:{r['review_id']}" for r in state["reviews"] if r["report"]][:17]
         return {"review_id": review_id, "verdict": "APPROVE", "reviewer": reviewer,
                 "summary": "All required acceptance gates passed; recorded in the acceptance ledger.",
-                "evidence": evidence, "contract_failures": [], "acceptance_reference": reference}
+                "evidence": evidence, "contract_failures": [], "acceptance_reference": reference, **bound}
     if state["user_decision"] is not None and state["user_decision"]["decision"] == "reject":
         return {"review_id": router.digest({"binding": state["binding"], "user_rejection": True}),
                 "verdict": "NEEDS_ESCALATION",
                 "reviewer": {"actor": state["user_decision"]["decider"], "model_family": "human", "tier": 4},
                 "summary": "User decision rejected acceptance: " + state["user_decision"]["reason"],
-                "evidence": [reference], "contract_failures": [], "acceptance_reference": reference}
+                "evidence": [reference], "contract_failures": [], "acceptance_reference": reference, **bound}
     finished = [r for r in state["reviews"] if r["report"] is not None]
     require(bool(finished), "No acceptance decision has been recorded yet")
     latest = finished[-1]
@@ -694,7 +748,7 @@ def decision_for(state, head):
     return {"review_id": latest["review_id"], "verdict": report["verdict"],
             "reviewer": latest["reviewer"], "summary": report["summary"],
             "evidence": [reference, f"review:{latest['review_id']}"],
-            "contract_failures": failures, "acceptance_reference": reference}
+            "contract_failures": failures, "acceptance_reference": reference, **bound}
 
 
 def accept(directory, actor, timestamp=None):
@@ -708,6 +762,10 @@ def accept(directory, actor, timestamp=None):
 def sync_feedback(directory, feedback_ledger, timestamp=None):
     state, _, head = replay(directory)
     decision = decision_for(state, head)
+    task = feedback.replay(feedback_ledger)[0]
+    expected = feedback.binding(task["packet"])
+    require(all(decision["binding"][key] == expected[key] for key in ("task_id", "revision", "contract_hash")),
+            "Acceptance ledger and feedback ledger are bound to different task revisions")
     recorded = feedback.review(feedback_ledger, decision, timestamp)
     return {"feedback_status": recorded["status"], "feedback_reason": recorded["reason"],
             "verdict": decision["verdict"], "packet_state": recorded["packet"]["state"]}

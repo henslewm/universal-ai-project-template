@@ -101,6 +101,13 @@ def make_report(prepared, contract, verdict="APPROVE", **changes):
     return value
 
 
+def bound_to(fb_state, result):
+    """The binding fields decision_for carries; hand-built decisions must carry them too."""
+    packet_binding = feedback.binding(fb_state["packet"])
+    return {"binding": {key: packet_binding[key] for key in ("task_id", "revision", "contract_hash")},
+            "result_dispatch_id": result["dispatch_id"]}
+
+
 def make_failure(ref="AC-VALID", kind="criterion", what="Observed value differs from the packet evidence"):
     return {"failed_ref": ref, "kind": kind, "what_failed": what,
             "evidence": ["Synthetic reviewer observation"],
@@ -302,6 +309,60 @@ class DeterministicGateTests(AcceptanceBase):
                                                    "evidence": ["Observed the manual check pass"]}},
                                   previous_state=acceptance.replay(ledger))
         self.assertTrue(acceptance.deterministic_satisfied(state))
+
+    def test_reviewer_below_the_contract_reviewer_tier_is_refused(self):
+        # Codex P1 on PR #21: a declared tier-0 reviewer could satisfy a tier-4 task's gate.
+        contract = make_contract(risk="medium")
+        contract["routing"]["reviewer_tier"] = 3
+        ledger, _ = self.start(packet=make_packet(contract))
+        self.checked(ledger)
+        with self.assertRaisesRegex(ValueError, "below the contract's reviewer_tier 3"):
+            self.open_review(ledger, reviewer={"actor": "Weak reviewer", "model_family": "sonnet", "tier": 2})
+        self.assertEqual(self.state(ledger)["reviews"], [])
+        prepared = self.open_review(ledger, reviewer={"actor": "Strong reviewer", "model_family": "sonnet", "tier": 4})
+        self.assertEqual(prepared["reviewer"]["tier"], 4)
+
+    def test_symlinked_directory_in_the_workspace_is_refused(self):
+        # Codex P2 on PR #21: a directory symlink is neither a file nor descended into, so the
+        # digest silently omitted everything a check could read through it.
+        ledger, _ = self.start()
+        space = self.workspace()
+        outside = self.directory / "outside"
+        outside.mkdir()
+        (outside / "input.txt").write_text("changes without changing the digest\n", encoding="utf-8")
+        try:
+            os.symlink(outside, space / "linked", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, space)
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
+        # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
+        payload = 300000
+        argv = [sys.executable, "-c", f"import sys; sys.stdout.write('x' * {payload}); sys.stderr.write('e' * 10)"]
+        ledger, _ = self.start(argv=argv, config=self.config(check_output_max_chars=200))
+        self.checked(ledger)
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertTrue(entry["passed"])
+        self.assertEqual(len(entry["stdout"]), 200)
+        self.assertEqual(entry["stderr"], "e" * 10)
+        self.assertTrue(entry["output_truncated"])
+        expected = acceptance.stream_digest(hashlib.sha256(b"x" * payload).hexdigest(),
+                                            hashlib.sha256(b"e" * 10).hexdigest())
+        self.assertEqual(entry["output_sha256"], expected)
+
+    def test_runaway_output_is_stopped_at_the_timeout_with_a_bounded_record(self):
+        argv = [sys.executable, "-c", "import sys\nwhile True: sys.stdout.write('y' * 65536)"]
+        ledger, _ = self.start(argv=argv, timeout=2, config=self.config(check_output_max_chars=200))
+        self.checked(ledger)
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertTrue(entry["timed_out"])
+        self.assertFalse(entry["passed"])
+        self.assertIsNone(entry["exit_code"])
+        self.assertEqual(entry["stdout"], "y" * 200)
+        self.assertTrue(entry["output_truncated"])
 
     def test_attestation_over_a_runnable_check_is_refused(self):
         ledger, _ = self.start(argv=FAIL_ARGV)
@@ -728,6 +789,39 @@ class FeedbackIntegrationTests(AcceptanceBase):
         with self.assertRaisesRegex(ValueError, "Controller hold"):
             feedback.reserve(fb, self.settings, self.options(), self.directory)
 
+    def test_acceptance_decision_is_bound_to_its_own_task_and_result(self):
+        # Codex P1 on PR #21: task A's accepted ledger forwarded to task B's feedback ledger
+        # recorded A's APPROVE against B. Now the decision carries its binding and the
+        # reviewed result, and both the forwarding step and the task ledger refuse a mismatch.
+        contract_a = make_contract(risk="medium")
+        contract_a["retry_budget"]["max_attempts"] = 8
+        contract_b = copy.deepcopy(contract_a)
+        contract_b["goal"] = "A different task under review at the same time"
+        fb_a, state_a, result_a = self.feedback_to_review(contract_a)
+        fb_b, state_b, result_b = self.feedback_to_review(contract_b)
+        ledger = self.acceptance_for(state_a, result_a)
+        self.checked(ledger)
+        prepared = self.open_review(ledger)
+        self.ingest(ledger, make_report(prepared, wp.current(state_a["packet"])["contract"]))
+        acceptance.accept(ledger, REVIEWER["actor"])
+        with self.assertRaisesRegex(ValueError, "bound to different task revisions"):
+            acceptance.sync_feedback(ledger, fb_b)
+        self.assertEqual(feedback.replay(fb_b)[0]["status"], "REVIEW_PENDING")
+        decision = acceptance.decision_for(*[acceptance.replay(ledger)[i] for i in (0, 2)])
+        self.assertEqual(decision["binding"]["task_id"], state_a["packet"]["task_id"])
+        self.assertEqual(decision["result_dispatch_id"], result_a["dispatch_id"])
+        for field, value in (("binding", {**decision["binding"], "contract_hash": "a" * 64}),
+                             ("binding", {**decision["binding"], "revision": 2}),
+                             ("binding", {**decision["binding"], "task_id": "OTHER-TASK"}),
+                             ("result_dispatch_id", "d" * 64)):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "different"):
+                feedback.review(fb_a, {**decision, field: value})
+        with self.assertRaisesRegex(ValueError, "different task, revision or contract"):
+            feedback.review(fb_b, decision)
+        self.assertEqual(feedback.replay(fb_b)[0]["status"], "REVIEW_PENDING")
+        outcome = acceptance.sync_feedback(ledger, fb_a)
+        self.assertEqual(outcome["feedback_status"], "ACCEPTED")
+
     def test_approval_alone_does_not_close_the_feedback_task(self):
         contract = make_contract(risk="medium")
         contract["retry_budget"]["max_attempts"] = 8
@@ -775,13 +869,16 @@ class FeedbackIntegrationTests(AcceptanceBase):
                     "contract_failures": [{"failed_ref": "AC-VALID", "kind": "criterion",
                                            "what_failed": "Observed defect",
                                            "corrective_action": "Fix within contract"}],
-                    "acceptance_reference": "acceptance-ledger:synthetic"}
+                    "acceptance_reference": "acceptance-ledger:synthetic", **bound_to(state, result)}
         feedback.review(fb, decision)
         self.assertEqual(feedback.replay(fb)[0]["status"], "IN_PROGRESS")
         dispatch = feedback.reserve(fb, self.settings, self.options(), self.directory)
-        feedback.complete(fb, make_result(feedback.replay(fb)[0]["packet"],
-                                          dispatch_id=dispatch["dispatch_id"]))
+        second = make_result(feedback.replay(fb)[0]["packet"], dispatch_id=dispatch["dispatch_id"])
+        feedback.complete(fb, second)
         self.assertEqual(feedback.replay(fb)[0]["status"], "REVIEW_PENDING")
+        with self.assertRaisesRegex(ValueError, "different worker result"):
+            feedback.review(fb, decision)  # The first decision reviewed the first result, not this one.
+        decision.update(bound_to(feedback.replay(fb)[0], second))
         feedback.review(fb, decision)
         final = feedback.replay(fb)[0]
         self.assertEqual((final["status"], final["reason"]),
@@ -798,7 +895,8 @@ class FeedbackIntegrationTests(AcceptanceBase):
                             self.settings, self.directory, ARCHITECT)
         decision = {"review_id": "f" * 64, "verdict": "APPROVE", "reviewer": dict(REVIEWER),
                     "summary": "Premature", "evidence": ["x"], "contract_failures": [],
-                    "acceptance_reference": "acceptance-ledger:synthetic"}
+                    "acceptance_reference": "acceptance-ledger:synthetic",
+                    **bound_to(feedback.replay(fb)[0], {"dispatch_id": "e" * 64})}
         with self.assertRaisesRegex(ValueError, "awaiting review"):
             feedback.review(fb, decision)
 
@@ -807,6 +905,7 @@ class FeedbackIntegrationTests(AcceptanceBase):
         contract["retry_budget"]["max_attempts"] = 8
         fb, state, result = self.feedback_to_review(contract)
         decision = {"review_id": "f" * 64, "verdict": "NEEDS_ESCALATION", "reviewer": dict(REVIEWER),
+                    **bound_to(state, result),
                     "summary": "Synthetic escalation to reach an architect hold",
                     "evidence": ["Synthetic review evidence"], "contract_failures": [],
                     "acceptance_reference": "acceptance-ledger:synthetic"}

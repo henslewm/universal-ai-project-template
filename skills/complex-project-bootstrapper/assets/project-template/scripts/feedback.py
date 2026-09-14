@@ -395,6 +395,14 @@ def apply_review(state, decision, timestamp):
     verdict, actor = decision["verdict"], decision["reviewer"]["actor"]
     if (verdict == "REJECT_BOUNDED") != bool(decision["contract_failures"]):
         raise ValueError("Exactly a bounded rejection names contract failures")
+    # A decision is evidence about one task revision and one worker result. Recording another
+    # ledger's decision here would let a mix-up of ledger paths accept work nobody reviewed.
+    expected = binding(state["packet"])
+    if any(decision["binding"][key] != expected[key] for key in ("task_id", "revision", "contract_hash")):
+        raise ValueError("Acceptance decision is bound to a different task, revision or contract than this ledger")
+    reviewed = state["attempts"][-1]["result"] if state["attempts"] else None
+    if reviewed is None or reviewed["dispatch_id"] != decision["result_dispatch_id"]:
+        raise ValueError("Acceptance decision reviewed a different worker result than the one awaiting review")
     contract = wp.current(state["packet"])["contract"]
     known = ({entry["id"] for entry in contract["acceptance_criteria"]}
              | {check["id"] for check in contract["validation"]})

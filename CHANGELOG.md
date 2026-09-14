@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-13 — Issue #8 reopened: answer the Codex findings on PR #21
+
+- Bind every acceptance decision to its task id, revision, contract hash and reviewed result `dispatch_id`; the feedback ledger's REVIEW event and `sync-feedback` refuse a mismatch (Codex P1).
+- Refuse opening a review whose declared reviewer tier is below the contract's `routing.reviewer_tier` (Codex P1).
+- Inspect every workspace entry, including directory symlinks, before building the deterministic-gate digest (Codex P2).
+- Stream check output into bounded buffers while hashing the complete stream, and kill a runaway check at its timeout with a bounded record (Codex P2).
+- Record the standing review rules in the repository instructions: no merge without a Codex review of the current head SHA, no next child while findings are open, GitHub via `gh api` as the only source of findings.
+
 ## 2026-09-13 — Issue #8 independent acceptance gates
 
 - Add the acceptance controller: one append-only hash-chained ledger per reviewed task, filling the gap between the feedback controller's REVIEW_PENDING and the packet's REVIEW → ACCEPTED transition.
