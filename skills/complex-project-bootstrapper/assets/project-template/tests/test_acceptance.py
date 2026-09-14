@@ -491,6 +491,16 @@ class DeterministicGateTests(AcceptanceBase):
             tree.job, tree.pgid = None, 4242
             with mock.patch.object(acceptance.os, "name", "posix"):
                 self.assertFalse(tree.members_alive(), "zombies only: the tree is stopped")
+        # Unknown fails closed: an unreadable record (a directory where the file should be) and
+        # an unparseable one both count as alive; only a vanished record is skipped.
+        (proc / "105").mkdir()
+        (proc / "105" / "stat").mkdir()
+        self.assertEqual(acceptance.runnable_group_members(4242, proc), 1)
+        (proc / "106").mkdir()
+        (proc / "106" / "stat").write_text("garbage\n", encoding="ascii")
+        self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
+        (proc / "107").mkdir()  # No stat file at all: the process vanished after listing.
+        self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
 
     def test_run_refuses_when_the_tree_cannot_be_confirmed_stopped(self):
         # Codex P1 on PR #22 round 7: the digest must not be taken while a member is still dying.
@@ -542,6 +552,13 @@ class DeterministicGateTests(AcceptanceBase):
             with self.assertRaises(ValueError):
                 acceptance.ProcessTree(process)
         self.assertIsNotNone(process.poll(), "the suspended check must have been killed, not resumed")
+        # Codex P2 on PR #22 round 9: a resume failure must refuse now, not wait out the timeout.
+        process = subprocess.Popen([sys.executable, "-c", "print('never')"], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, creationflags=acceptance.ProcessTree.creation_flags())
+        with mock.patch.object(acceptance.ProcessTree, "_windows_resume", return_value=0):
+            with self.assertRaisesRegex(ValueError, "could not be resumed"):
+                acceptance.ProcessTree(process)
+        self.assertIsNotNone(process.poll(), "the unresumable check must have been killed")
 
     def test_workspace_scan_does_not_use_a_buffering_traversal(self):
         # Codex P2 on PR #22 round 6: Path.rglob/walk list a whole directory before yielding.

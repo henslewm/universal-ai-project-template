@@ -508,11 +508,15 @@ def runnable_group_members(pgid, proc_root=None):
             continue
         try:
             stat = (entry / "stat").read_text(encoding="ascii", errors="replace")
+        except FileNotFoundError:
+            continue  # The only error that proves the process is gone: it exited after listing.
         except OSError:
-            continue  # It exited between listing and reading.
+            members += 1  # Unreadable is unknown, and unknown fails closed as alive.
+            continue
         _, _, rest = stat.rpartition(")")  # The command name may contain spaces or parentheses.
         fields = rest.split()
         if len(fields) < 3:
+            members += 1  # An unparseable record is unknown too.
             continue
         state, group = fields[0], fields[2]
         if group == str(pgid) and state not in ("Z", "X", "x"):
@@ -541,14 +545,21 @@ class ProcessTree:
             # so the suspended check is killed and the run refuses rather than proceeding unisolated.
             self.job = self._windows_job()
             if self.job is None:
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, shell=False)
-                try:
-                    process.kill()
-                except OSError:
-                    pass
-                process.wait()
-                raise ValueError("Windows job object could not be created or assigned; the check is not run unisolated")
-            self._windows_resume()
+                self._refuse_suspended(process, "Windows job object could not be created or assigned; the check is not run unisolated")
+            if self._windows_resume() == 0:
+                # Still suspended: refuse now rather than let it sit until the check timeout and
+                # be recorded as an ordinary validation failure.
+                self._refuse_suspended(process, "Windows check could not be resumed after job assignment; refusing the run")
+
+    @staticmethod
+    def _refuse_suspended(process, reason):
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, shell=False)
+        try:
+            process.kill()
+        except OSError:
+            pass
+        process.wait()
+        raise ValueError(reason)
 
     @classmethod
     def creation_flags(cls):
@@ -558,15 +569,19 @@ class ProcessTree:
         import ctypes
         from ctypes import wintypes
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        # ResumeThread returns a DWORD; without the restype ctypes would read its (DWORD)-1
+        # failure as a signed -1 and a failed resume would be counted as resumed.
+        kernel32.ResumeThread.restype = wintypes.DWORD
 
         class ThreadEntry(ctypes.Structure):
             _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ThreadID", wintypes.DWORD),
                         ("th32OwnerProcessID", wintypes.DWORD), ("tpBasePri", wintypes.LONG),
                         ("tpDeltaPri", wintypes.LONG), ("dwFlags", wintypes.DWORD)]
 
+        resumed = 0
         snapshot = kernel32.CreateToolhelp32Snapshot(0x4, 0)  # TH32CS_SNAPTHREAD
         if snapshot == wintypes.HANDLE(-1).value:
-            return
+            return resumed
         entry = ThreadEntry()
         entry.dwSize = ctypes.sizeof(entry)
         found = kernel32.Thread32First(snapshot, ctypes.byref(entry))
@@ -574,11 +589,15 @@ class ProcessTree:
             if entry.th32OwnerProcessID == self.process.pid:
                 thread = kernel32.OpenThread(0x2, False, entry.th32ThreadID)  # THREAD_SUSPEND_RESUME
                 if thread:
-                    while kernel32.ResumeThread(thread) > 1:
-                        pass
+                    previous = kernel32.ResumeThread(thread)
+                    while 1 < previous < 0xFFFFFFFF:
+                        previous = kernel32.ResumeThread(thread)
+                    if previous != 0xFFFFFFFF:  # (DWORD)-1 signals failure.
+                        resumed += 1
                     kernel32.CloseHandle(thread)
             found = kernel32.Thread32Next(snapshot, ctypes.byref(entry))
         kernel32.CloseHandle(snapshot)
+        return resumed
 
     def _windows_job(self):
         try:
