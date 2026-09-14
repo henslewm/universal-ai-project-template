@@ -844,10 +844,15 @@ def run_checks(directory, workspace, timestamp=None):
     prior = replay(directory)
     state = prior[0]
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
-    # Inspect the supplied path before resolving it: resolve() would replace a symlinked (or,
-    # on Windows, junctioned) root with its target and the later check would see a directory.
-    require(not is_link(Path(workspace)), "Workspace root is a symlink; refuse to digest it")
-    workspace = Path(workspace).resolve()
+    # Inspect every existing component of the supplied path before resolving it: resolve()
+    # would replace a symlinked (or, on Windows, junctioned) root or ancestor with its target
+    # and the later check would see an ordinary directory. abspath normalizes lexically only.
+    supplied = Path(os.path.abspath(workspace))
+    require(not is_link(supplied), "Workspace root is a symlink; refuse to digest it")
+    for ancestor in supplied.parents:
+        require(not (ancestor.exists() and is_link(ancestor)),
+                f"Workspace path has a linked ancestor at {ancestor}; refuse to digest it")
+    workspace = supplied.resolve()
     require(workspace.is_dir(), f"No workspace directory at {workspace}")
     policy = state["policy"]
     results = []

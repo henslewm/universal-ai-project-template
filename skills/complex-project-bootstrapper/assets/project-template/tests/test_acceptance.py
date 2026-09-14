@@ -375,6 +375,12 @@ class DeterministicGateTests(AcceptanceBase):
         with self.assertRaisesRegex(ValueError, "Workspace root is a symlink"):
             acceptance.run_checks(ledger, link)
         self.assertIsNone(self.state(ledger)["checks"])
+        # Codex P2 on PR #22 round 11: an ordinary final component beneath a linked ancestor
+        # passed the root check and resolve() then followed the ancestor.
+        (real / "sub").mkdir()
+        with self.assertRaisesRegex(ValueError, "linked ancestor"):
+            acceptance.run_checks(ledger, link / "sub")
+        self.assertIsNone(self.state(ledger)["checks"])
         self.assertTrue(acceptance.run_checks(ledger, real)["satisfied"])
 
     @unittest.skipUnless(os.name == "nt", "NTFS junctions only")
@@ -394,6 +400,10 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertTrue(acceptance.is_link(link))
         with self.assertRaisesRegex(ValueError, "Workspace root is a symlink"):
             acceptance.run_checks(ledger, link)
+        self.assertIsNone(self.state(ledger)["checks"])
+        (real / "sub").mkdir()
+        with self.assertRaisesRegex(ValueError, "linked ancestor"):
+            acceptance.run_checks(ledger, link / "sub")
         self.assertIsNone(self.state(ledger)["checks"])
         nested = real / "linked"
         subprocess.run(["cmd", "/c", "mklink", "/J", str(nested), str(outside)], capture_output=True, shell=False, check=True)
