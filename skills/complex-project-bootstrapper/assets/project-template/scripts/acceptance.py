@@ -681,19 +681,30 @@ def bounded_capture(argv, cwd, timeout, bound):
             "output_sha256": stream_digest(out_hex, err_hex)}
 
 
+# Directories and other non-file entries count against this multiple of the file bound.
+ENTRY_MULTIPLIER = 4
+
+
 def scan_workspace(workspace, policy):
     """Every entry under the workspace, refused on any symlink and bounded; returns the files.
 
     Every entry is inspected before filtering to files: a symlinked directory is not a file,
     and rglob does not descend into it, so it would otherwise never be seen at all.
     """
-    entries = list(workspace.rglob("*"))
-    require(not workspace.is_symlink() and not any(path.is_symlink() for path in entries),
-            "Workspace contains a symlink; refuse to digest it")
-    files = sorted(path for path in entries if path.is_file())
-    require(len(files) <= policy["workspace_digest_max_files"],
-            "Workspace exceeds the digest bound; decompose the artifact")
-    return files
+    require(not workspace.is_symlink(), "Workspace contains a symlink; refuse to digest it")
+    # Walked incrementally with both bounds checked as entries arrive, so a tree of many
+    # directories is refused as soon as it exceeds its bound instead of being materialized.
+    limit = policy["workspace_digest_max_files"]
+    files, entries = [], 0
+    for path in workspace.rglob("*"):
+        entries += 1
+        require(entries <= ENTRY_MULTIPLIER * limit,
+                "Workspace exceeds the entry bound; decompose the artifact")
+        require(not path.is_symlink(), "Workspace contains a symlink; refuse to digest it")
+        if path.is_file():
+            files.append(path)
+            require(len(files) <= limit, "Workspace exceeds the digest bound; decompose the artifact")
+    return sorted(files)
 
 
 def run_checks(directory, workspace, timestamp=None):

@@ -490,6 +490,21 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertIn(b"ran after resume", out)
         tree.close()
 
+    def test_workspace_entry_bound_is_enforced_while_scanning(self):
+        # Codex P2 on PR #22 round 5: the tree was materialized before the file bound applied,
+        # so a workspace of many directories and few files could exhaust the controller.
+        ledger, _ = self.start(config=self.config(workspace_digest_max_files=2))
+        space = self.workspace(files=("one.txt",))
+        for index in range(acceptance.ENTRY_MULTIPLIER * 2 + 1):
+            (space / f"dir-{index}").mkdir()
+        with self.assertRaisesRegex(ValueError, "entry bound"):
+            acceptance.run_checks(ledger, space)
+        self.assertIsNone(self.state(ledger)["checks"])
+        ledger, _ = self.start(config=self.config(workspace_digest_max_files=2))
+        small = self.workspace(files=("one.txt", "two.txt", "three.txt"))
+        with self.assertRaisesRegex(ValueError, "digest bound"):
+            acceptance.run_checks(ledger, small)
+
     def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
         # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
         payload = 300000
