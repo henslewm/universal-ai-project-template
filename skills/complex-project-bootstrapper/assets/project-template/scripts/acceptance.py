@@ -677,16 +677,19 @@ class ProcessTree:
             if not kernel32.QueryInformationJobObject(job, 1, ctypes.byref(info), ctypes.sizeof(info), None):
                 return True  # Unknown counts as alive; the caller then refuses rather than digests.
             return info.ActiveProcesses > 0
-        runnable = runnable_group_members(self.pgid)
-        if runnable is not None:
-            return runnable > 0
+        # The kernel is asked first: a group with no member at all, zombie or otherwise, is
+        # stopped whatever /proc shows, so an unreadable record of some unrelated process (a
+        # hidepid mount) cannot keep a cleanly ended tree looking alive and refuse every run.
         try:
             os.killpg(self.pgid, 0)
         except ProcessLookupError:
             return False
         except (PermissionError, OSError):
             return True
-        return True
+        # The group remains: only /proc can tell a zombie-only group from a runnable member, and
+        # a record that cannot be read or parsed still fails closed as alive.
+        runnable = runnable_group_members(self.pgid)
+        return True if runnable is None else runnable > 0
 
     def close(self):
         """End anything still alive in the tree once the check is over, and confirm it stopped.
@@ -784,13 +787,31 @@ def bounded_capture(argv, cwd, timeout, bound):
 ENTRY_MULTIPLIER = 4
 
 
+FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def is_link(entry):
+    """Whether a path or directory entry is a symlink or, on Windows, any reparse point.
+
+    An NTFS junction is not a symlink to `is_symlink()`, yet `resolve()` follows it and a scan
+    descends into it as an ordinary directory; the reparse-point attribute identifies junctions,
+    mount points and every other redirection alike, so all of them are refused as links.
+    """
+    if entry.is_symlink():
+        return True
+    if os.name != "nt":
+        return False
+    stat = entry.stat(follow_symlinks=False) if isinstance(entry, os.DirEntry) else os.lstat(entry)
+    return bool(getattr(stat, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def scan_workspace(workspace, policy):
     """Every entry under the workspace, refused on any symlink and bounded; returns the files.
 
     Every entry is inspected before filtering to files: a symlinked directory is not a file,
     and rglob does not descend into it, so it would otherwise never be seen at all.
     """
-    require(not workspace.is_symlink(), "Workspace contains a symlink; refuse to digest it")
+    require(not is_link(workspace), "Workspace contains a symlink; refuse to digest it")
     # Walked with os.scandir, one entry at a time, with both bounds checked as entries arrive:
     # Path.rglob and Path.walk build each directory's full listing first, so a wide directory
     # would be buffered before any bound applied.
@@ -803,7 +824,7 @@ def scan_workspace(workspace, policy):
                 entries += 1
                 require(entries <= ENTRY_MULTIPLIER * limit,
                         "Workspace exceeds the entry bound; decompose the artifact")
-                require(not entry.is_symlink(), "Workspace contains a symlink; refuse to digest it")
+                require(not is_link(entry), "Workspace contains a symlink; refuse to digest it")
                 if entry.is_dir(follow_symlinks=False):
                     pending.append(Path(entry.path))
                 elif entry.is_file(follow_symlinks=False):
@@ -823,9 +844,9 @@ def run_checks(directory, workspace, timestamp=None):
     prior = replay(directory)
     state = prior[0]
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
-    # Inspect the supplied path before resolving it: resolve() would replace a symlinked root
-    # with its target and the later symlink check would then see an ordinary directory.
-    require(not Path(workspace).is_symlink(), "Workspace root is a symlink; refuse to digest it")
+    # Inspect the supplied path before resolving it: resolve() would replace a symlinked (or,
+    # on Windows, junctioned) root with its target and the later check would see a directory.
+    require(not is_link(Path(workspace)), "Workspace root is a symlink; refuse to digest it")
     workspace = Path(workspace).resolve()
     require(workspace.is_dir(), f"No workspace directory at {workspace}")
     policy = state["policy"]

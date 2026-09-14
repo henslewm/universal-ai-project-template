@@ -377,6 +377,32 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertIsNone(self.state(ledger)["checks"])
         self.assertTrue(acceptance.run_checks(ledger, real)["satisfied"])
 
+    @unittest.skipUnless(os.name == "nt", "NTFS junctions only")
+    def test_junctioned_workspace_root_and_nested_junction_are_refused(self):
+        # Codex P2 on PR #22 round 10: a junction is not a symlink to is_symlink(), yet resolve()
+        # follows it and the scanner descends into it, so checks ran in and digested its target.
+        ledger, _ = self.start()
+        real = self.workspace()
+        outside = self.directory / "outside"
+        outside.mkdir()
+        (outside / "input.txt").write_text("read through the junction\n", encoding="utf-8")
+        link = self.directory / "workspace-junction"
+        made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(real)], capture_output=True, shell=False)
+        if made.returncode != 0:
+            self.skipTest(f"junctions unavailable here: {made.stderr.decode(errors='replace')}")
+        self.assertFalse(link.is_symlink(), "a junction must not already read as a symlink, or the test proves nothing")
+        self.assertTrue(acceptance.is_link(link))
+        with self.assertRaisesRegex(ValueError, "Workspace root is a symlink"):
+            acceptance.run_checks(ledger, link)
+        self.assertIsNone(self.state(ledger)["checks"])
+        nested = real / "linked"
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(nested), str(outside)], capture_output=True, shell=False, check=True)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, real)
+        self.assertIsNone(self.state(ledger)["checks"])
+        subprocess.run(["cmd", "/c", "rmdir", str(nested)], capture_output=True, shell=False, check=True)
+        self.assertTrue(acceptance.run_checks(ledger, real)["satisfied"])
+
     def test_timeout_is_enforced_when_a_descendant_holds_the_output_pipes(self):
         # Codex P1 on PR #22: killing only the immediate process left a grandchild holding
         # the pipes, and the unconditional reader joins waited on it indefinitely.
@@ -489,7 +515,7 @@ class DeterministicGateTests(AcceptanceBase):
         with mock.patch.object(acceptance, "PROC_ROOT", proc):
             tree = acceptance.ProcessTree.__new__(acceptance.ProcessTree)
             tree.job, tree.pgid = None, 4242
-            with mock.patch.object(acceptance.os, "name", "posix"):
+            with mock.patch.object(acceptance.os, "name", "posix"),                     mock.patch.object(acceptance.os, "killpg", create=True, return_value=None):
                 self.assertFalse(tree.members_alive(), "zombies only: the tree is stopped")
         # Unknown fails closed: an unreadable record (a directory where the file should be) and
         # an unparseable one both count as alive; only a vanished record is skipped.
@@ -501,6 +527,17 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
         (proc / "107").mkdir()  # No stat file at all: the process vanished after listing.
         self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
+        # Codex P2 on PR #22 round 10: the unreadable records above belong to nobody in particular
+        # (a hidepid mount hides every unrelated process the same way), so the kernel is asked
+        # first: a group that no longer exists is stopped whatever /proc shows, and only a group
+        # that remains has its /proc records counted, still failing closed on the unreadable ones.
+        with mock.patch.object(acceptance, "PROC_ROOT", proc), mock.patch.object(acceptance.os, "name", "posix"):
+            with mock.patch.object(acceptance.os, "killpg", create=True, side_effect=ProcessLookupError):
+                self.assertFalse(tree.members_alive(), "no group left: stopped despite unreadable records")
+            with mock.patch.object(acceptance.os, "killpg", create=True, return_value=None):
+                self.assertTrue(tree.members_alive(), "group remains and records are unreadable: alive")
+            with mock.patch.object(acceptance.os, "killpg", create=True, side_effect=PermissionError):
+                self.assertTrue(tree.members_alive(), "a group the controller cannot signal is alive")
 
     def test_run_refuses_when_the_tree_cannot_be_confirmed_stopped(self):
         # Codex P1 on PR #22 round 7: the digest must not be taken while a member is still dying.
