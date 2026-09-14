@@ -24,6 +24,7 @@ acceptance = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(acceptance)
 wp = acceptance.wp
 feedback = acceptance.feedback
+import github_ledger  # noqa: E402  (the publication seam is exercised end to end below)
 ANCHOR = "a" * 64
 PASS_ARGV = [sys.executable, "-c", "raise SystemExit(0)"]
 FAIL_ARGV = [sys.executable, "-c", "print('observed failure'); raise SystemExit(3)"]
@@ -400,7 +401,9 @@ class DeterministicGateTests(AcceptanceBase):
         self.ingest(ledger, make_report({"review_id": self.state(ledger)["reviews"][0]["review_id"], "reviewer": weak}, contract))
         strong = {"actor": "Strong reviewer", "model_family": "sonnet", "tier": 4}
         prepared = self.open_review(ledger, reviewer=strong)
-        self.ingest(ledger, make_report(prepared, contract))
+        ingested = self.ingest(ledger, make_report(prepared, contract))
+        # Codex P2 on PR #22 round 15: every exposed reviews_used figure has the same semantics.
+        self.assertEqual((ingested["reviews_used"], ingested["max_review_attempts"]), (1, 1))
         self.assertEqual(acceptance.accept(ledger, strong["actor"])["status"], "ACCEPTED")
         self.assertNotIn("tier_shortfall", self.state(ledger)["reviews"][1])
         self.assertEqual(acceptance.reviews_used(self.state(ledger)), 1)
@@ -430,13 +433,13 @@ class DeterministicGateTests(AcceptanceBase):
             os.symlink(real, link, target_is_directory=True)
         except (OSError, NotImplementedError) as exc:
             self.skipTest(f"directory symlinks unavailable here: {exc}")
-        with self.assertRaisesRegex(ValueError, "Workspace root is a symlink"):
+        with self.assertRaisesRegex(ValueError, "is or lies under a link"):
             acceptance.run_checks(ledger, link)
         self.assertIsNone(self.state(ledger)["checks"])
         # Codex P2 on PR #22 round 11: an ordinary final component beneath a linked ancestor
         # passed the root check and resolve() then followed the ancestor.
         (real / "sub").mkdir()
-        with self.assertRaisesRegex(ValueError, "linked ancestor"):
+        with self.assertRaisesRegex(ValueError, "lies under a link"):
             acceptance.run_checks(ledger, link / "sub")
         self.assertIsNone(self.state(ledger)["checks"])
         # Codex P2 on PR #22 round 12: abspath() collapses link/../real lexically to real while
@@ -461,11 +464,11 @@ class DeterministicGateTests(AcceptanceBase):
             self.skipTest(f"junctions unavailable here: {made.stderr.decode(errors='replace')}")
         self.assertFalse(link.is_symlink(), "a junction must not already read as a symlink, or the test proves nothing")
         self.assertTrue(acceptance.is_link(link))
-        with self.assertRaisesRegex(ValueError, "Workspace root is a symlink"):
+        with self.assertRaisesRegex(ValueError, "is or lies under a link"):
             acceptance.run_checks(ledger, link)
         self.assertIsNone(self.state(ledger)["checks"])
         (real / "sub").mkdir()
-        with self.assertRaisesRegex(ValueError, "linked ancestor"):
+        with self.assertRaisesRegex(ValueError, "lies under a link"):
             acceptance.run_checks(ledger, link / "sub")
         self.assertIsNone(self.state(ledger)["checks"])
         nested = real / "linked"
@@ -551,6 +554,59 @@ class DeterministicGateTests(AcceptanceBase):
             acceptance.run_checks(ledger, space)
         self.assertTrue((space / "linked").is_symlink(), "the first check ran and left its link")
         self.assertFalse((space / "second-ran").exists(), "the second check must not have run")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_check_tree_is_ended_on_every_exit_path_including_a_controller_failure(self):
+        # ADR-024 invariant (b): the tree is killable and killed on EVERY exit path. Rounds 1-8
+        # each guarded one exit (timeout, abandoned drain, normal exit, dying member); this
+        # asserts the invariant itself by leaving through a path none of them named — an
+        # exception raised in the controller while the check is running.
+        script = ("import os, subprocess, sys\n"
+                  "child = subprocess.Popen([sys.executable, '-c', "
+                  "'import os, time; os.close(1); os.close(2); time.sleep(120)'])\n"
+                  "open('quiet-grandchild.pid', 'w').write(str(child.pid)); sys.stdout.flush(); "
+                  "import time; time.sleep(120)")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script])
+        space = self.workspace()
+        real_wait = subprocess.Popen.wait
+
+        def wait(process, timeout=None):
+            if timeout is None:  # ProcessTree.kill()/close() wait without a timeout; let them.
+                return real_wait(process)
+            deadline = time.monotonic() + 30
+            while not (space / "quiet-grandchild.pid").exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            raise RuntimeError("injected controller failure while the check was running")
+
+        with mock.patch.object(subprocess.Popen, "wait", wait):
+            with self.assertRaisesRegex(RuntimeError, "injected controller failure"):
+                acceptance.run_checks(ledger, space)
+        pid = int((space / "quiet-grandchild.pid").read_text())
+        self.assertFalse(process_alive(pid), "the grandchild outlived a check that left through an exception")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_no_command_runs_with_a_cwd_that_is_or_lies_under_a_link(self):
+        # ADR-024 invariant (a): a check runs only in a workspace established as trusted, and
+        # its cwd is inspected component by component before anything follows it. The link is
+        # created by an earlier command, after the initial trust was established, so only the
+        # per-command re-check can refuse it — and it must refuse before the command runs.
+        contract = make_contract(argv=[sys.executable, "-c", "import os; os.symlink('real', 'linked', target_is_directory=True)"])
+        second = copy.deepcopy(contract["validation"][0])
+        second["id"] = "VC-LINKED-CWD"
+        second["command"] = {"argv": [sys.executable, "-c", "open('marker', 'w').write('ran')"], "cwd": "linked"}
+        contract["validation"].append(second)
+        ledger, _ = self.start(packet=make_packet(contract))
+        space = self.workspace()
+        (space / "real").mkdir()
+        try:
+            os.symlink(space / "real", space / "probe", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        (space / "probe").unlink()
+        with self.assertRaisesRegex(ValueError, "Check cwd is or lies under a link"):
+            acceptance.run_checks(ledger, space)
+        self.assertTrue((space / "linked").is_symlink(), "the first command must have created the link")
+        self.assertFalse((space / "real" / "marker").exists(), "the second command ran through the link")
         self.assertIsNone(self.state(ledger)["checks"])
 
     def test_descendant_that_closed_its_pipes_does_not_outlive_the_check(self):
@@ -1131,6 +1187,24 @@ class FeedbackIntegrationTests(AcceptanceBase):
         self.assertEqual(outcome["packet_state"], "ACCEPTED")
         with self.assertRaisesRegex(ValueError, "Controller hold"):
             feedback.reserve(fb, self.settings, self.options(), self.directory)
+        # ADR-025: the accepted task can complete publication. The GitHub ledger refused any
+        # feedback ledger not still at REVIEW_PENDING, so recording the acceptance made the
+        # task unpublishable — the two subsystems were mutually exclusive at the closing step.
+        fb_state = feedback.replay(fb)[0]
+        events = [wp.read_json(path) for path in sorted(fb.glob("*.json"))]
+        verified = wp.transition(fb_state["packet"], "VERIFIED", "integrator", "Integrator",
+                                 "Synthetic verification", ["synthetic://checks"])
+        row = {"issue": 2, "packet": verified, "feedback": events, "branch": None, "pr": None,
+               "superseded_prs": [], "discoveries": {},
+               "acceptance": {"commit": "c" * 40, "evidence": ["synthetic://checks"],
+                              "review": ["synthetic://independent-review"]}}
+        github_ledger.row_valid(fb_state["packet"]["task_id"], row, fb_state["anchor"])
+        # Still refused: a receipt on the accepted-but-unverified packet, so the integrator step
+        # is not skipped; the packet state machine itself forbids any non-reviewer/integrator
+        # transition out of ACCEPTED, and held or unfinished ledgers stay refused as before.
+        premature = dict(row, packet=fb_state["packet"])
+        with self.assertRaisesRegex(ValueError, "Acceptance requires a VERIFIED packet"):
+            github_ledger.row_valid(fb_state["packet"]["task_id"], premature, fb_state["anchor"])
 
     def test_acceptance_decision_is_bound_to_its_own_task_and_result(self):
         # Codex P1 on PR #21: task A's accepted ledger forwarded to task B's feedback ledger

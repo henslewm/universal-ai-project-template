@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import copy
 import hashlib
 import json
@@ -589,6 +590,26 @@ class ProcessTree:
     def creation_flags(cls):
         return cls.CREATE_SUSPENDED if os.name == "nt" else 0
 
+    @classmethod
+    @contextlib.contextmanager
+    def run(cls, argv, cwd):
+        """Own a check from launch to confirmed-stopped; the tree is ended on every exit (ADR-024).
+
+        Timeout, normal exit with a descendant still alive, refusal, and any exception raised
+        inside the block all leave through the same `finally`, so nothing spawned by the check
+        can outlive it, and the caller learns whether the tree was confirmed stopped.
+        """
+        process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+                                   start_new_session=os.name != "nt", creationflags=cls.creation_flags())
+        tree = cls(process)  # Refuses, with the suspended check killed, if it cannot be isolated.
+        tree.stopped = None
+        try:
+            yield tree
+        finally:
+            if process.poll() is None:
+                tree.kill()
+            tree.stopped = tree.close()
+
     def _windows_resume(self):
         import ctypes
         from ctypes import wintypes
@@ -767,38 +788,37 @@ def bounded_capture(argv, cwd, timeout, bound):
             cut = abandoned or sink["total"] > len(sink["kept"]) or len(text) > bound
             return text[:bound], cut, sink["hasher"].hexdigest()
 
+    sinks = tuple({"hasher": hashlib.sha256(), "kept": bytearray(), "total": 0} for _ in range(2))
+    timed_out = False
     try:
-        process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
-                                   start_new_session=os.name != "nt", creationflags=ProcessTree.creation_flags())
+        with ProcessTree.run(argv, cwd) as tree:
+            process = tree.process
+            readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
+                       threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
+            for reader in readers:
+                reader.start()
+            try:
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                tree.kill()
+            # A descendant that inherited the pipes — whether the check timed out or exited normally
+            # and left it behind — would hold the readers open forever. The drain is bounded; a reader
+            # still alive after the grace period means the tree is killed and the check is recorded
+            # as not completing within its bound, with the digest of what was actually observed.
+            abandoned = any(not reader.join(timeout=DRAIN_GRACE_SECONDS) and reader.is_alive() for reader in readers)
+            if abandoned:
+                tree.kill()
+                for reader in readers:
+                    reader.join(timeout=DRAIN_GRACE_SECONDS)
     except OSError as exc:
         message = str(exc).encode("utf-8")
         text = message.decode("utf-8")
         return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
                 "output_truncated": len(text) > bound,
                 "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
-    tree = ProcessTree(process)
-    sinks = tuple({"hasher": hashlib.sha256(), "kept": bytearray(), "total": 0} for _ in range(2))
-    readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
-               threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
-    for reader in readers:
-        reader.start()
-    timed_out = False
-    try:
-        process.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        tree.kill()
-    # A descendant that inherited the pipes — whether the check timed out or exited normally
-    # and left it behind — would hold the readers open forever. The drain is bounded; a reader
-    # still alive after the grace period means the tree is killed and the check is recorded
-    # as not completing within its bound, with the digest of what was actually observed.
-    abandoned = any(not reader.join(timeout=DRAIN_GRACE_SECONDS) and reader.is_alive() for reader in readers)
-    if abandoned:
-        tree.kill()
-        for reader in readers:
-            reader.join(timeout=DRAIN_GRACE_SECONDS)
     # Nothing from the tree may still be running when the workspace is scanned and digested.
-    require(tree.close(), "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
+    require(tree.stopped, "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
     out, out_cut, out_hex = finish(sinks[0], abandoned)
     err, err_cut, err_hex = finish(sinks[1], abandoned)
     return {"exit_code": None if timed_out or abandoned else process.returncode,
@@ -857,6 +877,48 @@ def scan_workspace(workspace, policy):
     return sorted(files)
 
 
+def linked_component(path):
+    """The first existing component of an unresolved path that is a link, or None (ADR-024).
+
+    Every component is inspected before anything follows it: `resolve()` would replace a
+    symlinked (or, on Windows, junctioned) component with its target and every later check
+    would see an ordinary directory. `..` is refused first because lexical normalization would
+    collapse link/../x to x while the filesystem follows the link.
+    """
+    require(".." not in Path(path).parts, f"Path contains '..'; supply it without parent references: {path}")
+    absolute = Path(os.path.abspath(path))
+    for component in (absolute, *absolute.parents):
+        if component.exists() and is_link(component):
+            return component
+    return None
+
+
+def trusted_workspace(path, policy):
+    """Establish the workspace as trusted before any check runs, and return its resolved root.
+
+    Trust means: no link in any component of the supplied path, the root exists, and the
+    whole tree has been scanned (refused on any link, bounded). Every check's cwd is then
+    derived from this root through the same component inspection, and the scan is repeated
+    before each command and before the digest.
+    """
+    linked = linked_component(path)
+    require(linked is None, f"Workspace path is or lies under a link at {linked}; refuse to digest it")
+    workspace = Path(os.path.abspath(path)).resolve()
+    require(workspace.is_dir(), f"No workspace directory at {workspace}")
+    scan_workspace(workspace, policy)
+    return workspace
+
+
+def check_cwd(workspace, relative):
+    """A check's working directory, inspected component by component before it is resolved."""
+    linked = linked_component(workspace / relative)
+    require(linked is None, f"Check cwd is or lies under a link at {linked}; refuse to run it")
+    cwd = (workspace / relative).resolve()
+    require(cwd == workspace or workspace in cwd.parents, "Check cwd escapes the workspace")
+    require(cwd.is_dir(), f"Check cwd does not exist: {cwd}")
+    return cwd
+
+
 def run_checks(directory, workspace, timestamp=None):
     """Execute the contract's declared validation commands and record what was observed.
 
@@ -868,19 +930,10 @@ def run_checks(directory, workspace, timestamp=None):
     prior = replay(directory)
     state = prior[0]
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
-    # Inspect every existing component of the supplied path before resolving it: resolve()
-    # would replace a symlinked (or, on Windows, junctioned) root or ancestor with its target
-    # and the later check would see an ordinary directory. A `..` component is refused first:
-    # lexical normalization would collapse link/../x to x while the filesystem follows the link.
-    require(".." not in Path(workspace).parts, "Workspace path contains '..'; supply it without parent references")
-    supplied = Path(os.path.abspath(workspace))
-    require(not is_link(supplied), "Workspace root is a symlink; refuse to digest it")
-    for ancestor in supplied.parents:
-        require(not (ancestor.exists() and is_link(ancestor)),
-                f"Workspace path has a linked ancestor at {ancestor}; refuse to digest it")
-    workspace = supplied.resolve()
-    require(workspace.is_dir(), f"No workspace directory at {workspace}")
     policy = state["policy"]
+    # Trust is established once, before any command runs (ADR-024); it is re-checked, never
+    # first checked, at each cwd, before each command and before the digest.
+    workspace = trusted_workspace(workspace, policy)
     results = []
     for check in state["contract"]["validation"]:
         command = check.get("command")
@@ -891,9 +944,7 @@ def run_checks(directory, workspace, timestamp=None):
                             "stdout": "", "stderr": "", "output_truncated": False,
                             "output_sha256": stream_digest(empty, empty)})
             continue
-        cwd = (workspace / command.get("cwd", ".")).resolve()
-        require(cwd == workspace or workspace in cwd.parents, "Check cwd escapes the workspace")
-        require(cwd.is_dir(), f"Check cwd does not exist: {cwd}")
+        cwd = check_cwd(workspace, command.get("cwd", "."))
         # Scanned before every command: an earlier check could create a link, a later one read
         # through it and remove it, and a single pre-loop or final scan would see a clean tree.
         scan_workspace(workspace, policy)
@@ -916,7 +967,7 @@ def run_checks(directory, workspace, timestamp=None):
             "satisfied": deterministic_satisfied(recorded)}
 
 
-def review_contract(paths, policy, reviews_used):
+def review_contract(paths, policy, used):
     report_def = SCHEMA["$defs"]["report"]
     return {
         "write_to": str(paths["report"]),
@@ -1035,7 +1086,7 @@ def ingest_review(directory, report_path, timestamp=None):
     return {"status": recorded["status"], "reason": recorded["reason"], "verdict": report["verdict"],
             "review_id": latest["review_id"], "gate": latest["gate"],
             "contract_failures": len(report["contract_failures"]),
-            "reviews_used": len(recorded["reviews"]),
+            "reviews_used": reviews_used(recorded),
             "max_review_attempts": recorded["policy"]["max_review_attempts"],
             "acceptance_granted": False}
 
