@@ -675,6 +675,22 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
         (proc / "107").mkdir()  # No stat file at all: the process vanished after listing.
         self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
+        # Codex P2 on PR #22 round 17: on a hidepid mount every unrelated user's record is
+        # unreadable, and a zombie-only group passes the kernel probe, so those records made a
+        # completed run refuse. Ownership rules a record out: a check runs with the controller's
+        # privileges, so a record owned by another uid cannot be a member. Same uid, or
+        # ownership that cannot be read, stays unknown and alive.
+        owner = (proc / "105").stat().st_uid
+        with mock.patch.object(acceptance.os, "getuid", create=True, return_value=owner + 1):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1, "another user's unreadable record counted")
+        with mock.patch.object(acceptance.os, "getuid", create=True, return_value=owner):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2, "our own unreadable record was skipped")
+        hidden = mock.Mock()
+        hidden.stat.side_effect = PermissionError("hidden")
+        with mock.patch.object(acceptance.os, "getuid", create=True, return_value=owner + 1):
+            self.assertFalse(acceptance.owned_by_another_user(hidden), "unreadable ownership must fail closed")
+        with mock.patch.object(acceptance.os, "getuid", None, create=True):
+            self.assertFalse(acceptance.owned_by_another_user(proc / "105"), "no uid on this platform: unknown")
         # Codex P2 on PR #22 round 10: the unreadable records above belong to nobody in particular
         # (a hidepid mount hides every unrelated process the same way), so the kernel is asked
         # first: a group that no longer exists is stopped whatever /proc shows, and only a group

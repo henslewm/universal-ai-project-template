@@ -523,6 +523,10 @@ def runnable_group_members(pgid, proc_root=None):
     A killed descendant that nobody reaps — a container whose PID 1 does not reap orphans —
     stays in the group as a zombie, so group existence alone would never report stopped.
     Returns None where /proc is unavailable, and the caller falls back to the group probe.
+
+    A record that cannot be read is unknown and counts as alive, unless membership can be
+    ruled out by ownership: the check runs with the controller's privileges, so a process
+    owned by another user (what a `hidepid` mount hides) cannot be a member of its group.
     """
     root = PROC_ROOT if proc_root is None else Path(proc_root)
     if not root.is_dir():
@@ -536,7 +540,8 @@ def runnable_group_members(pgid, proc_root=None):
         except FileNotFoundError:
             continue  # The only error that proves the process is gone: it exited after listing.
         except OSError:
-            members += 1  # Unreadable is unknown, and unknown fails closed as alive.
+            if not owned_by_another_user(entry):
+                members += 1  # Unreadable and possibly ours: unknown fails closed as alive.
             continue
         _, _, rest = stat.rpartition(")")  # The command name may contain spaces or parentheses.
         fields = rest.split()
@@ -547,6 +552,21 @@ def runnable_group_members(pgid, proc_root=None):
         if group == str(pgid) and state not in ("Z", "X", "x"):
             members += 1
     return members
+
+
+def owned_by_another_user(entry):
+    """Whether a /proc entry provably belongs to a different user than the controller.
+
+    Only a definite answer excludes a record: no uid on this platform, or an ownership that
+    cannot be read, keeps the record in the unknown-therefore-alive class.
+    """
+    getuid = getattr(os, "getuid", None)
+    if getuid is None:
+        return False
+    try:
+        return entry.stat().st_uid != getuid()
+    except OSError:
+        return False
 
 
 class ProcessTree:
