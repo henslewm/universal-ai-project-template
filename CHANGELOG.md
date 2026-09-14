@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-13 — Issue #9 software + hardware domain template
+
+- Add `config/domains/software-hardware.schema.json` and `scripts/software_hardware.py`: the software-hardware `domain` block becomes structural — one named component, hardware assumptions citing contract sources, protocol references, every validation mapped to one rung of the verification ladder, and a declared hardware status limited to `UNVERIFIED_ON_HARDWARE` or `NOT_HARDWARE_FACING`.
+- Register per-profile domain rules in `work_packet.DOMAIN_MODULES`, applied inside `validate_contract` on every contract-validation path and at the acceptance ATTESTATION event; no existing refusal, floor or gate is loosened.
+- Bind the ladder to the acceptance split: machine rungs must declare a command the deterministic gate re-executes; hardware rungs must not, and their attestation must bind a validated hardware evidence record by digest with a `pass` outcome recorded by the attesting operator.
+- Derive the earned hardware status from the acceptance ledger (`software_hardware.py status`): `VERIFIED_ON_HARDWARE` only for an accepted task whose hardware rungs were all attested; a machine-only acceptance never earns it.
+- Extend the software-hardware bootstrap intake to nine required orientation fields; rewrite `templates/software-hardware/PROFILE.md` and `DOMAIN_PROFILE.md`; cross-reference the work-packet, acceptance and bootstrap protocols.
+- Ship `examples/software-hardware/`: a fictional synthetic sensor bridge with 27 runnable tests decomposed into six component-scoped packets (one hardware-in-loop and one field attested check), a hardware evidence example and an operator procedure; update the software-hardware example contract.
+- Add 25 tests (309 total); register 14 new required paths (81 total).
+
 ## 2026-09-13 — Issue #8 independent acceptance gates
 
 - Add the acceptance controller: one append-only hash-chained ledger per reviewed task, filling the gap between the feedback controller's REVIEW_PENDING and the packet's REVIEW → ACCEPTED transition.
