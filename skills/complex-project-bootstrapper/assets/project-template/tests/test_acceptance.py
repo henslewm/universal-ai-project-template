@@ -585,6 +585,25 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertFalse(process_alive(pid), "the grandchild outlived a check that left through an exception")
         self.assertIsNone(self.state(ledger)["checks"])
 
+    def test_a_teardown_error_refuses_the_run_instead_of_becoming_a_check_result(self):
+        # Codex P1 on PR #22 round 16: the launch-error handler wrapped the whole owned block,
+        # so an OSError raised while confirming the tree stopped (an unreadable /proc with the
+        # group still present) became an ordinary failed check and the digest ran anyway. Only
+        # a launch failure is a check result; an owner/teardown error propagates and refuses.
+        ledger, _ = self.start()
+        space = self.workspace()
+        with mock.patch.object(acceptance.ProcessTree, "close", side_effect=OSError("proc unreadable")):
+            with self.assertRaisesRegex(OSError, "proc unreadable"):
+                acceptance.run_checks(ledger, space)
+        self.assertIsNone(self.state(ledger)["checks"], "a run whose tree was never confirmed stopped recorded CHECKS")
+        # A launch failure is still an ordinary failed check, recorded and not raised.
+        ledger, _ = self.start(argv=[str(space / "no-such-program")])
+        outcome = self.checked(ledger)
+        self.assertFalse(outcome["satisfied"])
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertIsNone(entry["exit_code"])
+        self.assertFalse(entry["passed"])
+
     def test_no_command_runs_with_a_cwd_that_is_or_lies_under_a_link(self):
         # ADR-024 invariant (a): a check runs only in a workspace established as trusted, and
         # its cwd is inspected component by component before anything follows it. The link is

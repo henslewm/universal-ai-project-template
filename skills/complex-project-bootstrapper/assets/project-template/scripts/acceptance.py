@@ -591,16 +591,22 @@ class ProcessTree:
         return cls.CREATE_SUSPENDED if os.name == "nt" else 0
 
     @classmethod
+    def launch(cls, argv, cwd):
+        """Start a check. This is the only step whose OSError means "the check could not run"."""
+        return subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+                                start_new_session=os.name != "nt", creationflags=cls.creation_flags())
+
+    @classmethod
     @contextlib.contextmanager
-    def run(cls, argv, cwd):
-        """Own a check from launch to confirmed-stopped; the tree is ended on every exit (ADR-024).
+    def own(cls, process):
+        """Own a launched check until confirmed-stopped; the tree is ended on every exit (ADR-024).
 
         Timeout, normal exit with a descendant still alive, refusal, and any exception raised
         inside the block all leave through the same `finally`, so nothing spawned by the check
-        can outlive it, and the caller learns whether the tree was confirmed stopped.
+        can outlive it, and the caller learns whether the tree was confirmed stopped. An error
+        raised by the teardown itself propagates: it is never converted into a check result,
+        because a tree that could not be confirmed stopped must refuse the run, not fail the check.
         """
-        process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
-                                   start_new_session=os.name != "nt", creationflags=cls.creation_flags())
         tree = cls(process)  # Refuses, with the suspended check killed, if it cannot be isolated.
         tree.stopped = None
         try:
@@ -790,33 +796,36 @@ def bounded_capture(argv, cwd, timeout, bound):
 
     sinks = tuple({"hasher": hashlib.sha256(), "kept": bytearray(), "total": 0} for _ in range(2))
     timed_out = False
+    # Only a launch failure is a check result. Once the check exists, an OSError from owning or
+    # tearing it down propagates and refuses the run (Codex P1, round 16): converting it into a
+    # failed-check record would let the digest run over a tree never confirmed stopped.
     try:
-        with ProcessTree.run(argv, cwd) as tree:
-            process = tree.process
-            readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
-                       threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
-            for reader in readers:
-                reader.start()
-            try:
-                process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                tree.kill()
-            # A descendant that inherited the pipes — whether the check timed out or exited normally
-            # and left it behind — would hold the readers open forever. The drain is bounded; a reader
-            # still alive after the grace period means the tree is killed and the check is recorded
-            # as not completing within its bound, with the digest of what was actually observed.
-            abandoned = any(not reader.join(timeout=DRAIN_GRACE_SECONDS) and reader.is_alive() for reader in readers)
-            if abandoned:
-                tree.kill()
-                for reader in readers:
-                    reader.join(timeout=DRAIN_GRACE_SECONDS)
+        process = ProcessTree.launch(argv, cwd)
     except OSError as exc:
         message = str(exc).encode("utf-8")
         text = message.decode("utf-8")
         return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
                 "output_truncated": len(text) > bound,
                 "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
+    with ProcessTree.own(process) as tree:
+        readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
+                   threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
+        for reader in readers:
+            reader.start()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            tree.kill()
+        # A descendant that inherited the pipes — whether the check timed out or exited normally
+        # and left it behind — would hold the readers open forever. The drain is bounded; a reader
+        # still alive after the grace period means the tree is killed and the check is recorded
+        # as not completing within its bound, with the digest of what was actually observed.
+        abandoned = any(not reader.join(timeout=DRAIN_GRACE_SECONDS) and reader.is_alive() for reader in readers)
+        if abandoned:
+            tree.kill()
+            for reader in readers:
+                reader.join(timeout=DRAIN_GRACE_SECONDS)
     # Nothing from the tree may still be running when the workspace is scanned and digested.
     require(tree.stopped, "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
     out, out_cut, out_hex = finish(sinks[0], abandoned)
