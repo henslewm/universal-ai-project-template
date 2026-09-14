@@ -109,6 +109,30 @@ def bound_to(fb_state, result):
             "result_dispatch_id": result["dispatch_id"]}
 
 
+def process_alive(pid):
+    if os.name == "nt":
+        import ctypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        alive = bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259
+        kernel32.CloseHandle(handle)
+        return alive
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    try:
+        # A killed child reparented to init is reaped by init; a zombie under us needs a wait.
+        return os.waitpid(pid, os.WNOHANG) == (0, 0)
+    except ChildProcessError:
+        return True
+
+
 def make_failure(ref="AC-VALID", kind="criterion", what="Observed value differs from the packet evidence"):
     return {"failed_ref": ref, "kind": kind, "what_failed": what,
             "evidence": ["Synthetic reviewer observation"],
@@ -368,6 +392,44 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertTrue(entry["timed_out"])
         self.assertFalse(entry["passed"])
         self.assertIn("parent started", entry["stdout"])
+
+    def test_symlink_removed_by_a_check_is_caught_before_execution(self):
+        # Codex P1 on PR #22 round 2: a check could read through a link, remove it, and pass
+        # a post-run scan with a digest that never saw the linked inputs.
+        removal = [sys.executable, "-c", "import os; os.rmdir('linked') if os.path.isdir('linked') else os.remove('linked')"]
+        ledger, _ = self.start(argv=removal)
+        space = self.workspace()
+        outside = self.directory / "outside-inputs"
+        outside.mkdir()
+        try:
+            os.symlink(outside, space / "linked", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, space)
+        self.assertTrue((space / "linked").is_symlink(), "the check must not have run")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_descendant_left_behind_by_a_normal_exit_is_killed(self):
+        # Codex P1 on PR #22 round 2: the parent exits normally, a grandchild keeps the pipes,
+        # and abandoning the readers left it running indefinitely.
+        script = ("import subprocess, sys\n"
+                  "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+                  "open('grandchild.pid', 'w').write(str(child.pid)); sys.stdout.write('parent done')")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script])
+        space = self.workspace()
+        started = time.monotonic()
+        acceptance.run_checks(ledger, space)
+        self.assertLess(time.monotonic() - started, 2 * acceptance.DRAIN_GRACE_SECONDS + 10)
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertFalse(entry["passed"])
+        self.assertTrue(entry["timed_out"])
+        self.assertIn("parent done", entry["stdout"])
+        pid = int((space / "grandchild.pid").read_text())
+        deadline = time.monotonic() + 5
+        while process_alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        self.assertFalse(process_alive(pid), "the grandchild survived the abandoned drain")
 
     def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
         # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
@@ -852,6 +914,27 @@ class FeedbackIntegrationTests(AcceptanceBase):
         self.assertEqual(feedback.replay(fb_b)[0]["status"], "REVIEW_PENDING")
         outcome = acceptance.sync_feedback(ledger, fb_a)
         self.assertEqual(outcome["feedback_status"], "ACCEPTED")
+
+    def test_pre_binding_review_events_replay_but_new_decisions_require_the_binding(self):
+        # Codex P1 on PR #22 round 2: a ledger written before the binding was required must still
+        # replay; only a new REVIEW event must carry the binding.
+        contract = make_contract(risk="medium")
+        contract["retry_budget"]["max_attempts"] = 8
+        fb, state, result = self.feedback_to_review(contract)
+        legacy = {"review_id": "f" * 64, "verdict": "NEEDS_ESCALATION", "reviewer": dict(REVIEWER),
+                  "summary": "Recorded by the previous schema", "evidence": ["legacy evidence"],
+                  "contract_failures": [], "acceptance_reference": "acceptance-ledger:legacy"}
+        with self.assertRaisesRegex(ValueError, "binding.*required|required property"):
+            feedback.review(fb, legacy)
+        # Write the legacy event exactly as the previous version stored it, on the hash chain.
+        _, sequence, previous = feedback.replay(fb)
+        event = {"sequence": sequence + 1, "previous": previous, "kind": "REVIEW",
+                 "timestamp": wp.now(), "data": {"decision": legacy}}
+        event["hash"] = acceptance.router.digest(event)
+        (fb / f"{sequence + 1:08d}.json").write_text(json.dumps(event, indent=2) + "\n", encoding="utf-8")
+        replayed = feedback.replay(fb)[0]
+        self.assertEqual((replayed["status"], replayed["reason"]), ("NEEDS_ARCHITECT", "REVIEW_ESCALATED"))
+        self.assertEqual(replayed["packet"]["state"], "ESCALATED")
 
     def test_approval_alone_does_not_close_the_feedback_task(self):
         contract = make_contract(risk="medium")

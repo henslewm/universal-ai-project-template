@@ -5,7 +5,7 @@
 - Bind every acceptance decision to its task id, revision, contract hash and reviewed result `dispatch_id`; the feedback ledger's REVIEW event and `sync-feedback` refuse a mismatch (Codex P1).
 - Refuse opening a review whose declared reviewer tier is below the contract's `routing.reviewer_tier` (Codex P1).
 - Inspect every workspace entry, including directory symlinks, before building the deterministic-gate digest (Codex P2).
-- Stream check output into bounded buffers while hashing the complete stream, and kill a runaway check at its timeout with a bounded record (Codex P2). Round 2 on PR #22: terminate the whole process tree and bound the pipe drain so a descendant cannot defeat the timeout (P1); refuse a symlinked workspace root before resolving it (P2).
+- Stream check output into bounded buffers while hashing the complete stream, and kill a runaway check at its timeout with a bounded record (Codex P2). Round 2 on PR #22: terminate the whole process tree and bound the pipe drain so a descendant cannot defeat the timeout (P1); refuse a symlinked workspace root before resolving it (P2). Round 3: scan the workspace for symlinks before any command runs as well as after (P1); kill the tree, via a Windows job object or the POSIX process group, whenever the drain is abandoned after a normal exit (P1); replay pre-binding REVIEW events in existing ledgers under the legacy shape while refusing new decisions without the binding (P1, ADR-022).
 - Record the standing review rules in the repository instructions: no merge without a Codex review of the current head SHA, no next child while findings are open, GitHub via `gh api` as the only source of findings.
 
 ## 2026-09-13 — Issue #8 independent acceptance gates

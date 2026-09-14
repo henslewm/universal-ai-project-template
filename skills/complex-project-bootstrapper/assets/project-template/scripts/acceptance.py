@@ -486,25 +486,89 @@ def stream_digest(stdout_hex, stderr_hex):
     return hashlib.sha256(f"stdout:{stdout_hex}\nstderr:{stderr_hex}".encode("ascii")).hexdigest()
 
 
-# After a timed-out check is terminated, its pipes are drained for at most this long; a
-# descendant that still holds them after that is abandoned rather than waited on.
+# After a check ends or is terminated, its pipes are drained for at most this long; a
+# descendant that still holds them after that is killed with the whole tree, not waited on.
 DRAIN_GRACE_SECONDS = 5
 
 
-def terminate_tree(process):
-    """Kill the check and every descendant that could still hold its output pipes."""
-    if os.name == "nt":
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, shell=False)
-    else:
+class ProcessTree:
+    """The check and every descendant, killable as one unit even after the check itself exits.
+
+    POSIX: the check runs in its own session, so its process group is the tree. Windows: the
+    check is assigned to a job object, which descendants inherit and which terminates them all;
+    `taskkill /T` is the fallback when a job cannot be created or assigned.
+    """
+
+    def __init__(self, process):
+        self.process = process
+        self.job = None
+        if os.name == "nt":
+            self.job = self._windows_job()
+
+    def _windows_job(self):
         try:
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        except (ProcessLookupError, PermissionError, OSError):
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+            class IoCounters(ctypes.Structure):
+                _fields_ = [(name, ctypes.c_ulonglong) for name in
+                            ("ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                             "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+            class BasicLimit(ctypes.Structure):
+                _fields_ = [("PerProcessUserTimeLimit", ctypes.c_longlong), ("PerJobUserTimeLimit", ctypes.c_longlong),
+                            ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                            ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                            ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                            ("SchedulingClass", wintypes.DWORD)]
+
+            class ExtendedLimit(ctypes.Structure):
+                _fields_ = [("BasicLimitInformation", BasicLimit), ("IoInfo", IoCounters),
+                            ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                            ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+            job = kernel32.CreateJobObjectW(None, None)
+            if not job:
+                return None
+            limits = ExtendedLimit()
+            limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if not kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+                kernel32.CloseHandle(job)
+                return None
+            if not kernel32.AssignProcessToJobObject(job, wintypes.HANDLE(int(self.process._handle))):
+                kernel32.CloseHandle(job)
+                return None
+            return (kernel32, job)
+        except (OSError, AttributeError, ValueError):
+            return None
+
+    def kill(self):
+        if os.name == "nt":
+            if self.job is not None:
+                kernel32, job = self.job
+                kernel32.TerminateJobObject(job, 1)
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(self.process.pid)], capture_output=True, shell=False)
+        else:
+            try:
+                os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        try:
+            self.process.kill()
+        except OSError:
             pass
-    try:
-        process.kill()
-    except OSError:
-        pass
-    process.wait()
+        self.process.wait()
+
+    def close(self):
+        if self.job is not None:
+            kernel32, job = self.job
+            kernel32.CloseHandle(job)  # KILL_ON_JOB_CLOSE ends anything still in the job.
+            self.job = None
+
+
+def terminate_tree(process):
+    ProcessTree(process).kill()
 
 
 def bounded_capture(argv, cwd, timeout, bound):
@@ -543,6 +607,7 @@ def bounded_capture(argv, cwd, timeout, bound):
         return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
                 "output_truncated": len(text) > bound,
                 "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
+    tree = ProcessTree(process)
     sinks = tuple({"hasher": hashlib.sha256(), "kept": bytearray(), "total": 0} for _ in range(2))
     readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
                threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
@@ -553,19 +618,38 @@ def bounded_capture(argv, cwd, timeout, bound):
         process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        terminate_tree(process)
-    # A descendant that inherited the pipes and escaped termination would hold the readers
-    # open forever; the drain itself is bounded, and an abandoned reader is recorded as such.
-    abandoned = False
-    for reader in readers:
-        reader.join(timeout=DRAIN_GRACE_SECONDS)
-        abandoned = abandoned or reader.is_alive()
+        tree.kill()
+    # A descendant that inherited the pipes — whether the check timed out or exited normally
+    # and left it behind — would hold the readers open forever. The drain is bounded; a reader
+    # still alive after the grace period means the tree is killed and the check is recorded
+    # as not completing within its bound, with the digest of what was actually observed.
+    abandoned = any(not reader.join(timeout=DRAIN_GRACE_SECONDS) and reader.is_alive() for reader in readers)
+    if abandoned:
+        tree.kill()
+        for reader in readers:
+            reader.join(timeout=DRAIN_GRACE_SECONDS)
+    tree.close()
     out, out_cut, out_hex = finish(sinks[0], abandoned)
     err, err_cut, err_hex = finish(sinks[1], abandoned)
     return {"exit_code": None if timed_out or abandoned else process.returncode,
             "timed_out": timed_out or abandoned,
             "stdout": out, "stderr": err, "output_truncated": out_cut or err_cut,
             "output_sha256": stream_digest(out_hex, err_hex)}
+
+
+def scan_workspace(workspace, policy):
+    """Every entry under the workspace, refused on any symlink and bounded; returns the files.
+
+    Every entry is inspected before filtering to files: a symlinked directory is not a file,
+    and rglob does not descend into it, so it would otherwise never be seen at all.
+    """
+    entries = list(workspace.rglob("*"))
+    require(not workspace.is_symlink() and not any(path.is_symlink() for path in entries),
+            "Workspace contains a symlink; refuse to digest it")
+    files = sorted(path for path in entries if path.is_file())
+    require(len(files) <= policy["workspace_digest_max_files"],
+            "Workspace exceeds the digest bound; decompose the artifact")
+    return files
 
 
 def run_checks(directory, workspace, timestamp=None):
@@ -585,6 +669,9 @@ def run_checks(directory, workspace, timestamp=None):
     workspace = Path(workspace).resolve()
     require(workspace.is_dir(), f"No workspace directory at {workspace}")
     policy = state["policy"]
+    # Scanned before any command runs: a check could read inputs through a symlink and remove
+    # it before a post-run scan, leaving a clean digest that never saw those inputs.
+    scan_workspace(workspace, policy)
     results = []
     for check in state["contract"]["validation"]:
         command = check.get("command")
@@ -605,14 +692,8 @@ def run_checks(directory, workspace, timestamp=None):
         results.append({"validation_id": check["id"], "machine_runnable": True,
                         "passed": observed["exit_code"] == 0 and not observed["timed_out"],
                         "argv": list(command["argv"]), "duration_seconds": round(duration, 3), **observed})
-    # Every entry is inspected before filtering to files: a symlinked directory is not a file,
-    # and rglob does not descend into it, so it would otherwise never be seen at all.
-    entries = list(workspace.rglob("*"))
-    require(not workspace.is_symlink() and not any(path.is_symlink() for path in entries),
-            "Workspace contains a symlink; refuse to digest it")
-    files = sorted(path for path in entries if path.is_file())
-    require(len(files) <= policy["workspace_digest_max_files"],
-            "Workspace exceeds the digest bound; decompose the artifact")
+    # Scanned again after the commands, so a link created during execution is caught too.
+    files = scan_workspace(workspace, policy)
     listing = [{"path": path.relative_to(workspace).as_posix(),
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in files]
     checks = {"workspace": str(workspace), "workspace_digest": router.digest(listing),
