@@ -426,10 +426,7 @@ class DeterministicGateTests(AcceptanceBase):
         self.assertTrue(entry["timed_out"])
         self.assertIn("parent done", entry["stdout"])
         pid = int((space / "grandchild.pid").read_text())
-        deadline = time.monotonic() + 5
-        while process_alive(pid) and time.monotonic() < deadline:
-            time.sleep(0.2)
-        self.assertFalse(process_alive(pid), "the grandchild survived the abandoned drain")
+        self.assertFalse(process_alive(pid), "the grandchild was alive when the digest was taken")
 
     def test_symlink_created_by_one_check_and_consumed_by_the_next_is_caught(self):
         # Codex P1 on PR #22 round 3: with several commands, a scan only before the loop and
@@ -469,13 +466,19 @@ class DeterministicGateTests(AcceptanceBase):
         started = time.monotonic()
         acceptance.run_checks(ledger, space)
         # On POSIX the readers finish and the check passes; on Windows the grandchild still holds
-        # a duplicated handle and is ended through the abandoned-drain path. Either way it dies.
-        self.assertLess(time.monotonic() - started, 2 * acceptance.DRAIN_GRACE_SECONDS + 10)
+        # a duplicated handle and is ended through the abandoned-drain path. Either way it is
+        # already dead when run_checks returns: the digest was taken only after the tree stopped.
+        self.assertLess(time.monotonic() - started, 3 * acceptance.DRAIN_GRACE_SECONDS + 10)
         pid = int((space / "quiet-grandchild.pid").read_text())
-        deadline = time.monotonic() + 5
-        while process_alive(pid) and time.monotonic() < deadline:
-            time.sleep(0.2)
-        self.assertFalse(process_alive(pid), "the quiet grandchild survived the check")
+        self.assertFalse(process_alive(pid), "the quiet grandchild was alive when the digest was taken")
+
+    def test_run_refuses_when_the_tree_cannot_be_confirmed_stopped(self):
+        # Codex P1 on PR #22 round 7: the digest must not be taken while a member is still dying.
+        ledger, _ = self.start()
+        with mock.patch.object(acceptance.ProcessTree, "members_alive", return_value=True):
+            with self.assertRaisesRegex(ValueError, "could not be confirmed stopped"):
+                acceptance.run_checks(ledger, self.workspace())
+        self.assertIsNone(self.state(ledger)["checks"])
 
     @unittest.skipUnless(os.name == "nt", "Windows job objects only")
     def test_windows_check_belongs_to_its_job_before_it_runs(self):

@@ -609,18 +609,56 @@ class ProcessTree:
         except (ProcessLookupError, PermissionError, OSError):
             pass
 
-    def close(self):
-        """End anything still alive in the tree once the check is over, on every platform.
+    def members_alive(self):
+        """Whether any process in the tree still exists; the leader itself is already reaped."""
+        if os.name == "nt":
+            if self.job is None:
+                return False
+            import ctypes
+            from ctypes import wintypes
+            kernel32, job = self.job
 
-        A descendant that redirected or closed its pipes lets the readers finish normally;
-        it must still not outlive the validation it was spawned by.
+            class Accounting(ctypes.Structure):
+                _fields_ = [("TotalUserTime", ctypes.c_longlong), ("TotalKernelTime", ctypes.c_longlong),
+                            ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+                            ("ThisPeriodTotalKernelTime", ctypes.c_longlong), ("TotalPageFaultCount", wintypes.DWORD),
+                            ("TotalProcesses", wintypes.DWORD), ("ActiveProcesses", wintypes.DWORD),
+                            ("TotalTerminatedProcesses", wintypes.DWORD)]
+
+            info = Accounting()
+            if not kernel32.QueryInformationJobObject(job, 1, ctypes.byref(info), ctypes.sizeof(info), None):
+                return True  # Unknown counts as alive; the caller then refuses rather than digests.
+            return info.ActiveProcesses > 0
+        try:
+            os.killpg(self.pgid, 0)
+        except ProcessLookupError:
+            return False
+        except (PermissionError, OSError):
+            return True
+        return True
+
+    def close(self):
+        """End anything still alive in the tree once the check is over, and confirm it stopped.
+
+        A descendant that redirected or closed its pipes lets the readers finish normally; it
+        must still not outlive the validation it was spawned by, and the digest must not be
+        taken while it is still dying. Returns False if the tree cannot be confirmed stopped.
         """
+        if os.name == "nt":
+            if self.job is not None:
+                kernel32, job = self.job
+                kernel32.TerminateJobObject(job, 1)
+        else:
+            self._kill_group()
+        deadline = time.monotonic() + DRAIN_GRACE_SECONDS
+        while self.members_alive() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        stopped = not self.members_alive()
         if self.job is not None:
             kernel32, job = self.job
             kernel32.CloseHandle(job)  # KILL_ON_JOB_CLOSE ends anything still in the job.
             self.job = None
-        elif os.name != "nt":
-            self._kill_group()
+        return stopped
 
 
 def bounded_capture(argv, cwd, timeout, bound):
@@ -681,7 +719,8 @@ def bounded_capture(argv, cwd, timeout, bound):
         tree.kill()
         for reader in readers:
             reader.join(timeout=DRAIN_GRACE_SECONDS)
-    tree.close()
+    # Nothing from the tree may still be running when the workspace is scanned and digested.
+    require(tree.close(), "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
     out, out_cut, out_hex = finish(sinks[0], abandoned)
     err, err_cut, err_hex = finish(sinks[1], abandoned)
     return {"exit_code": None if timed_out or abandoned else process.returncode,
