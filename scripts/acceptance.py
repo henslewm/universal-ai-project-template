@@ -7,6 +7,7 @@ import copy
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -485,6 +486,27 @@ def stream_digest(stdout_hex, stderr_hex):
     return hashlib.sha256(f"stdout:{stdout_hex}\nstderr:{stderr_hex}".encode("ascii")).hexdigest()
 
 
+# After a timed-out check is terminated, its pipes are drained for at most this long; a
+# descendant that still holds them after that is abandoned rather than waited on.
+DRAIN_GRACE_SECONDS = 5
+
+
+def terminate_tree(process):
+    """Kill the check and every descendant that could still hold its output pipes."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, shell=False)
+    else:
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+    process.wait()
+
+
 def bounded_capture(argv, cwd, timeout, bound):
     """Run argv, retaining at most `bound` characters of each stream while hashing all of it.
 
@@ -493,30 +515,35 @@ def bounded_capture(argv, cwd, timeout, bound):
     check cannot exhaust the controller before the bound applies.
     """
     keep = bound * 4 + 4  # A UTF-8 character is at most four bytes; decode, then cut to `bound`.
+    lock = threading.Lock()
 
     def drain(stream, sink):
-        hasher, kept, total = hashlib.sha256(), bytearray(), 0
+        # The sink is updated under the lock per chunk, so a reader that never finishes —
+        # a descendant still holding the pipe — can be abandoned with an honest partial record.
         for chunk in iter(lambda: stream.read(65536), b""):
-            hasher.update(chunk)
-            total += len(chunk)
-            if len(kept) < keep:
-                kept.extend(chunk[:keep - len(kept)])
+            with lock:
+                sink["hasher"].update(chunk)
+                sink["total"] += len(chunk)
+                if len(sink["kept"]) < keep:
+                    sink["kept"].extend(chunk[:keep - len(sink["kept"])])
         stream.close()
-        sink.update(digest=hasher.hexdigest(), kept=bytes(kept), total=total)
 
-    def finish(sink):
-        text = sink["kept"].decode("utf-8", errors="replace")
-        return text[:bound], sink["total"] > len(sink["kept"]) or len(text) > bound, sink["digest"]
+    def finish(sink, abandoned):
+        with lock:
+            text = bytes(sink["kept"]).decode("utf-8", errors="replace")
+            cut = abandoned or sink["total"] > len(sink["kept"]) or len(text) > bound
+            return text[:bound], cut, sink["hasher"].hexdigest()
 
     try:
-        process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+        process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+                                   start_new_session=os.name != "nt")
     except OSError as exc:
         message = str(exc).encode("utf-8")
         text = message.decode("utf-8")
         return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
                 "output_truncated": len(text) > bound,
                 "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
-    sinks = ({}, {})
+    sinks = tuple({"hasher": hashlib.sha256(), "kept": bytearray(), "total": 0} for _ in range(2))
     readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
                threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
     for reader in readers:
@@ -526,13 +553,17 @@ def bounded_capture(argv, cwd, timeout, bound):
         process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        process.kill()
-        process.wait()
+        terminate_tree(process)
+    # A descendant that inherited the pipes and escaped termination would hold the readers
+    # open forever; the drain itself is bounded, and an abandoned reader is recorded as such.
+    abandoned = False
     for reader in readers:
-        reader.join()
-    out, out_cut, out_hex = finish(sinks[0])
-    err, err_cut, err_hex = finish(sinks[1])
-    return {"exit_code": None if timed_out else process.returncode, "timed_out": timed_out,
+        reader.join(timeout=DRAIN_GRACE_SECONDS)
+        abandoned = abandoned or reader.is_alive()
+    out, out_cut, out_hex = finish(sinks[0], abandoned)
+    err, err_cut, err_hex = finish(sinks[1], abandoned)
+    return {"exit_code": None if timed_out or abandoned else process.returncode,
+            "timed_out": timed_out or abandoned,
             "stdout": out, "stderr": err, "output_truncated": out_cut or err_cut,
             "output_sha256": stream_digest(out_hex, err_hex)}
 
@@ -548,6 +579,9 @@ def run_checks(directory, workspace, timestamp=None):
     prior = replay(directory)
     state = prior[0]
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
+    # Inspect the supplied path before resolving it: resolve() would replace a symlinked root
+    # with its target and the later symlink check would then see an ordinary directory.
+    require(not Path(workspace).is_symlink(), "Workspace root is a symlink; refuse to digest it")
     workspace = Path(workspace).resolve()
     require(workspace.is_dir(), f"No workspace directory at {workspace}")
     policy = state["policy"]

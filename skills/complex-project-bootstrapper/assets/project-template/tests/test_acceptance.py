@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -337,6 +338,36 @@ class DeterministicGateTests(AcceptanceBase):
         with self.assertRaisesRegex(ValueError, "symlink"):
             acceptance.run_checks(ledger, space)
         self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_symlinked_workspace_root_is_refused_before_resolution(self):
+        # Codex P2 on PR #22: resolve() replaced a symlinked root with its target first.
+        ledger, _ = self.start()
+        real = self.workspace()
+        link = self.directory / "workspace-link"
+        try:
+            os.symlink(real, link, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        with self.assertRaisesRegex(ValueError, "Workspace root is a symlink"):
+            acceptance.run_checks(ledger, link)
+        self.assertIsNone(self.state(ledger)["checks"])
+        self.assertTrue(acceptance.run_checks(ledger, real)["satisfied"])
+
+    def test_timeout_is_enforced_when_a_descendant_holds_the_output_pipes(self):
+        # Codex P1 on PR #22: killing only the immediate process left a grandchild holding
+        # the pipes, and the unconditional reader joins waited on it indefinitely.
+        script = ("import subprocess, sys, time\n"
+                  "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+                  "sys.stdout.write('parent started'); sys.stdout.flush(); time.sleep(120)")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script], timeout=2)
+        started = time.monotonic()
+        self.checked(ledger)
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, 2 + acceptance.DRAIN_GRACE_SECONDS + 10, "reader joins were not bounded")
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertTrue(entry["timed_out"])
+        self.assertFalse(entry["passed"])
+        self.assertIn("parent started", entry["stdout"])
 
     def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
         # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
