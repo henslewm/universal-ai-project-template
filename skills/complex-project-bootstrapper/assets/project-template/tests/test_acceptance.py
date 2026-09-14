@@ -389,8 +389,10 @@ class DeterministicGateTests(AcceptanceBase):
         # An acceptance the previous controller already recorded on that review stands as history.
         stored_event("ACCEPT", {"actor": weak["actor"]})
         self.assertEqual(self.state(ledger)["status"], "ACCEPTED")
-        # A pending ledger recovers by opening a review at the required tier.
-        ledger, _ = self.start(packet=make_packet(contract))
+        # A pending ledger recovers by opening a review at the required tier, and the legacy
+        # shortfall does not consume the attempt budget: with max_review_attempts 1 already spent
+        # on it, the compliant replacement must still have a slot (Codex P1, round 14).
+        ledger, _ = self.start(packet=make_packet(contract), config=self.config(max_review_attempts=1))
         self.checked(ledger)
         stored_event("REVIEW_OPEN", {"review": {"review_id": acceptance.router.digest(
             {"binding": self.state(ledger)["binding"], "review_number": 1, "gate": "model_review", "reviewer": weak}),
@@ -401,6 +403,7 @@ class DeterministicGateTests(AcceptanceBase):
         self.ingest(ledger, make_report(prepared, contract))
         self.assertEqual(acceptance.accept(ledger, strong["actor"])["status"], "ACCEPTED")
         self.assertNotIn("tier_shortfall", self.state(ledger)["reviews"][1])
+        self.assertEqual(acceptance.reviews_used(self.state(ledger)), 1)
 
     def test_symlinked_directory_in_the_workspace_is_refused(self):
         # Codex P2 on PR #21: a directory symlink is neither a file nor descended into, so the

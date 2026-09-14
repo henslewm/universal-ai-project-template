@@ -278,7 +278,10 @@ def apply(state, event, stored=False):
         require(state["status"] == "GATES_PENDING", f"Review refused at {state['status']}")
         require(deterministic_satisfied(state),
                 "The deterministic gate must pass before a reviewer is engaged")
-        require(len(state["reviews"]) < state["policy"]["max_review_attempts"],
+        # A stored opening below the tier (ADR-023) can no longer satisfy the gate, so it does
+        # not consume the budget either: a ledger that spent every attempt before the tier was
+        # enforced must keep a slot for the compliant replacement, or it is stranded for good.
+        require(reviews_used(state) < state["policy"]["max_review_attempts"],
                 "Review attempt budget exhausted; escalate to the architect")
         require(opened["gate"] in state["gates"], "This packet does not require that review gate")
         reviewer = opened["reviewer"]
@@ -380,6 +383,11 @@ def apply(state, event, stored=False):
     else:
         raise ValueError("Unknown acceptance event kind")
     return state
+
+
+def reviews_used(state):
+    """Reviews counted against the attempt budget: every opening except a legacy tier shortfall."""
+    return sum(1 for review in state["reviews"] if "tier_shortfall" not in review)
 
 
 def approving(state, gate, stored=False):
@@ -948,7 +956,7 @@ def review_packet(state, paths):
         "reviewer": opened["reviewer"],
         "binding": state["binding"],
         "gates": {"risk": state["risk"], "required": state["gates"],
-                  "reviews_used": len(state["reviews"]),
+                  "reviews_used": reviews_used(state),
                   "max_review_attempts": state["policy"]["max_review_attempts"]},
         "contract": state["contract"],
         "result_supplied_by_worker": state["result"],
@@ -963,7 +971,7 @@ def review_packet(state, paths):
         "open_questions": state["open_questions"],
         "paths": {"packet": str(paths["packet"]), "report": str(paths["report"]),
                   "rules": str(paths["rules"])},
-        "review_contract": review_contract(paths, state["policy"], len(state["reviews"])),
+        "review_contract": review_contract(paths, state["policy"], reviews_used(state)),
     }
     rendered = wp.canonical(document)
     readable = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
@@ -989,7 +997,7 @@ def write_review_files(state, destination):
     return {"status": state["status"], "review_id": document["review_id"], "gate": document["gate"],
             "reviewer": document["reviewer"], "destination": str(paths["rundir"]),
             "packet": str(paths["packet"]), "expect_report_at": str(paths["report"]),
-            "packet_chars": len(readable), "reviews_used": len(state["reviews"]),
+            "packet_chars": len(readable), "reviews_used": reviews_used(state),
             "max_review_attempts": state["policy"]["max_review_attempts"]}
 
 
@@ -1118,7 +1126,7 @@ def summary(state):
             "reviews": [{"review_id": r["review_id"], "gate": r["gate"], "reviewer": r["reviewer"],
                          "verdict": r["report"]["verdict"] if r["report"] else None,
                          "abandoned": r["abandoned"]} for r in state["reviews"]],
-            "reviews_used": len(state["reviews"]),
+            "reviews_used": reviews_used(state),
             "max_review_attempts": state["policy"]["max_review_attempts"],
             "attested": sorted(state["attestations"]), "waiver": state["waiver"],
             "user_decision": state["user_decision"], "resubmissions": state["resubmissions"],
