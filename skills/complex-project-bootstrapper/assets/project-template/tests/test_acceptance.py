@@ -505,6 +505,32 @@ class DeterministicGateTests(AcceptanceBase):
         with self.assertRaisesRegex(ValueError, "digest bound"):
             acceptance.run_checks(ledger, small)
 
+    @unittest.skipUnless(os.name == "nt", "Windows job objects only")
+    def test_windows_run_refuses_when_the_job_cannot_be_set_up(self):
+        # Codex P1 on PR #22 round 6: resuming without a job left no enforceable cleanup.
+        ledger, _ = self.start()
+        with mock.patch.object(acceptance.ProcessTree, "_windows_job", return_value=None):
+            with self.assertRaisesRegex(ValueError, "not run unisolated"):
+                acceptance.run_checks(ledger, self.workspace())
+        self.assertIsNone(self.state(ledger)["checks"])
+        process = subprocess.Popen([sys.executable, "-c", "print('never')"], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, creationflags=acceptance.ProcessTree.creation_flags())
+        with mock.patch.object(acceptance.ProcessTree, "_windows_job", return_value=None):
+            with self.assertRaises(ValueError):
+                acceptance.ProcessTree(process)
+        self.assertIsNotNone(process.poll(), "the suspended check must have been killed, not resumed")
+
+    def test_workspace_scan_does_not_use_a_buffering_traversal(self):
+        # Codex P2 on PR #22 round 6: Path.rglob/walk list a whole directory before yielding.
+        ledger, _ = self.start()
+        space = self.workspace(files=("a.txt", "b.txt"))
+        (space / "nested").mkdir()
+        (space / "nested" / "c.txt").write_text("x", encoding="utf-8")
+        with mock.patch.object(Path, "rglob", side_effect=AssertionError("rglob must not be used")):
+            with mock.patch.object(Path, "walk", side_effect=AssertionError("walk must not be used"), create=True):
+                files = acceptance.scan_workspace(space, self.config()["policy"])
+        self.assertEqual([f.name for f in files], ["a.txt", "b.txt", "c.txt"])
+
     def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
         # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
         payload = 300000

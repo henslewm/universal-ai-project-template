@@ -508,8 +508,17 @@ class ProcessTree:
         self.pgid = None if os.name == "nt" else process.pid  # start_new_session makes pid == pgid.
         if os.name == "nt":
             # The check was created suspended, so it is assigned to the job before its first
-            # instruction runs; if the job cannot be created it still resumes, unisolated.
+            # instruction runs. Without a job there is no enforceable tree cleanup on Windows,
+            # so the suspended check is killed and the run refuses rather than proceeding unisolated.
             self.job = self._windows_job()
+            if self.job is None:
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, shell=False)
+                try:
+                    process.kill()
+                except OSError:
+                    pass
+                process.wait()
+                raise ValueError("Windows job object could not be created or assigned; the check is not run unisolated")
             self._windows_resume()
 
     @classmethod
@@ -692,18 +701,24 @@ def scan_workspace(workspace, policy):
     and rglob does not descend into it, so it would otherwise never be seen at all.
     """
     require(not workspace.is_symlink(), "Workspace contains a symlink; refuse to digest it")
-    # Walked incrementally with both bounds checked as entries arrive, so a tree of many
-    # directories is refused as soon as it exceeds its bound instead of being materialized.
+    # Walked with os.scandir, one entry at a time, with both bounds checked as entries arrive:
+    # Path.rglob and Path.walk build each directory's full listing first, so a wide directory
+    # would be buffered before any bound applied.
     limit = policy["workspace_digest_max_files"]
-    files, entries = [], 0
-    for path in workspace.rglob("*"):
-        entries += 1
-        require(entries <= ENTRY_MULTIPLIER * limit,
-                "Workspace exceeds the entry bound; decompose the artifact")
-        require(not path.is_symlink(), "Workspace contains a symlink; refuse to digest it")
-        if path.is_file():
-            files.append(path)
-            require(len(files) <= limit, "Workspace exceeds the digest bound; decompose the artifact")
+    files, entries, pending = [], 0, [workspace]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as listing:
+            for entry in listing:
+                entries += 1
+                require(entries <= ENTRY_MULTIPLIER * limit,
+                        "Workspace exceeds the entry bound; decompose the artifact")
+                require(not entry.is_symlink(), "Workspace contains a symlink; refuse to digest it")
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    files.append(Path(entry.path))
+                    require(len(files) <= limit, "Workspace exceeds the digest bound; decompose the artifact")
     return sorted(files)
 
 
