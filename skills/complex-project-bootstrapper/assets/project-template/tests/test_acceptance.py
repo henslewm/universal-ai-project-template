@@ -357,6 +357,51 @@ class DeterministicGateTests(AcceptanceBase):
         prepared = self.open_review(ledger, reviewer={"actor": "Strong reviewer", "model_family": "sonnet", "tier": 4})
         self.assertEqual(prepared["reviewer"]["tier"], 4)
 
+    def test_pre_tier_review_openings_replay_but_cannot_satisfy_a_new_acceptance(self):
+        # Codex P1 on PR #22 round 13: a ledger written before the tier was enforced holds a
+        # REVIEW_OPEN below the contract's reviewer_tier that was permitted at the time; it must
+        # replay, marked, and only a new opening or a new acceptance resting on it is refused.
+        contract = make_contract(risk="medium")
+        contract["routing"]["reviewer_tier"] = 3
+        ledger, _ = self.start(packet=make_packet(contract))
+        self.checked(ledger)
+        weak = {"actor": "Weak reviewer", "model_family": "sonnet", "tier": 2}
+
+        def stored_event(kind, data):
+            _, sequence, previous = acceptance.replay(ledger)
+            event = {"sequence": sequence + 1, "previous": previous, "kind": kind,
+                     "timestamp": wp.now(), "data": data}
+            event["hash"] = acceptance.router.digest(event)
+            (ledger / f"{sequence + 1:08d}.json").write_text(json.dumps(event, indent=2) + "\n", encoding="utf-8")
+
+        state = self.state(ledger)
+        review_id = acceptance.router.digest({"binding": state["binding"], "review_number": 1,
+                                              "gate": "model_review", "reviewer": weak})
+        stored_event("REVIEW_OPEN", {"review": {"review_id": review_id, "gate": "model_review", "reviewer": weak}})
+        state = self.state(ledger)
+        self.assertEqual(state["status"], "REVIEW_OPEN")
+        self.assertEqual(state["reviews"][0]["tier_shortfall"], 3)
+        prepared = {"review_id": review_id, "reviewer": weak}
+        self.ingest(ledger, make_report(prepared, contract))
+        self.assertEqual(self.state(ledger)["status"], "GATES_PENDING")
+        with self.assertRaisesRegex(ValueError, "opened at tier 2, below the contract's reviewer_tier 3"):
+            acceptance.accept(ledger, weak["actor"])
+        # An acceptance the previous controller already recorded on that review stands as history.
+        stored_event("ACCEPT", {"actor": weak["actor"]})
+        self.assertEqual(self.state(ledger)["status"], "ACCEPTED")
+        # A pending ledger recovers by opening a review at the required tier.
+        ledger, _ = self.start(packet=make_packet(contract))
+        self.checked(ledger)
+        stored_event("REVIEW_OPEN", {"review": {"review_id": acceptance.router.digest(
+            {"binding": self.state(ledger)["binding"], "review_number": 1, "gate": "model_review", "reviewer": weak}),
+            "gate": "model_review", "reviewer": weak}})
+        self.ingest(ledger, make_report({"review_id": self.state(ledger)["reviews"][0]["review_id"], "reviewer": weak}, contract))
+        strong = {"actor": "Strong reviewer", "model_family": "sonnet", "tier": 4}
+        prepared = self.open_review(ledger, reviewer=strong)
+        self.ingest(ledger, make_report(prepared, contract))
+        self.assertEqual(acceptance.accept(ledger, strong["actor"])["status"], "ACCEPTED")
+        self.assertNotIn("tier_shortfall", self.state(ledger)["reviews"][1])
+
     def test_symlinked_directory_in_the_workspace_is_refused(self):
         # Codex P2 on PR #21: a directory symlink is neither a file nor descended into, so the
         # digest silently omitted everything a check could read through it.

@@ -183,7 +183,12 @@ def report_valid(report, contract, opened, policy):
     return report
 
 
-def apply(state, event):
+def apply(state, event, stored=False):
+    """Advance the state by one event; `stored` marks replay of an event already on the chain.
+
+    Hash-chained history cannot be amended, so a rule added after an event was stored may not
+    refuse that event on replay; it marks the record instead and refuses only what is new.
+    """
     data, timestamp = event["data"], event["timestamp"]
     if state is None:
         if event["kind"] != "INIT":
@@ -280,7 +285,10 @@ def apply(state, event):
         require(reviewer["actor"].strip().casefold() not in actors,
                 "An implementation actor cannot review its own revision")
         required_tier = state["contract"]["routing"]["reviewer_tier"]
-        require(reviewer["tier"] >= required_tier,
+        # A stored opening below the tier was permitted when it was written and cannot be
+        # amended: it replays marked with the shortfall and can no longer satisfy a gate for a
+        # new acceptance. A new opening below the tier is refused.
+        require(stored or reviewer["tier"] >= required_tier,
                 f"Reviewer tier {reviewer['tier']} is below the contract's reviewer_tier {required_tier}")
         if opened["gate"] == "architect_review":
             require(reviewer["actor"] == state["architect"],
@@ -288,9 +296,12 @@ def apply(state, event):
         expected = router.digest({"binding": state["binding"], "review_number": len(state["reviews"]) + 1,
                                   "gate": opened["gate"], "reviewer": reviewer})
         require(opened["review_id"] == expected, "Review id does not reproduce from its opening record")
-        state["reviews"].append({"review_id": opened["review_id"], "gate": opened["gate"],
-                                 "reviewer": copy.deepcopy(reviewer), "report": None, "abandoned": None,
-                                 "submission": state["resubmissions"]})
+        record = {"review_id": opened["review_id"], "gate": opened["gate"],
+                  "reviewer": copy.deepcopy(reviewer), "report": None, "abandoned": None,
+                  "submission": state["resubmissions"]}
+        if reviewer["tier"] < required_tier:
+            record["tier_shortfall"] = required_tier
+        state["reviews"].append(record)
         state.update(status="REVIEW_OPEN", reason="REVIEW_DISPATCHED")
     elif event["kind"] == "REVIEW_RESULT":
         feedback.exact(data, {"report"})
@@ -363,7 +374,7 @@ def apply(state, event):
                      status="GATES_PENDING", reason="RESUBMITTED")
     elif event["kind"] == "ACCEPT":
         feedback.exact(data, {"actor"})
-        acceptable(state, data["actor"])
+        acceptable(state, data["actor"], stored)
         state["accepted"] = {"actor": data["actor"], "gates": gate_summary(state)}
         state.update(status="ACCEPTED", reason="ALL_GATES_PASSED")
     else:
@@ -371,23 +382,28 @@ def apply(state, event):
     return state
 
 
-def approving(state, gate):
+def approving(state, gate, stored=False):
     """The review that currently satisfies a review gate, or the stated refusal."""
     finished = current_completed(state, gate)
     require(bool(finished), f"The {gate} gate has no completed review for the current submission")
     latest = finished[-1]
     require(latest["report"]["verdict"] == "APPROVE",
             f"The latest {gate} review did not approve: {latest['report']['verdict']}")
+    # An acceptance already stored on the chain stands as recorded; a new one cannot rest on a
+    # review opened below the contract's reviewer tier before the tier was enforced.
+    require(stored or "tier_shortfall" not in latest,
+            f"The latest {gate} review was opened at tier {latest['reviewer']['tier']}, below the "
+            f"contract's reviewer_tier {latest.get('tier_shortfall')}; open a review at the required tier")
     return latest
 
 
-def acceptable(state, actor):
+def acceptable(state, actor, stored=False):
     require(state["status"] == "GATES_PENDING", f"Acceptance refused at {state['status']}")
     require(deterministic_satisfied(state),
             "Deterministic gate unsatisfied: " + wp.canonical(deterministic_status(state)))
     approver = None
     if "model_review" in state["gates"]:
-        approver = approving(state, "model_review")
+        approver = approving(state, "model_review", stored)
     if "cross_family_review" in state["gates"]:
         families = casefolded(item["model_family"] for item in state["implementers"])
         family = approver["reviewer"]["model_family"].strip().casefold()
@@ -395,7 +411,7 @@ def acceptable(state, actor):
                 f"Cross-family gate: reviewer family {approver['reviewer']['model_family']} matches an "
                 "implementation actor and no waiver is recorded")
     if "architect_review" in state["gates"]:
-        approving(state, "architect_review")
+        approving(state, "architect_review", stored)
     if "user_decision" in state["gates"]:
         require(state["user_decision"] is not None and state["user_decision"]["decision"] == "approve",
                 "User-decision gate: no recorded approval")
@@ -439,7 +455,7 @@ def replay(directory):
         current_time = feedback.instant(event["timestamp"])
         if previous_time and current_time < previous_time:
             raise ValueError("Acceptance ledger timestamps descend")
-        state = apply(state, event)
+        state = apply(state, event, stored=True)
         previous, previous_time = claimed, current_time
     return state, sequence, previous
 
