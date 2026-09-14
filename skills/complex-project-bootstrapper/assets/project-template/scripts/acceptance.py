@@ -846,7 +846,9 @@ def run_checks(directory, workspace, timestamp=None):
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
     # Inspect every existing component of the supplied path before resolving it: resolve()
     # would replace a symlinked (or, on Windows, junctioned) root or ancestor with its target
-    # and the later check would see an ordinary directory. abspath normalizes lexically only.
+    # and the later check would see an ordinary directory. A `..` component is refused first:
+    # lexical normalization would collapse link/../x to x while the filesystem follows the link.
+    require(".." not in Path(workspace).parts, "Workspace path contains '..'; supply it without parent references")
     supplied = Path(os.path.abspath(workspace))
     require(not is_link(supplied), "Workspace root is a symlink; refuse to digest it")
     for ancestor in supplied.parents:

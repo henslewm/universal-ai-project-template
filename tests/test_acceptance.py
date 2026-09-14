@@ -130,7 +130,17 @@ def process_alive(pid):
         # A killed child reparented to init is reaped by init; a zombie under us needs a wait.
         return os.waitpid(pid, os.WNOHANG) == (0, 0)
     except ChildProcessError:
+        pass
+    # Not our child: in a container whose PID 1 does not reap orphans it may linger as a zombie,
+    # which cannot run or write, so its /proc state decides as the controller's own check does.
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="ascii", errors="replace")
+    except FileNotFoundError:
+        return False
+    except OSError:
         return True
+    fields = stat.rpartition(")")[2].split()
+    return not fields or fields[0] not in ("Z", "X", "x")
 
 
 def make_failure(ref="AC-VALID", kind="criterion", what="Observed value differs from the packet evidence"):
@@ -380,6 +390,11 @@ class DeterministicGateTests(AcceptanceBase):
         (real / "sub").mkdir()
         with self.assertRaisesRegex(ValueError, "linked ancestor"):
             acceptance.run_checks(ledger, link / "sub")
+        self.assertIsNone(self.state(ledger)["checks"])
+        # Codex P2 on PR #22 round 12: abspath() collapses link/../real lexically to real while
+        # the filesystem would follow the link first, so a parent reference is refused outright.
+        with self.assertRaisesRegex(ValueError, "contains '..'"):
+            acceptance.run_checks(ledger, link / ".." / real.name)
         self.assertIsNone(self.state(ledger)["checks"])
         self.assertTrue(acceptance.run_checks(ledger, real)["satisfied"])
 
