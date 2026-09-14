@@ -502,6 +502,8 @@ class ProcessTree:
     def __init__(self, process):
         self.process = process
         self.job = None
+        # Saved now: once the leader is reaped, getpgid() on it raises and the group would be lost.
+        self.pgid = None if os.name == "nt" else process.pid  # start_new_session makes pid == pgid.
         if os.name == "nt":
             self.job = self._windows_job()
 
@@ -550,25 +552,31 @@ class ProcessTree:
                 kernel32.TerminateJobObject(job, 1)
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(self.process.pid)], capture_output=True, shell=False)
         else:
-            try:
-                os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
+            self._kill_group()
         try:
             self.process.kill()
         except OSError:
             pass
         self.process.wait()
 
+    def _kill_group(self):
+        try:
+            os.killpg(self.pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+
     def close(self):
+        """End anything still alive in the tree once the check is over, on every platform.
+
+        A descendant that redirected or closed its pipes lets the readers finish normally;
+        it must still not outlive the validation it was spawned by.
+        """
         if self.job is not None:
             kernel32, job = self.job
             kernel32.CloseHandle(job)  # KILL_ON_JOB_CLOSE ends anything still in the job.
             self.job = None
-
-
-def terminate_tree(process):
-    ProcessTree(process).kill()
+        elif os.name != "nt":
+            self._kill_group()
 
 
 def bounded_capture(argv, cwd, timeout, bound):
@@ -584,7 +592,8 @@ def bounded_capture(argv, cwd, timeout, bound):
     def drain(stream, sink):
         # The sink is updated under the lock per chunk, so a reader that never finishes —
         # a descendant still holding the pipe — can be abandoned with an honest partial record.
-        for chunk in iter(lambda: stream.read(65536), b""):
+        # os.read returns what is available; a buffered read(n) would wait for n bytes or EOF.
+        for chunk in iter(lambda: os.read(stream.fileno(), 65536), b""):
             with lock:
                 sink["hasher"].update(chunk)
                 sink["total"] += len(chunk)
@@ -669,9 +678,6 @@ def run_checks(directory, workspace, timestamp=None):
     workspace = Path(workspace).resolve()
     require(workspace.is_dir(), f"No workspace directory at {workspace}")
     policy = state["policy"]
-    # Scanned before any command runs: a check could read inputs through a symlink and remove
-    # it before a post-run scan, leaving a clean digest that never saw those inputs.
-    scan_workspace(workspace, policy)
     results = []
     for check in state["contract"]["validation"]:
         command = check.get("command")
@@ -685,6 +691,9 @@ def run_checks(directory, workspace, timestamp=None):
         cwd = (workspace / command.get("cwd", ".")).resolve()
         require(cwd == workspace or workspace in cwd.parents, "Check cwd escapes the workspace")
         require(cwd.is_dir(), f"Check cwd does not exist: {cwd}")
+        # Scanned before every command: an earlier check could create a link, a later one read
+        # through it and remove it, and a single pre-loop or final scan would see a clean tree.
+        scan_workspace(workspace, policy)
         timeout = command.get("timeout_seconds", policy["check_timeout_seconds"])
         started = time.monotonic()
         observed = bounded_capture(command["argv"], cwd, timeout, policy["check_output_max_chars"])

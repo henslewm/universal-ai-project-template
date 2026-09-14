@@ -431,6 +431,52 @@ class DeterministicGateTests(AcceptanceBase):
             time.sleep(0.2)
         self.assertFalse(process_alive(pid), "the grandchild survived the abandoned drain")
 
+    def test_symlink_created_by_one_check_and_consumed_by_the_next_is_caught(self):
+        # Codex P1 on PR #22 round 3: with several commands, a scan only before the loop and
+        # after it never sees a link that the first check creates and the second removes.
+        outside = self.directory / "outside-inputs"
+        outside.mkdir()
+        try:
+            probe = self.directory / "probe-link"
+            os.symlink(outside, probe, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        contract = make_contract()
+        contract["validation"][0]["criterion_ids"] = ["AC-VALID"]
+        contract["validation"][0]["command"] = {"argv": [
+            sys.executable, "-c", f"import os; os.symlink({str(outside)!r}, 'linked', target_is_directory=True)"]}
+        contract["validation"].append({"id": "VAL-SECOND", "description": "Consumes and removes the link.",
+                                       "criterion_ids": ["AC-INVALID"], "evidence_required": ["Recorded outcome."],
+                                       "command": {"argv": [sys.executable, "-c",
+                                                            "import os; os.rmdir('linked'); open('second-ran', 'w').close()"]}})
+        ledger, _ = self.start(packet=make_packet(contract))
+        space = self.workspace()
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, space)
+        self.assertTrue((space / "linked").is_symlink(), "the first check ran and left its link")
+        self.assertFalse((space / "second-ran").exists(), "the second check must not have run")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_descendant_that_closed_its_pipes_does_not_outlive_the_check(self):
+        # Codex P1 on PR #22 round 3: a descendant that closes stdout and stderr lets the readers
+        # finish, so nothing was abandoned and nothing was killed; it must still be ended.
+        script = ("import os, subprocess, sys\n"
+                  "child = subprocess.Popen([sys.executable, '-c', "
+                  "'import os, time; os.close(1); os.close(2); time.sleep(120)'])\n"
+                  "open('quiet-grandchild.pid', 'w').write(str(child.pid)); print('parent done')")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script])
+        space = self.workspace()
+        started = time.monotonic()
+        acceptance.run_checks(ledger, space)
+        # On POSIX the readers finish and the check passes; on Windows the grandchild still holds
+        # a duplicated handle and is ended through the abandoned-drain path. Either way it dies.
+        self.assertLess(time.monotonic() - started, 2 * acceptance.DRAIN_GRACE_SECONDS + 10)
+        pid = int((space / "quiet-grandchild.pid").read_text())
+        deadline = time.monotonic() + 5
+        while process_alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        self.assertFalse(process_alive(pid), "the quiet grandchild survived the check")
+
     def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
         # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
         payload = 300000
