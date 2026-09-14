@@ -499,13 +499,48 @@ class ProcessTree:
     `taskkill /T` is the fallback when a job cannot be created or assigned.
     """
 
+    CREATE_SUSPENDED = 0x4
+
     def __init__(self, process):
         self.process = process
         self.job = None
         # Saved now: once the leader is reaped, getpgid() on it raises and the group would be lost.
         self.pgid = None if os.name == "nt" else process.pid  # start_new_session makes pid == pgid.
         if os.name == "nt":
+            # The check was created suspended, so it is assigned to the job before its first
+            # instruction runs; if the job cannot be created it still resumes, unisolated.
             self.job = self._windows_job()
+            self._windows_resume()
+
+    @classmethod
+    def creation_flags(cls):
+        return cls.CREATE_SUSPENDED if os.name == "nt" else 0
+
+    def _windows_resume(self):
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+        class ThreadEntry(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ThreadID", wintypes.DWORD),
+                        ("th32OwnerProcessID", wintypes.DWORD), ("tpBasePri", wintypes.LONG),
+                        ("tpDeltaPri", wintypes.LONG), ("dwFlags", wintypes.DWORD)]
+
+        snapshot = kernel32.CreateToolhelp32Snapshot(0x4, 0)  # TH32CS_SNAPTHREAD
+        if snapshot == wintypes.HANDLE(-1).value:
+            return
+        entry = ThreadEntry()
+        entry.dwSize = ctypes.sizeof(entry)
+        found = kernel32.Thread32First(snapshot, ctypes.byref(entry))
+        while found:
+            if entry.th32OwnerProcessID == self.process.pid:
+                thread = kernel32.OpenThread(0x2, False, entry.th32ThreadID)  # THREAD_SUSPEND_RESUME
+                if thread:
+                    while kernel32.ResumeThread(thread) > 1:
+                        pass
+                    kernel32.CloseHandle(thread)
+            found = kernel32.Thread32Next(snapshot, ctypes.byref(entry))
+        kernel32.CloseHandle(snapshot)
 
     def _windows_job(self):
         try:
@@ -609,7 +644,7 @@ def bounded_capture(argv, cwd, timeout, bound):
 
     try:
         process = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
-                                   start_new_session=os.name != "nt")
+                                   start_new_session=os.name != "nt", creationflags=ProcessTree.creation_flags())
     except OSError as exc:
         message = str(exc).encode("utf-8")
         text = message.decode("utf-8")

@@ -477,6 +477,19 @@ class DeterministicGateTests(AcceptanceBase):
             time.sleep(0.2)
         self.assertFalse(process_alive(pid), "the quiet grandchild survived the check")
 
+    @unittest.skipUnless(os.name == "nt", "Windows job objects only")
+    def test_windows_check_belongs_to_its_job_before_it_runs(self):
+        # Codex P1 on PR #22 round 4: assignment after launch left a window for a fast check
+        # to spawn and exit unisolated. The check is created suspended, assigned, then resumed.
+        process = subprocess.Popen([sys.executable, "-c", "print('ran after resume')"], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, creationflags=acceptance.ProcessTree.creation_flags())
+        tree = acceptance.ProcessTree(process)
+        self.assertIsNotNone(tree.job, "the suspended check must be in a job before it resumes")
+        out, _ = process.communicate(timeout=30)
+        self.assertEqual(process.returncode, 0)
+        self.assertIn(b"ran after resume", out)
+        tree.close()
+
     def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
         # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
         payload = 300000
