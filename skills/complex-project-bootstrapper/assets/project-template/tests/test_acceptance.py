@@ -472,6 +472,26 @@ class DeterministicGateTests(AcceptanceBase):
         pid = int((space / "quiet-grandchild.pid").read_text())
         self.assertFalse(process_alive(pid), "the quiet grandchild was alive when the digest was taken")
 
+    def test_zombie_only_process_group_counts_as_stopped(self):
+        # Codex P1 on PR #22 round 8: in a container without a reaping PID 1, killed descendants
+        # stay in the group as zombies and group existence never reports stopped.
+        proc = self.directory / "fake-proc"
+        for pid, stat in ((101, "101 (a b) Z 1 4242 4242 0 -1"), (102, "102 (odd) name) S 1 4242 4242 0 -1"),
+                          (103, "103 (other) S 1 9999 9999 0 -1"), (104, "104 (x) X 1 4242 4242 0 -1")):
+            (proc / str(pid)).mkdir(parents=True)
+            (proc / str(pid) / "stat").write_text(stat + " 0 0\n", encoding="ascii")
+        (proc / "self").mkdir()
+        (proc / "notpid").mkdir()
+        self.assertEqual(acceptance.runnable_group_members(4242, proc), 1)
+        (proc / "102" / "stat").write_text("102 (odd) name) Z 1 4242 4242 0 -1 0 0\n", encoding="ascii")
+        self.assertEqual(acceptance.runnable_group_members(4242, proc), 0)
+        self.assertIsNone(acceptance.runnable_group_members(4242, self.directory / "no-proc"))
+        with mock.patch.object(acceptance, "PROC_ROOT", proc):
+            tree = acceptance.ProcessTree.__new__(acceptance.ProcessTree)
+            tree.job, tree.pgid = None, 4242
+            with mock.patch.object(acceptance.os, "name", "posix"):
+                self.assertFalse(tree.members_alive(), "zombies only: the tree is stopped")
+
     def test_run_refuses_when_the_tree_cannot_be_confirmed_stopped(self):
         # Codex P1 on PR #22 round 7: the digest must not be taken while a member is still dying.
         ledger, _ = self.start()

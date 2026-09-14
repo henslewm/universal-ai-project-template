@@ -489,6 +489,35 @@ def stream_digest(stdout_hex, stderr_hex):
 # After a check ends or is terminated, its pipes are drained for at most this long; a
 # descendant that still holds them after that is killed with the whole tree, not waited on.
 DRAIN_GRACE_SECONDS = 5
+PROC_ROOT = Path("/proc")
+
+
+def runnable_group_members(pgid, proc_root=None):
+    """Non-zombie processes in a POSIX process group, read from /proc where it exists.
+
+    A killed descendant that nobody reaps — a container whose PID 1 does not reap orphans —
+    stays in the group as a zombie, so group existence alone would never report stopped.
+    Returns None where /proc is unavailable, and the caller falls back to the group probe.
+    """
+    root = PROC_ROOT if proc_root is None else Path(proc_root)
+    if not root.is_dir():
+        return None
+    members = 0
+    for entry in root.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text(encoding="ascii", errors="replace")
+        except OSError:
+            continue  # It exited between listing and reading.
+        _, _, rest = stat.rpartition(")")  # The command name may contain spaces or parentheses.
+        fields = rest.split()
+        if len(fields) < 3:
+            continue
+        state, group = fields[0], fields[2]
+        if group == str(pgid) and state not in ("Z", "X", "x"):
+            members += 1
+    return members
 
 
 class ProcessTree:
@@ -629,6 +658,9 @@ class ProcessTree:
             if not kernel32.QueryInformationJobObject(job, 1, ctypes.byref(info), ctypes.sizeof(info), None):
                 return True  # Unknown counts as alive; the caller then refuses rather than digests.
             return info.ActiveProcesses > 0
+        runnable = runnable_group_members(self.pgid)
+        if runnable is not None:
+            return runnable > 0
         try:
             os.killpg(self.pgid, 0)
         except ProcessLookupError:
