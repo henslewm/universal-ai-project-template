@@ -298,9 +298,10 @@ class HardwareEvidenceTests(unittest.TestCase):
         self.assertEqual(lines[0], domain.DIGEST_PREFIX + domain.evidence_digest(EVIDENCE))
         self.assertIn("outcome=pass", lines)
         self.assertIn("operator=" + EVIDENCE["operator"], lines)
-        digest, values = domain.parsed_evidence(lines + ["free text", "unknown=ignored"])
+        digest, values, unrecognized = domain.parsed_evidence_strict(lines + ["free text", "unknown=ignored", " outcome=fail"])
         self.assertEqual(digest, domain.evidence_digest(EVIDENCE))
         self.assertEqual(values["device"], EVIDENCE["device_identity"])
+        self.assertEqual(unrecognized, ["free text", "unknown=ignored", " outcome=fail"])
         # A recognized key twice is refused rather than resolved by position (Codex P1 on PR #34).
         for extra in ("device=another unit", "outcome=fail", "operator=" + EVIDENCE["operator"]):
             with self.subTest(extra=extra):
@@ -381,6 +382,21 @@ class AttestationRuleTests(AcceptanceBase):
         state = self.attest(ledger, operator, lines)
         self.assertTrue(acceptance.deterministic_satisfied(state))
         self.assertEqual(acceptance.deterministic_status(state)["VAL-FRAMES"], "ATTESTED")
+
+    def test_hardware_attestation_carries_nothing_but_the_record_lines(self):
+        # Codex round 7 on PR #34 (ADR-038): a line the parser did not recognize used to ride
+        # along unverified — ` outcome=fail` beside `outcome=pass`. Every line is now either the
+        # digest, one of the six recognized keys, or refused.
+        ledger = self.hardware_ledger()
+        for extra in (" outcome=fail", "outcome =fail", "OUTCOME=fail", "note: observed by hand", "unknown=value"):
+            with self.subTest(extra=extra):
+                with self.assertRaisesRegex(ValueError, "every line is verified, so these are refused"):
+                    self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE) + [extra])
+        with self.assertRaisesRegex(ValueError, "non-empty"):  # a blank line is refused by the controller's shape first
+            self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE) + [""])
+        self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "NEEDS_ATTESTATION")
+        self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE))
+        self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "ATTESTED")
 
     def test_contradictory_duplicate_line_is_refused_at_attestation(self):
         # Codex P1 on PR #34: `outcome=pass` followed by `outcome=fail` used to keep the first and

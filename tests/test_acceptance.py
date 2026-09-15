@@ -350,7 +350,7 @@ class DeterministicGateTests(AcceptanceBase):
                               previous_state=acceptance.replay(ledger))
         state = acceptance.append(ledger, "ATTESTATION",
                                   {"attestation": {"validation_id": "VAL-FRAMES", "operator": "Operator",
-                                                   "evidence": ["Observed the manual check pass", *HARDWARE_LINES]}},
+                                                   "evidence": HARDWARE_LINES}},
                                   previous_state=acceptance.replay(ledger))
         self.assertTrue(acceptance.deterministic_satisfied(state))
 

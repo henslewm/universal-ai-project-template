@@ -176,23 +176,32 @@ def evidence_lines(record: dict) -> list[str]:
 
 
 def parsed_evidence(lines) -> tuple[str | None, dict]:
-    """The digest and the recognized key=value lines of an attestation.
+    """The digest and the recognized key=value lines of an attestation; see `parsed_evidence_strict`."""
+    return parsed_evidence_strict(lines)[:2]
+
+
+def parsed_evidence_strict(lines) -> tuple[str | None, dict, list[str]]:
+    """The digest, the recognized key=value lines, and every other line an attestation carries.
 
     A recognized key that appears more than once is refused: keeping the first (or last) value
-    would let a contradictory line ride along unverified, and every attested line is verified.
+    would let a contradictory line ride along unverified. Every other line is returned so a
+    hardware-rung attestation can refuse it (ADR-038): a line is recognized exactly or not at all,
+    so ` outcome=fail` with a leading space is an unrecognized line, never a second outcome.
     """
-    digests, values = [], {}
+    digests, values, unrecognized = [], {}, []
     for line in lines:
         if line.startswith(DIGEST_PREFIX):
             digests.append(line[len(DIGEST_PREFIX):])
-        elif "=" in line:
-            key, _, value = line.partition("=")
-            if key in EVIDENCE_KEYS:
-                if key in values:
-                    raise ValueError(f"Attestation carries more than one {key}= line; each attested line is "
-                                     "verified, so a duplicate cannot be resolved by choosing one")
-                values[key] = value
-    return (digests[0] if len(digests) == 1 else None), values
+            continue
+        key, separator, value = line.partition("=")
+        if separator and key in EVIDENCE_KEYS:
+            if key in values:
+                raise ValueError(f"Attestation carries more than one {key}= line; each attested line is "
+                                 "verified, so a duplicate cannot be resolved by choosing one")
+            values[key] = value
+        else:
+            unrecognized.append(line)
+    return (digests[0] if len(digests) == 1 else None), values, unrecognized
 
 
 def validate_attestation(contract: dict, attestation: dict) -> None:
@@ -200,10 +209,14 @@ def validate_attestation(contract: dict, attestation: dict) -> None:
     level = contract["domain"]["validation_levels"].get(attestation["validation_id"])
     if level not in HARDWARE_LEVELS:
         return  # A machine rung has a command; the controller already refuses attesting over it.
-    digest, values = parsed_evidence(attestation["evidence"])
+    digest, values, unrecognized = parsed_evidence_strict(attestation["evidence"])
     if digest is None or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
         raise ValueError(f"A {level} attestation must carry exactly one {DIGEST_PREFIX}<digest> line "
                          "binding its hardware evidence record")
+    if unrecognized:
+        raise ValueError(f"A {level} attestation carries only the digest line and the "
+                         f"{len(EVIDENCE_KEYS)} lines `hardware-evidence` prints for its record; every "
+                         "line is verified, so these are refused: " + "; ".join(repr(l) for l in unrecognized))
     missing = [key for key in EVIDENCE_KEYS if not values.get(key, "").strip()]
     if missing:
         raise ValueError(f"A {level} attestation must carry the bound record's " + ", ".join(missing))

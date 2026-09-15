@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 7 answered after a third stop-for-diagnosis (ADR-038)
+
+- P1: a hardware-rung attestation is exactly the digest line and the six `key=value` lines `hardware-evidence` prints; `parsed_evidence_strict` returns every other line and `validate_attestation` refuses any, whitespace variants included, so no attested line goes unverified. The #8-era fixture that mixed a narrative line with the record lines is corrected; regression covers leading-space, spaced, upper-cased, free-text, unknown-key and empty lines.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 6 answered
 
 - P2: the packet layer's stored-revision shortfall is never silent: `validate` and `graph` print a `DOMAIN SHORTFALL` line naming the failing revisions after their verdict, `render` carries it in the issue view, and `WORK_PACKET_PROTOCOL.md` describes the split (ADR-037 completed). Regression covers `render`, `validate` and `graph`.
