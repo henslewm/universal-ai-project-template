@@ -534,9 +534,33 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertFalse(domain.status(ledger)["validations"][0]["evidence_verified"])
         with self.assertRaisesRegex(ValueError, "more than one outcome= line"):
             self.attest(ledger, EVIDENCE["operator"], lines)
-        # The marked attestation satisfies the controller's gate as recorded, so the ledger can
-        # still be accepted; the hardware status it earns is UNVERIFIED with the shortfall stated.
-        acceptance.accept(ledger, CONTROLLER)
+        # A new acceptance must not rest on the shortfall (Codex round 21 on PR #34, ADR-053):
+        # replaying a shortfall-marked attestation as ATTESTED only preserves an already-recorded
+        # acceptance's history, never justifies a fresh one.
+        with self.assertRaisesRegex(ValueError, "cannot rest on a stored attestation"):
+            acceptance.accept(ledger, CONTROLLER)
+        report = domain.status(ledger)
+        self.assertEqual(report["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn("not ACCEPTED", report["reason"])
+
+    def test_a_ledger_already_accepted_on_a_now_invalid_attestation_still_replays_accepted(self):
+        # The other half of ADR-053: an ACCEPT event itself stored before the rule existed is
+        # history, not a new decision, and must keep replaying as ACCEPTED even though the
+        # attestation it rested on now fails the current rule.
+        ledger = self.hardware_ledger()
+        lines = domain.evidence_lines(EVIDENCE) + ["outcome=fail"]
+        _, sequence, previous = acceptance.replay(ledger)
+        event = {"sequence": sequence + 1, "previous": previous, "kind": "ATTESTATION", "timestamp": wp.now(),
+                 "data": {"attestation": {"validation_id": "VAL-FRAMES", "operator": EVIDENCE["operator"], "evidence": lines}}}
+        event["hash"] = acceptance.router.digest(event)
+        (ledger / f"{sequence + 1:08d}.json").write_text(json.dumps(event, indent=2) + "\n", encoding="utf-8")
+        _, sequence, previous = acceptance.replay(ledger)
+        accepted = {"sequence": sequence + 1, "previous": previous, "kind": "ACCEPT", "timestamp": wp.now(),
+                   "data": {"actor": CONTROLLER}}
+        accepted["hash"] = acceptance.router.digest(accepted)
+        (ledger / f"{sequence + 1:08d}.json").write_text(json.dumps(accepted, indent=2) + "\n", encoding="utf-8")
+        state = acceptance.replay(ledger)[0]
+        self.assertEqual(state["status"], "ACCEPTED")
         report = domain.status(ledger)
         self.assertEqual(report["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         self.assertIn("stored attestation fails the current rule", report["reason"])

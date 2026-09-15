@@ -429,6 +429,15 @@ def acceptable(state, actor, stored=False):
     require(state["status"] == "GATES_PENDING", f"Acceptance refused at {state['status']}")
     require(deterministic_satisfied(state),
             "Deterministic gate unsatisfied: " + wp.canonical(deterministic_status(state)))
+    if not stored:
+        # A stored attestation the domain rules would now refuse (ADR-032) still counts as
+        # ATTESTED above so a ledger already accepted on it keeps replaying as accepted; a new
+        # acceptance must not rest on it (Codex round 21 on PR #34, ADR-053) and needs a
+        # replacement attestation the current rules accept instead.
+        shortfall = sorted(vid for vid, attestation in state["attestations"].items()
+                           if attestation.get("domain_shortfall"))
+        require(not shortfall, "A new acceptance cannot rest on a stored attestation the domain "
+                "rules would now refuse; attest again to satisfy them: " + ", ".join(shortfall))
     approver = None
     if "model_review" in state["gates"]:
         approver = approving(state, "model_review", stored)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 21 answered (ADR-053)
+
+- P1: `deterministic_status` counts a domain-shortfall-marked attestation as ATTESTED so a ledger already accepted on one keeps replaying as accepted, but a ledger that had only reached GATES_PENDING before the rule existed could still be freshly accepted today, using evidence the current rules explicitly reject. `acceptable` now refuses a new (not-yet-stored) ACCEPT that would rest on a shortfall-marked attestation, while a stored ACCEPT over the same shortfall still replays accepted, preserving history per ADR-032. Regression covers both: a new accept is refused and requires a fresh attestation; a stored accept keeps replaying.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 20 answered (ADR-052)
 
 - P2: checking dispatch_id/artifact_sha256 alone still let a record carry a stale `observed_at` copied from an earlier submission -- an operator who updated the two identifiers as instructed but left the timestamp could earn `VERIFIED_ON_HARDWARE` for an observation that predated the resubmission. The acceptance ledger now tracks `submitted_at` (the INIT event's timestamp, refreshed by RESUBMIT), and `validate_attestation` refuses a declared `observed_at` earlier than it, alongside the existing upper bound at the attestation event itself. Test fixtures across tests/test_acceptance.py and tests/test_software_hardware.py that used a fixed illustrative `observed_at` now compute one live, since a real ledger's submission always postdates a value fixed at test-file import time.
