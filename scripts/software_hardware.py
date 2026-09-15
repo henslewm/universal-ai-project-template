@@ -35,9 +35,13 @@ UNVERIFIED, VERIFIED, NOT_FACING = "UNVERIFIED_ON_HARDWARE", "VERIFIED_ON_HARDWA
 DIGEST_PREFIX = "hardware-evidence:sha256="
 # Lines a hardware-rung attestation must carry; each is derived from the bound evidence record.
 # dispatch_id and artifact_sha256 (ADR-049) bind the attestation to the ledger's current
-# submission at append time, not only when a record is later re-verified.
+# submission at append time, not only when a record is later re-verified. validation_id
+# (post-merge independent review, ADR-056) binds it to the check it is attesting: without it, a
+# schema-valid record for one hardware-rung check could be appended unchanged for a different one
+# at the same rung, since level/device/firmware/observed_at/outcome/operator/dispatch_id/
+# artifact_sha256 can all legitimately match across two checks in the same submission.
 EVIDENCE_KEYS = ("level", "device", "firmware", "observed_at", "outcome", "operator",
-                 "dispatch_id", "artifact_sha256")
+                 "dispatch_id", "artifact_sha256", "validation_id")
 
 
 def canonical(value) -> str:
@@ -182,7 +186,8 @@ def evidence_lines(record: dict) -> list[str]:
     values = {"level": record["level"], "device": record["device_identity"],
               "firmware": record["firmware_version"], "observed_at": record["observed_at"],
               "outcome": record["outcome"], "operator": record["operator"],
-              "dispatch_id": record["dispatch_id"], "artifact_sha256": record["artifact_sha256"]}
+              "dispatch_id": record["dispatch_id"], "artifact_sha256": record["artifact_sha256"],
+              "validation_id": record["validation_id"]}
     return [DIGEST_PREFIX + evidence_digest(record)] + [f"{key}={values[key]}" for key in EVIDENCE_KEYS]
 
 
@@ -253,6 +258,13 @@ def validate_attestation(contract: dict, attestation: dict, attested_at: str,
         raise ValueError(f"A {level} attestation must carry the bound record's " + ", ".join(missing))
     if values["level"] != level:
         raise ValueError(f"Hardware evidence was recorded at {values['level']} but the contract requires {level}")
+    if values["validation_id"] != attestation["validation_id"]:
+        # Post-merge independent review, ADR-056: without this, a schema-valid record for one
+        # hardware-rung check could be appended unchanged for a different check at the same rung
+        # -- level, device, firmware, observed_at, outcome, operator, dispatch_id and
+        # artifact_sha256 can all legitimately match across two checks in the same submission.
+        raise ValueError(f"Hardware evidence was recorded for {values['validation_id']} but this "
+                         f"attestation is for {attestation['validation_id']}")
     if values["outcome"] != "pass":
         raise ValueError("A failed hardware observation is reported through the worker, never attested")
     if values["operator"].strip().casefold() != attestation["operator"].strip().casefold():
@@ -296,7 +308,8 @@ def _find_record(evidence_dir: Path, digest: str):
 # attestation carried. A digest proves the bytes; it does not prove they are a hardware record.
 RECORD_FIELDS = {"device": "device_identity", "firmware": "firmware_version", "observed_at": "observed_at",
                  "operator": "operator", "level": "level", "outcome": "outcome",
-                 "dispatch_id": "dispatch_id", "artifact_sha256": "artifact_sha256"}
+                 "dispatch_id": "dispatch_id", "artifact_sha256": "artifact_sha256",
+                 "validation_id": "validation_id"}
 
 
 def record_problems(record, binding, validation_id, level, attestation) -> list[str]:
@@ -334,7 +347,8 @@ def record_problems(record, binding, validation_id, level, attestation) -> list[
     if record["operator"].strip().casefold() != attestation["operator"].strip().casefold():
         problems.append("record operator is not the attesting operator")
     attested = parsed_evidence(attestation["evidence"])[1]
-    for key in ("device", "firmware", "observed_at", "level", "outcome", "dispatch_id", "artifact_sha256"):
+    for key in ("device", "firmware", "observed_at", "level", "outcome", "dispatch_id", "artifact_sha256",
+               "validation_id"):
         # Exact: a device identity or firmware version that differs in case is a different unit.
         if attested.get(key) != str(record[RECORD_FIELDS[key]]):
             problems.append(f"attested {key} differs from the record's {RECORD_FIELDS[key]}")

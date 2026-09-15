@@ -60,6 +60,22 @@ def hardware_contract():
     return value
 
 
+def two_hardware_rung_contract():
+    """`hardware_contract()` with a second, independent hardware-rung check added -- the
+    post-merge independent review's repro: a record explicitly for one check (room-temperature
+    VAL-FRAMES) must not verify a different one (maximum-temperature VAL-HOT) in the same
+    submission, even though both share the submission, artifact, operator and permitted
+    observation time."""
+    value = hardware_contract()
+    value["acceptance_criteria"].append(
+        {"id": "AC-HOT", "description": "Maximum-temperature testing was performed and observed to pass."})
+    value["validation"].append({"id": "VAL-HOT", "description": "Observe behavior at maximum rated temperature.",
+                                "criterion_ids": ["AC-HOT"],
+                                "evidence_required": ["Maximum-temperature observation record."]})
+    value["domain"]["validation_levels"]["VAL-HOT"] = "hardware_in_loop"
+    return value
+
+
 def local_argv(contract):
     """Run the example packets' declared commands with this interpreter instead of PATH's python."""
     value = copy.deepcopy(contract)
@@ -433,7 +449,7 @@ class AttestationRuleTests(AcceptanceBase):
         ledger = self.hardware_ledger()
         for field, other in (("dispatch_id", "f" * 64), ("artifact_sha256", "0" * 64)):
             with self.subTest(field=field):
-                record = live(**{field: other})
+                record = live(validation_id="VAL-FRAMES", **{field: other})
                 with self.assertRaisesRegex(ValueError, "ledger's current"):
                     self.attest(ledger, record["operator"], domain.evidence_lines(record))
 
@@ -457,9 +473,32 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
         self.assertEqual(checked["highest_level_satisfied"], "hardware_in_loop")
 
+    def test_attestation_is_refused_for_a_different_validation_at_the_same_rung(self):
+        # Post-merge independent review (ADR-056): the printed evidence lines omitted the
+        # record's validation_id, so a schema-valid record explicitly for one hardware-rung check
+        # could be appended unchanged for a different check at the same rung -- level, device,
+        # firmware, observed_at, outcome, operator, dispatch_id and artifact_sha256 can all
+        # legitimately match across two checks in the same submission. Reproduced with a
+        # room-temperature VAL-FRAMES record attested against maximum-temperature VAL-HOT.
+        ledger, _ = self.start(packet=make_packet(two_hardware_rung_contract()))
+        self.checked(ledger)
+        record = live(validation_id="VAL-FRAMES")
+        with self.assertRaisesRegex(ValueError, "recorded for VAL-FRAMES but this attestation is for VAL-HOT"):
+            acceptance.append(ledger, "ATTESTATION",
+                              {"attestation": {"validation_id": "VAL-HOT", "operator": record["operator"],
+                                               "evidence": domain.evidence_lines(record)}},
+                              previous_state=acceptance.replay(ledger))
+        # The record still verifies the check it actually names.
+        state = acceptance.append(ledger, "ATTESTATION",
+                                  {"attestation": {"validation_id": "VAL-FRAMES", "operator": record["operator"],
+                                                   "evidence": domain.evidence_lines(record)}},
+                                  previous_state=acceptance.replay(ledger))
+        self.assertEqual(acceptance.deterministic_status(state)["VAL-FRAMES"], "ATTESTED")
+        self.assertEqual(acceptance.deterministic_status(state)["VAL-HOT"], "NEEDS_ATTESTATION")
+
     def test_hardware_rung_attestation_must_bind_a_passing_record(self):
         ledger = self.hardware_ledger()
-        lines = live_lines()
+        lines = live_lines(validation_id="VAL-FRAMES")
         operator = EVIDENCE["operator"]
         with self.assertRaisesRegex(ValueError, "must carry exactly one"):
             self.attest(ledger, operator, ["Watched it work"])
@@ -497,7 +536,7 @@ class AttestationRuleTests(AcceptanceBase):
         with self.assertRaisesRegex(ValueError, "non-empty"):  # a blank line is refused by the controller's shape first
             self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE) + [""])
         self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "NEEDS_ATTESTATION")
-        self.attest(ledger, EVIDENCE["operator"], live_lines())
+        self.attest(ledger, EVIDENCE["operator"], live_lines(validation_id="VAL-FRAMES"))
         self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "ATTESTED")
 
     def test_attestation_element_with_a_line_break_is_refused(self):
@@ -600,7 +639,7 @@ class AttestationRuleTests(AcceptanceBase):
         before = domain.status(ledger)
         self.assertEqual(before["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         self.assertEqual(before["validations"][0]["gate"], "NEEDS_ATTESTATION")
-        record = live()
+        record = live(validation_id="VAL-FRAMES")
         self.attest(ledger, record["operator"], domain.evidence_lines(record))
         self.assertEqual(domain.status(ledger)["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         acceptance.accept(ledger, CONTROLLER)
@@ -667,7 +706,7 @@ class ExampleProjectTests(AcceptanceBase):
         completed = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
                                    cwd=EXAMPLES / "sample", capture_output=True, text=True)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("Ran 39 tests", completed.stderr)
+        self.assertIn("Ran 41 tests", completed.stderr)
 
     def test_deterministic_gate_reexecutes_the_codec_packet_commands(self):
         ledger, _ = self.start(packet=self.packet_for("SHB-01-codec"))
@@ -762,7 +801,8 @@ class ExampleProjectTests(AcceptanceBase):
             return [domain.DIGEST_PREFIX + domain.evidence_digest(record), "level=hardware_in_loop",
                     "device=Typed by hand", "firmware=9.9.9", f"observed_at={record['observed_at']}",
                     "outcome=pass", f"operator={record['operator']}",
-                    f"dispatch_id={dispatch_id}", f"artifact_sha256={artifact_sha256}"]
+                    f"dispatch_id={dispatch_id}", f"artifact_sha256={artifact_sha256}",
+                    f"validation_id={record['validation_id']}"]
 
         stub = {key: full[key] for key in ("task_id", "validation_id", "level", "outcome", "operator")}
         ledger, records = self.attested_adapter_ledger(stub, lines=hand_typed)
