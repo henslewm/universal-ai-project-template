@@ -85,6 +85,8 @@ What the run established beyond #9: the cross-family gate did its job on the tem
 
 - **Round 7 on head `2360672`**: one P1 — the evidence class a third time (rounds 1, 3, 7): a `key=value` line with an unrecognized key, such as ` outcome=fail` with a leading space, was skipped rather than refused. ADR-038 states the invariant the three answers circled: a hardware-rung attestation carries no line that is not verified against the record, so it is exactly the seven lines `hardware-evidence` prints. Regression across whitespace, case, free-text, unknown-key and empty variants; the #8-era fixture that mixed a narrative line with the record lines is corrected.
 
+- **Round 8 on head `b0f3ca1`**: one P1 and one P2. The evidence class a fourth time — a record value with an embedded line break became one attestation element reading as two lines; ADR-039 makes the three fields that become lines single-line by schema and refuses any attestation element carrying a break. The P2 is round 1's class again — a published listing of the orientation fields (`references/intake-schema.md`) still named the legacy three; ADR-040 makes `DOMAIN_FIELDS` the single source with a regression over the reference and the schema. CI on `b0f3ca1` failed on payload drift from one test edit made after the last sync; resynchronized here.
+
 ## Discovery outside this issue
 
 Codex's four findings on PR #21 (two P1, two P2) were handled by reopening #8, per the maintainer's decision, not by a follow-up issue. The standing rules that resulted are in `MASTER_INSTRUCTIONS.md`.

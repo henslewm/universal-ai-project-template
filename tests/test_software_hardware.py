@@ -332,6 +332,18 @@ class HardwareEvidenceTests(unittest.TestCase):
                     domain.validate_hardware_evidence(dict(EVIDENCE, observed_at=stamp))
         domain.validate_hardware_evidence(dict(EVIDENCE, observed_at="2026-09-13T23:59:59+00:00"))
 
+    def test_record_fields_that_become_lines_are_single_line(self):
+        # Codex round 8 on PR #34 (ADR-039): a record value with an embedded line break used to
+        # become one attestation element that read as two lines. The schema refuses it in the
+        # record, and the attestation rule refuses any element carrying a line break.
+        for field in ("device_identity", "firmware_version", "operator"):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(ValueError, field):
+                    domain.validate_hardware_evidence(dict(EVIDENCE, **{field: "SN-1\noutcome=fail"}))
+                with self.assertRaisesRegex(ValueError, field):
+                    domain.validate_hardware_evidence(dict(EVIDENCE, **{field: "SN-1\r\noutcome=fail"}))
+        domain.validate_hardware_evidence(dict(EVIDENCE, test_setup="Multi-line narrative\nis fine here"))
+
     def test_record_shape_is_closed(self):
         for field, value in (("outcome", "passed"), ("level", "unit"), ("observed_at", "yesterday"),
                              ("artifacts", [{"reference": "x", "sha256": "short"}]), ("extra", 1)):
@@ -397,6 +409,13 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "NEEDS_ATTESTATION")
         self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE))
         self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "ATTESTED")
+
+    def test_attestation_element_with_a_line_break_is_refused(self):
+        ledger = self.hardware_ledger()
+        lines = [line.replace("device=", "device=SN-1\noutcome=fail; was ") if line.startswith("device=") else line
+                 for line in domain.evidence_lines(EVIDENCE)]
+        with self.assertRaisesRegex(ValueError, "element is one line"):
+            self.attest(ledger, EVIDENCE["operator"], lines)
 
     def test_contradictory_duplicate_line_is_refused_at_attestation(self):
         # Codex P1 on PR #34: `outcome=pass` followed by `outcome=fail` used to keep the first and
@@ -767,6 +786,21 @@ class BootstrapIntakeTests(unittest.TestCase):
         self.assertEqual(validate_bootstrap.activation_errors(data), [])
         data["domain"]["physical_access"] = "TBD"
         self.assertTrue(any("domain.physical_access" in e for e in validate_bootstrap.activation_errors(data)))
+
+    def test_published_intake_reference_names_every_validator_field(self):
+        # Codex round 8 on PR #34 (ADR-040): the bootstrapper's intake reference still listed the
+        # three legacy fields. Every profile's fields must appear in it, in every copy.
+        import validate_bootstrap
+        copies = [ROOT / "skills/complex-project-bootstrapper/references/intake-schema.md",
+                  ROOT / ".agents/skills/complex-project-bootstrapper/references/intake-schema.md",
+                  ROOT / ".claude/skills/complex-project-bootstrapper/references/intake-schema.md"]
+        texts = [path.read_text(encoding="utf-8") for path in copies]
+        self.assertEqual(len(set(texts)), 1, "the intake reference copies differ; run scripts/sync_skills.py")
+        for profile, fields in validate_bootstrap.DOMAIN_FIELDS.items():
+            row = next(line for line in texts[0].splitlines() if line.startswith(f"| `{profile}` |"))
+            for key in fields:
+                with self.subTest(profile=profile, key=key):
+                    self.assertIn(f"`{key}`", row)
 
     def test_published_bootstrap_schema_requires_the_same_fields_as_the_validator(self):
         # Codex P2 on PR #34: the schema editors read still named the three legacy fields, so an

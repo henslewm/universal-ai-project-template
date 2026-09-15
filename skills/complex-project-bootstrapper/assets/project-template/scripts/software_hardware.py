@@ -209,6 +209,10 @@ def validate_attestation(contract: dict, attestation: dict) -> None:
     level = contract["domain"]["validation_levels"].get(attestation["validation_id"])
     if level not in HARDWARE_LEVELS:
         return  # A machine rung has a command; the controller already refuses attesting over it.
+    broken = [line for line in attestation["evidence"] if "\n" in line or "\r" in line]
+    if broken:
+        raise ValueError(f"A {level} attestation element is one line; these carry a line break: "
+                         + "; ".join(repr(line) for line in broken))
     digest, values, unrecognized = parsed_evidence_strict(attestation["evidence"])
     if digest is None or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
         raise ValueError(f"A {level} attestation must carry exactly one {DIGEST_PREFIX}<digest> line "

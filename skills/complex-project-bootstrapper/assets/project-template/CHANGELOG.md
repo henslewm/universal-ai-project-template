@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 8 answered (ADR-039, ADR-040)
+
+- P1: `device_identity`, `firmware_version` and `operator` are `single_line` by schema and `validate_attestation` refuses any element carrying CR or LF, so ADR-038's seven lines are seven physical lines (ADR-039).
+- P2: the bootstrapper's `references/intake-schema.md` names the nine software-hardware orientation fields, and a regression checks every profile's `DOMAIN_FIELDS` against the reference and its two copies; with the round-1 schema test, every published listing is bound to the validator (ADR-040).
+- A stale payload mirror of the domain test file (one edit after the last sync) failed CI on `b0f3ca1`; resynchronized.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 7 answered after a third stop-for-diagnosis (ADR-038)
 
 - P1: a hardware-rung attestation is exactly the digest line and the six `key=value` lines `hardware-evidence` prints; `parsed_evidence_strict` returns every other line and `validate_attestation` refuses any, whitespace variants included, so no attested line goes unverified. The #8-era fixture that mixed a narrative line with the record lines is corrected; regression covers leading-space, spaced, upper-cased, free-text, unknown-key and empty lines.
