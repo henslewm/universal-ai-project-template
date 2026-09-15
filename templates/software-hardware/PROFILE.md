@@ -62,8 +62,11 @@ or simulation pass never upgrades it. The output names its `evidence_basis`: wit
 `--evidence-dir` the status rests on the ledger's attestations and their declared digests, and
 says it is attested, not record-verified; with `--evidence-dir` every bound record is found by
 digest, validated as a hardware evidence record, and re-verified for task, validation, rung, a
-`pass` outcome, the attesting operator and every line the attestation carried — a digest proves
-which bytes were bound, not that they are a record or that they say what was attested.
+`pass` outcome, the attesting operator and every line the attestation carried, compared exactly
+except for the operator — a digest proves which bytes were bound, not that they are a record or
+that they say what was attested. A ledger stored before these rules existed replays marked with
+its shortfall for audit and acceptance status; only new events are refused, and the hardware
+status is the one derivation that refuses (ADR-032).
 
 ## Cost posture
 

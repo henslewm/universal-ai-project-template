@@ -17,17 +17,25 @@ WHOLE_FRAME = b"\xa1\x02\x12\x34\x85"  # TAG, LEN=2, payload 0x12 0x34, checksum
 
 
 class FakePort:
+    """An in-memory port that honors the read timeout: what is buffered returns at once, and an
+    empty buffer waits out `timeout_s` before returning nothing, as a real port would."""
+
     def __init__(self, replies=(), short_write=False):
         self.buffer = bytearray(b"".join(replies))
         self.written = []
         self.closed = False
         self.short_write = short_write
+        self.timeouts = []
 
     def write(self, data):
         self.written.append(bytes(data))
         return len(data) - 1 if self.short_write else len(data)
 
-    def read(self, size):
+    def read(self, size, timeout_s):
+        self.timeouts.append(timeout_s)
+        if not self.buffer:
+            time.sleep(timeout_s)
+            return b""
         chunk = bytes(self.buffer[:size])
         del self.buffer[:size]
         return chunk
@@ -42,8 +50,17 @@ class TricklePort(FakePort):
     def __init__(self, data):
         super().__init__([data])
 
-    def read(self, size):
-        return super().read(min(size, 1))
+    def read(self, size, timeout_s):
+        return super().read(min(size, 1), timeout_s)
+
+
+class BlockingPort(FakePort):
+    """A port whose own blocking time is long; it must still honor the timeout it is handed."""
+
+    def read(self, size, timeout_s):
+        self.timeouts.append(timeout_s)
+        time.sleep(min(1.0, timeout_s))
+        return b""
 
 
 class SerialAdapterTests(unittest.TestCase):
@@ -73,9 +90,11 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertEqual(adapter.receive(0.1), WHOLE_FRAME)
 
     def test_missing_header_is_a_timeout_not_a_crash(self):
-        adapter = self.adapter(FakePort([b"\xa1"]))
-        with self.assertRaises(TransportTimeout):
-            adapter.receive(0.05)
+        port = FakePort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "no frame header"):
+            adapter.receive(0.02)
+        self.assertFalse(port.closed, "no byte of a frame was consumed")
 
     def test_frame_arriving_in_pieces_is_assembled_to_its_declared_length(self):
         # A serial port may hand back fewer bytes than asked for; the adapter keeps reading.
@@ -96,7 +115,34 @@ class SerialAdapterTests(unittest.TestCase):
             adapter.receive(0.2)
         self.assertGreater(time.monotonic() - started, short)
         with self.assertRaises(ValueError):
-            adapter.receive(-1)
+            self.adapter(FakePort()).receive(-1)
+
+    def test_every_port_read_is_bounded_by_the_time_remaining(self):
+        # ADR-031: the adapter cannot bound a read it does not control, so the deadline travels
+        # into each read. A port that would block for a second returns at the caller's 50 ms.
+        port = BlockingPort()
+        adapter = self.adapter(port)
+        started = time.monotonic()
+        with self.assertRaises(TransportTimeout):
+            adapter.receive(0.05)
+        self.assertLess(time.monotonic() - started, 0.5)
+        self.assertTrue(all(0 <= t <= 0.051 for t in port.timeouts), port.timeouts)
+        self.assertFalse(port.closed, "nothing was consumed, so the port stays open")
+
+    def test_partial_frame_at_timeout_closes_the_port(self):
+        # ADR-031: a frame this call started but could not finish never lingers to be read as
+        # the next frame's header; the port is closed before the timeout is raised.
+        port = FakePort([WHOLE_FRAME[:3]])
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "port closed"):
+            adapter.receive(0.02)
+        self.assertTrue(port.closed)
+        self.assertFalse(adapter.is_open)
+        port = FakePort([b"\xa1"])  # a lone header byte is a started frame too
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "port closed"):
+            adapter.receive(0.02)
+        self.assertTrue(port.closed)
 
     def test_oversized_frame_closes_the_port(self):
         port = FakePort([bytes([0xA1, 0xFF]) + bytes(256)])

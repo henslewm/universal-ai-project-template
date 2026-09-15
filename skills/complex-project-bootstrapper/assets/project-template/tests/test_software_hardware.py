@@ -320,6 +320,54 @@ class AttestationRuleTests(AcceptanceBase):
             self.attest(ledger, EVIDENCE["operator"], lines)
         self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "NEEDS_ATTESTATION")
 
+    def test_stored_attestation_the_rule_would_now_refuse_replays_marked_and_unverified(self):
+        # ADR-032: a duplicate-key attestation accepted before the round-1 refusal is on the
+        # hash chain; replay marks it instead of raising, status reports it unverified, and a new
+        # attestation with the same defect is still refused.
+        ledger = self.hardware_ledger()
+        lines = domain.evidence_lines(EVIDENCE) + ["outcome=fail"]
+        _, sequence, previous = acceptance.replay(ledger)
+        event = {"sequence": sequence + 1, "previous": previous, "kind": "ATTESTATION", "timestamp": wp.now(),
+                 "data": {"attestation": {"validation_id": "VAL-FRAMES", "operator": EVIDENCE["operator"], "evidence": lines}}}
+        event["hash"] = acceptance.router.digest(event)
+        (ledger / f"{sequence + 1:08d}.json").write_text(json.dumps(event, indent=2) + "\n", encoding="utf-8")
+        state = acceptance.replay(ledger)[0]
+        self.assertIn("more than one outcome= line", state["attestations"]["VAL-FRAMES"]["domain_shortfall"])
+        self.assertEqual(acceptance.summary(state)["attestation_shortfall"].keys(), {"VAL-FRAMES"})
+        self.assertFalse(domain.status(ledger)["validations"][0]["evidence_verified"])
+        with self.assertRaisesRegex(ValueError, "more than one outcome= line"):
+            self.attest(ledger, EVIDENCE["operator"], lines)
+        # The marked attestation satisfies the controller's gate as recorded, so the ledger can
+        # still be accepted; the hardware status it earns is UNVERIFIED with the shortfall stated.
+        acceptance.accept(ledger, CONTROLLER)
+        report = domain.status(ledger)
+        self.assertEqual(report["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn("stored attestation fails the current rule", report["reason"])
+
+    def test_ledger_stored_before_the_domain_rules_replays_marked(self):
+        # ADR-032: the #8 dogfood ledger's contract predates the structural domain block. It must
+        # keep replaying for audit and acceptance status, marked with the shortfall; a new INIT with
+        # that contract is refused; the hardware status is the one derivation that refuses.
+        legacy = example()
+        legacy["domain"] = {"synthetic": True, "note": "Pre-#9 free-form extension data"}
+        ledger, _ = self.start()
+        init = wp.read_json(ledger / "00000001.json")
+        init["data"]["contract"] = legacy
+        init["data"]["binding"]["contract_hash"] = wp.fingerprint(init["data"]["binding"]["task_id"], PROFILE,
+                                                                  init["data"]["binding"]["revision"], legacy)
+        old = Path(self.enterContext(tempfile.TemporaryDirectory())) / "legacy-ledger"
+        old.mkdir()
+        init["hash"] = acceptance.router.digest({k: v for k, v in init.items() if k != "hash"})
+        (old / "00000001.json").write_text(json.dumps(init, indent=2) + "\n", encoding="utf-8")
+        state = acceptance.replay(old)[0]
+        self.assertEqual(state["status"], "GATES_PENDING")
+        self.assertTrue(any("'component' is a required property" in e for e in state["domain_shortfall"]))
+        self.assertEqual(acceptance.summary(state)["domain_shortfall"], state["domain_shortfall"])
+        with self.assertRaisesRegex(ValueError, "predates the software-hardware domain rules"):
+            domain.status(old)
+        with self.assertRaisesRegex(ValueError, "domain: .*'component' is a required property"):
+            acceptance.apply(None, init, stored=False)  # the same event as a new INIT is refused
+
     def test_runnable_check_is_still_executed_never_attested(self):
         ledger, _ = self.start()
         self.checked(ledger)
@@ -395,7 +443,7 @@ class ExampleProjectTests(AcceptanceBase):
         completed = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
                                    cwd=EXAMPLES / "sample", capture_output=True, text=True)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("Ran 30 tests", completed.stderr)
+        self.assertIn("Ran 32 tests", completed.stderr)
 
     def test_deterministic_gate_reexecutes_the_codec_packet_commands(self):
         ledger, _ = self.start(packet=self.packet_for("SHB-01-codec"))
@@ -475,6 +523,22 @@ class ExampleProjectTests(AcceptanceBase):
         ledger, records = self.attested_adapter_ledger(full)
         checked = domain.status(ledger, records)
         self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+
+    def test_evidence_fields_are_compared_exactly_and_only_the_operator_is_case_folded(self):
+        # Codex round 2 on PR #34: `device=SN-ABC` must not verify against `device_identity: SN-abc`;
+        # a different case is a different unit. The operator keeps the controller's actor normalization.
+        full = dict(EVIDENCE, task_id="ACCEPT-SYN-001", device_identity="SN-ABC", operator="Bench Operator")
+        for key, other in (("device", "SN-abc"), ("firmware", full["firmware_version"].upper()),
+                           ("observed_at", full["observed_at"].lower())):
+            with self.subTest(field=key):
+                lines = [f"{key}={other}" if line.startswith(key + "=") else line for line in domain.evidence_lines(full)]
+                ledger, records = self.attested_adapter_ledger(full, lines=lines)
+                checked = domain.status(ledger, records)
+                self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+                self.assertIn(f"attested {key} differs", checked["reason"])
+        lines = ["operator=bench operator" if line.startswith("operator=") else line for line in domain.evidence_lines(full)]
+        ledger, records = self.attested_adapter_ledger(full, lines=lines, operator="BENCH OPERATOR")
+        self.assertEqual(domain.status(ledger, records)["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
 
     def test_record_recorded_by_another_operator_does_not_verify_the_attestation(self):
         # The attestation's operator= line is checked at append time against the attesting operator,

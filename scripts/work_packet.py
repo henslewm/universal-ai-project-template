@@ -119,11 +119,23 @@ def domain_module(profile):
     return importlib.import_module(name) if name else None
 
 
-def validate_contract(contract, profile) -> list[str]:
+def domain_errors(contract, profile) -> list[str]:
+    """The registered domain rules for `profile` over a schema-valid contract; empty when none apply."""
+    if not isinstance(profile, str) or profile not in PROFILES:
+        raise ValueError(f"domain rules require a registered domain profile, not {profile!r}")
+    module = domain_module(profile)
+    if module is None:
+        return []
+    return [f"domain: {problem}" for problem in module.validate_contract_domain(contract)]
+
+
+def validate_contract(contract, profile, domain_rules=True) -> list[str]:
     """Common contract rules, then the registered domain rules for `profile`.
 
     The profile is mandatory: a caller that does not know which profile it validates for would
     otherwise skip that profile's domain rules silently, and `None` is refused for the same reason.
+    `domain_rules=False` is for replaying a contract stored before its profile's rules existed
+    (ADR-032); the caller records the shortfall it gets from `domain_errors` instead of refusing.
     """
     if not isinstance(profile, str) or profile not in PROFILES:
         raise ValueError(f"validate_contract requires a registered domain profile, not {profile!r}")
@@ -172,9 +184,8 @@ def validate_contract(contract, profile) -> list[str]:
         errors.append("acceptance_criteria: every criterion needs a specified validation")
     # Extension content is data, not proof of authority or safety. A profile with registered
     # domain rules is checked here too, so every path that validates a contract applies them.
-    module = domain_module(profile)
-    if module is not None:
-        errors.extend(f"domain: {problem}" for problem in module.validate_contract_domain(contract))
+    if domain_rules:
+        errors.extend(domain_errors(contract, profile))
     return errors
 
 

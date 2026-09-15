@@ -28,7 +28,7 @@ class FakeSensorPort:
             pass
         return len(data)
 
-    def read(self, size):
+    def read(self, size, timeout_s):
         chunk, self._pending = self._pending[:size], self._pending[size:]
         return chunk
 

@@ -198,9 +198,14 @@ def apply(state, event, stored=False):
                               "implementers", "result", "artifact", "open_questions"})
         binding, contract = data["binding"], data["contract"]
         feedback.exact(binding, {"task_id", "domain_profile", "revision", "contract_hash"})
-        errors = wp.validate_contract(contract, binding["domain_profile"])
+        errors = wp.validate_contract(contract, binding["domain_profile"], domain_rules=False)
         if errors:
             raise ValueError("; ".join(errors))
+        # A profile's domain rules may postdate a stored ledger (ADR-032): a stored contract that
+        # fails them replays marked with the shortfall; a new INIT is refused.
+        shortfall = wp.domain_errors(contract, binding["domain_profile"])
+        if shortfall and not stored:
+            raise ValueError("; ".join(shortfall))
         expected = wp.fingerprint(binding["task_id"], binding["domain_profile"],
                                   binding["revision"], contract)
         require(binding["contract_hash"] == expected, "Binding hash does not match its contract")
@@ -221,6 +226,7 @@ def apply(state, event, stored=False):
                 "open_questions": copy.deepcopy(data["open_questions"]),
                 "checks": None, "attestations": {}, "reviews": [], "waiver": None,
                 "user_decision": None, "accepted": None, "resubmissions": 0,
+                "domain_shortfall": shortfall or None,
                 "status": "GATES_PENDING", "reason": "INITIALIZED"}
     actors = casefolded(item["actor"] for item in state["implementers"])
     if event["kind"] not in {"REVIEW_RESULT", "REVIEW_ABANDONED"}:
@@ -269,10 +275,17 @@ def apply(state, event, stored=False):
                 "A machine-runnable check is executed, never attested over")
         require(attestation["operator"].strip().casefold() not in actors,
                 "An implementation actor cannot attest its own validation")
+        recorded = copy.deepcopy(attestation)
         domain = wp.domain_module(state["binding"]["domain_profile"])
-        if domain is not None:
-            domain.validate_attestation(state["contract"], attestation)
-        state["attestations"][attestation["validation_id"]] = copy.deepcopy(attestation)
+        if domain is not None and not state.get("domain_shortfall"):
+            try:
+                domain.validate_attestation(state["contract"], attestation)
+            except ValueError as exc:
+                # A stored attestation the profile rule would now refuse replays marked (ADR-032);
+                # the profile's status derivation reports it unverified. A new one is refused.
+                require(stored, str(exc))
+                recorded["domain_shortfall"] = str(exc)
+        state["attestations"][attestation["validation_id"]] = recorded
         state["reason"] = "ATTESTATION_RECORDED"
     elif event["kind"] == "REVIEW_OPEN":
         feedback.exact(data, {"review"})
@@ -1045,7 +1058,8 @@ def review_packet(state, paths):
         "binding": state["binding"],
         "gates": {"risk": state["risk"], "required": state["gates"],
                   "reviews_used": reviews_used(state),
-                  "max_review_attempts": state["policy"]["max_review_attempts"]},
+                  "max_review_attempts": state["policy"]["max_review_attempts"],
+                  "domain_shortfall": state.get("domain_shortfall")},
         "contract": state["contract"],
         "result_supplied_by_worker": state["result"],
         "artifact": state["artifact"],
@@ -1217,6 +1231,9 @@ def summary(state):
             "reviews_used": reviews_used(state),
             "max_review_attempts": state["policy"]["max_review_attempts"],
             "attested": sorted(state["attestations"]), "waiver": state["waiver"],
+            "domain_shortfall": state.get("domain_shortfall"),
+            "attestation_shortfall": {k: v["domain_shortfall"] for k, v in state["attestations"].items()
+                                      if "domain_shortfall" in v} or None,
             "user_decision": state["user_decision"], "resubmissions": state["resubmissions"],
             "accepted": state["accepted"]}
 

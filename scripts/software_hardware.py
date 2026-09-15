@@ -213,9 +213,12 @@ def record_problems(record, binding, validation_id, level, attestation) -> list[
     if record["operator"].strip().casefold() != attestation["operator"].strip().casefold():
         problems.append("record operator is not the attesting operator")
     attested = parsed_evidence(attestation["evidence"])[1]
-    for key in ("device", "firmware", "observed_at", "level", "outcome", "operator"):
-        if attested.get(key, "").strip().casefold() != str(record[RECORD_FIELDS[key]]).strip().casefold():
+    for key in ("device", "firmware", "observed_at", "level", "outcome"):
+        # Exact: a device identity or firmware version that differs in case is a different unit.
+        if attested.get(key) != str(record[RECORD_FIELDS[key]]):
             problems.append(f"attested {key} differs from the record's {RECORD_FIELDS[key]}")
+    if attested.get("operator", "").strip().casefold() != record["operator"].strip().casefold():
+        problems.append("attested operator differs from the record's operator")
     return problems
 
 
@@ -227,6 +230,9 @@ def status(ledger, evidence_dir=None) -> dict:
     binding = state["binding"]
     if binding["domain_profile"] != PROFILE:
         raise ValueError(f"Ledger profile is {binding['domain_profile']}, not {PROFILE}")
+    if state.get("domain_shortfall"):
+        raise ValueError("Ledger contract predates the software-hardware domain rules and yields no hardware "
+                         "status; it replays for audit and acceptance only: " + "; ".join(state["domain_shortfall"]))
     domain = state["contract"]["domain"]
     levels = domain["validation_levels"]
     gate = acceptance.deterministic_status(state)
@@ -239,14 +245,12 @@ def status(ledger, evidence_dir=None) -> dict:
                  "evidence_verified": None, "evidence_path": None}
         attestation = state["attestations"].get(identifier)
         if attestation is not None:
-            try:
-                entry["evidence_digest"] = parsed_evidence(attestation["evidence"])[0]
-            except ValueError as exc:  # a stored attestation from before duplicates were refused
-                entry["evidence_digest"] = None
+            if attestation.get("domain_shortfall"):  # stored before the rule that would refuse it (ADR-032)
                 entry["evidence_verified"] = False
-                problems.append(f"{identifier}: {exc}")
+                problems.append(f"{identifier}: stored attestation fails the current rule: {attestation['domain_shortfall']}")
                 checks.append(entry)
                 continue
+            entry["evidence_digest"] = parsed_evidence(attestation["evidence"])[0]
             if evidence_dir is not None and levels[identifier] in HARDWARE_LEVELS:
                 path, record = _find_record(Path(evidence_dir), entry["evidence_digest"] or "")
                 # The digest proves which bytes were bound. Verification then requires those bytes to

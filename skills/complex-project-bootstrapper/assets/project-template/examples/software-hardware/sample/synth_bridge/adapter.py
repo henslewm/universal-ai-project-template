@@ -13,9 +13,12 @@ from .transport import TransportTimeout
 
 
 class Port(Protocol):
+    """What the adapter needs from a serial port. `read` returns what arrived within `timeout_s`,
+    possibly fewer bytes than asked and possibly none; it never blocks past that time."""
+
     def write(self, data: bytes) -> int: ...
 
-    def read(self, size: int) -> bytes: ...
+    def read(self, size: int, timeout_s: float) -> bytes: ...
 
     def close(self) -> None: ...
 
@@ -49,33 +52,43 @@ class SerialAdapter:
             raise RuntimeError("short write; port closed")
 
     def receive(self, timeout_s: float) -> bytes:
-        """One whole frame by its declared length, or TransportTimeout when it does not arrive in time.
+        """One whole frame by its declared length within `timeout_s`, or the port is closed.
 
-        A port read may return fewer bytes than asked for (the SHB-04 port assumption: read(size)
-        returns what has arrived), so the frame is assembled across reads until it is complete or
-        the caller's timeout expires. Bytes already read stay consumed: a timeout mid-frame is a
-        transport failure the caller sees, not a corrupted next frame.
+        The invariant (ADR-031): every port read is handed the time remaining, so the call never
+        outlasts the caller's deadline; and a frame this call started but could not finish closes
+        the port before TransportTimeout is raised, so leftover bytes can never be read as the next
+        frame's header. A timeout that consumed nothing leaves the port open.
         """
         if self._port is None:
             raise RuntimeError("adapter is closed")
         if timeout_s < 0:
             raise ValueError("timeout must be non-negative")
         deadline = time.monotonic() + timeout_s
-        header = self._read_exactly(2, deadline, "no frame header")
+        header = self._read_within(2, deadline)
+        if not header:
+            raise TransportTimeout("no frame header")
+        if len(header) < 2:
+            self.close()
+            raise TransportTimeout("frame incomplete at timeout; port closed")
         length = header[1]
         if 2 + length + 1 > self._frame_max:
             self.close()
             raise RuntimeError("oversized frame; port closed")
-        return header + self._read_exactly(length + 1, deadline, "frame incomplete at timeout")
+        body = self._read_within(length + 1, deadline)
+        if len(body) < length + 1:
+            self.close()
+            raise TransportTimeout("frame incomplete at timeout; port closed")
+        return header + body
 
-    def _read_exactly(self, size: int, deadline: float, why: str) -> bytes:
+    def _read_within(self, size: int, deadline: float) -> bytes:
+        """Up to `size` bytes, each read bounded by the time left; stops short when time runs out."""
         buffer = b""
         while len(buffer) < size:
-            chunk = self._port.read(size - len(buffer))
-            if chunk:
-                buffer += chunk
+            remaining = deadline - time.monotonic()
+            chunk = self._port.read(size - len(buffer), max(remaining, 0.0))
+            if not chunk:
+                if remaining <= 0:
+                    break
                 continue
-            if time.monotonic() >= deadline:
-                raise TransportTimeout(why)
-            time.sleep(0.001)
+            buffer += chunk
         return buffer

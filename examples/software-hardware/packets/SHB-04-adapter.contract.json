@@ -22,11 +22,11 @@
   "inputs": [
     {
       "name": "Port contract",
-      "description": "write(bytes) -> int, read(size) -> bytes, close()."
+      "description": "write(bytes) -> int, read(size, timeout_s) -> bytes returning what arrived within timeout_s, close()."
     },
     {
       "name": "Host rules",
-      "description": "Read one whole frame by declared length; short write or oversized frame closes the port; closed adapter refuses I/O."
+      "description": "Read one whole frame by declared length within the caller's timeout, handing each port read the time remaining; a frame left incomplete at the deadline, a short write or an oversized frame closes the port; closed adapter refuses I/O."
     },
     {
       "name": "Hardware-in-loop procedure",
@@ -150,7 +150,7 @@
     "hardware_status": "UNVERIFIED_ON_HARDWARE",
     "hardware_assumptions": [
       {
-        "assumption": "The host serial driver delivers bytes in order and read(size) returns what has arrived within the port timeout.",
+        "assumption": "The host serial driver delivers bytes in order and read(size, timeout_s) returns what has arrived within timeout_s, never blocking past it.",
         "source_id": "SRC-SYNTH-SPEC"
       },
       {

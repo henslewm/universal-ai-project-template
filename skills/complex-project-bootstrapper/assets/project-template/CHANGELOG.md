@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 2 answered after stop-for-diagnosis (ADR-031, ADR-032)
+
+- R-012 applied: the sample adapter's framing/timeout class recurred across rounds 1 and 2, so the invariant was written first. `Port.read(size, timeout_s)` carries the deadline and `SerialAdapter.receive` hands each read the time remaining; a frame started but not finished closes the port before `TransportTimeout`; a timeout that consumed nothing leaves it open (ADR-031). SHB-04's port contract, host rules and hardware assumption say so; sample tests add a blocking port bounded by the remaining time and a partial-frame closure (32 sample tests).
+- P1: a stored INIT whose contract fails the profile's domain rules replays marked with `domain_shortfall` instead of refusing the ledger (the #8 dogfood ledger replays again); a new INIT is refused as before. `validate_contract` gains `domain_rules=False` for that replay and `work_packet.domain_errors` exposes the profile's errors (ADR-032).
+- P2: a stored attestation the profile rule would now refuse replays marked; `status` reports it unverified and refuses to derive a hardware status from a marked contract; new events are refused as before (ADR-032). `summary` and the review packet carry both marks.
+- P2: record verification compares device, firmware, observation time, level and outcome exactly and case-folds only the operator (ADR-032).
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 1 answered (ADR-030)
 
 - P1: `parsed_evidence` refuses a recognized attestation key that appears more than once instead of keeping the first; `status` reports a stored attestation that no longer parses as unverified. Regressions at parse, at `attest`, and in the digest-lines test.
