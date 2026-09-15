@@ -8,6 +8,7 @@
 - The `software-hardware` domain block is closed (`additionalProperties: false`, `template_child_issue` declared for the template's dogfood packets) and the literal `VERIFIED_ON_HARDWARE` is refused in any string it carries; the example contract loses its undeclared `fixture_protocol` key (ADR-026).
 - `software_hardware.py status` reports `evidence_basis` (`attestation` or `record`), says in its reason when digests are attested but not record-verified, emits `evidence_path` on every entry, and under `--evidence-dir` refuses a record recorded by an operator other than the attesting one (ADR-027). Regressions for each, including a CLI test of `status` with and without `--evidence-dir`.
 - Two #8 regressions from PR #22 that append a second validation now map it to a rung, as the #9 rules require.
+- Repeat dogfood at `_acceptance-demo-9b`: deterministic gate PASSED; round 1 (same-family, minimal context) APPROVE; round 2 (Codex, cross-family) REJECT_BOUNDED on `AC-EXTENSIONS` — a digest-matched object was verified without schema validation or comparison of the attested device, firmware and time lines. `status --evidence-dir` now validates the found record against `$defs/hardware_evidence` and compares every attested line with it, naming each disagreement (ADR-029); regressions cover the five-field stub, each metadata mismatch and the consistent record.
 
 ## 2026-09-15 — Issue #8 closed again through merged PR #22
 

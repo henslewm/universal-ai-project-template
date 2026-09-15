@@ -61,7 +61,9 @@ check. `software_hardware.py status` derives the earned status from the ledger:
 or simulation pass never upgrades it. The output names its `evidence_basis`: without
 `--evidence-dir` the status rests on the ledger's attestations and their declared digests, and
 says it is attested, not record-verified; with `--evidence-dir` every bound record is found by
-digest and re-verified for task, validation, rung, a `pass` outcome and the attesting operator.
+digest, validated as a hardware evidence record, and re-verified for task, validation, rung, a
+`pass` outcome, the attesting operator and every line the attestation carried — a digest proves
+which bytes were bound, not that they are a record or that they say what was attested.
 
 ## Cost posture
 

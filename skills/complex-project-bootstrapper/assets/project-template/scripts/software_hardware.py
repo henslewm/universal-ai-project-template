@@ -170,6 +170,7 @@ def validate_attestation(contract: dict, attestation: dict) -> None:
 
 
 def _find_record(evidence_dir: Path, digest: str):
+    """The file whose canonical digest the attestation bound, whatever it contains; verification is separate."""
     for path in sorted(evidence_dir.glob("*.json")):
         try:
             record = json.loads(path.read_text(encoding="utf-8-sig"))
@@ -178,6 +179,36 @@ def _find_record(evidence_dir: Path, digest: str):
         if isinstance(record, dict) and evidence_digest(record) == digest:
             return path, record
     return None, None
+
+
+# What a found record must agree with: the ledger binding, the contract, and every line the
+# attestation carried. A digest proves the bytes; it does not prove they are a hardware record.
+RECORD_FIELDS = {"device": "device_identity", "firmware": "firmware_version", "observed_at": "observed_at",
+                 "operator": "operator", "level": "level", "outcome": "outcome"}
+
+
+def record_problems(record, binding, validation_id, level, attestation) -> list[str]:
+    """Why a digest-matched record does not verify the attestation; empty means it does."""
+    try:
+        validate_hardware_evidence(record)
+    except ValueError as exc:
+        return [f"record found by digest is not a valid hardware evidence record ({exc})"]
+    problems = []
+    if record["task_id"] != binding["task_id"]:
+        problems.append(f"record task_id {record['task_id']} is not {binding['task_id']}")
+    if record["validation_id"] != validation_id:
+        problems.append(f"record validation_id {record['validation_id']} is not {validation_id}")
+    if record["level"] != level:
+        problems.append(f"record level {record['level']} is not the contract's {level}")
+    if record["outcome"] != "pass":
+        problems.append("record outcome is not pass")
+    if record["operator"].strip().casefold() != attestation["operator"].strip().casefold():
+        problems.append("record operator is not the attesting operator")
+    attested = parsed_evidence(attestation["evidence"])[1]
+    for key in ("device", "firmware", "observed_at", "level", "outcome", "operator"):
+        if attested.get(key, "").strip().casefold() != str(record[RECORD_FIELDS[key]]).strip().casefold():
+            problems.append(f"attested {key} differs from the record's {RECORD_FIELDS[key]}")
+    return problems
 
 
 def status(ledger, evidence_dir=None) -> dict:
@@ -203,18 +234,18 @@ def status(ledger, evidence_dir=None) -> dict:
             entry["evidence_digest"] = parsed_evidence(attestation["evidence"])[0]
             if evidence_dir is not None and levels[identifier] in HARDWARE_LEVELS:
                 path, record = _find_record(Path(evidence_dir), entry["evidence_digest"] or "")
-                # The digest binds the record's content; the record must also be the one this task,
-                # validation and rung expected, a passing observation, and recorded by the operator
-                # who attested it — a matching digest recorded by someone else is not the attestation's.
-                bound = (record is not None and record["task_id"] == binding["task_id"]
-                         and record["validation_id"] == identifier and record["level"] == levels[identifier]
-                         and record["outcome"] == "pass"
-                         and record["operator"].strip().casefold() == attestation["operator"].strip().casefold())
-                entry["evidence_verified"] = bound
+                # The digest proves which bytes were bound. Verification then requires those bytes to
+                # be a valid hardware evidence record for this task, validation and rung, a passing
+                # observation, recorded by the attesting operator, and saying exactly what the
+                # attestation's lines say — a matching digest over anything else is not verification.
+                if record is None:
+                    found = [f"{identifier}: no hardware evidence record with the attested digest"]
+                else:
+                    found = [f"{identifier}: {problem}" for problem in
+                             record_problems(record, binding, identifier, levels[identifier], attestation)]
+                entry["evidence_verified"] = not found
                 entry["evidence_path"] = str(path) if path else None
-                if not bound:
-                    problems.append(f"{identifier}: no matching hardware evidence record for its attested digest"
-                                    + ("" if record is None else " (task, validation, rung, outcome or operator differ)"))
+                problems.extend(found)
         checks.append(entry)
     hardware_ids = [c["validation_id"] for c in checks if not c["machine_runnable"]]
     # What the verdict rests on. Without an evidence directory the ledger's attestations are the

@@ -40,11 +40,20 @@ The corrections this record called for, each with a regression (ADR-026 to ADR-0
 - **No `profile=None`.** `validate_contract(contract, profile)` requires a registered profile; `None` is refused; every caller in the scripts and tests names one.
 - **Closed block.** `contract_domain` has `additionalProperties: false` (`synthetic` and `template_child_issue` declared) and the literal `VERIFIED_ON_HARDWARE` is refused in any string the block carries, as a whole word so the declared `UNVERIFIED_ON_HARDWARE` is not a claim. The example contract's undeclared `fixture_protocol` key was removed.
 
+## Repeat dogfood — `_acceptance-demo-9b`, 2026-09-14, against the merged gate
+
+Fresh ledger beside the repository; packet `ISSUE-9-ACCEPTANCE` revision 1, contract hash `9e50f9bb…`, `high` risk (gates deterministic, model review, cross-family), domain block `NOT_HARDWARE_FACING` under the closed schema; artifact the root-scope diff of `3fb5964` against `main` `f4f709f` (sha256 `237b6df0…`); implementer declared as `claude`.
+
+- **Deterministic gate.** `run-checks` re-executed the declared command and recorded `VAL-SUITE` PASSED (336 tests, 81 paths, 0 drift, exit 0), workspace digest `9cdb482d…`, agreeing with the supplied claim.
+- **Round 1 — same-family, minimal context, APPROVE.** Reviewer "Claude Fable 5.1 (fresh minimal-context subagent reviewer, round 1)", family `claude`, tier 3, given the rules, the 16,435-character packet and the diff. All five criteria `met`. The report was refused once on shape (`criteria[].evidence` must be an array; the rendered `review_contract` names fields but not their types — an observation on #8's renderer) and re-issued unchanged. `accept` by this reviewer was refused by the cross-family gate, as designed.
+- **Round 2 — cross-family, REJECT_BOUNDED.** Reviewer "Codex (OpenAI, cross-family reviewer, round 2)", family `openai`, tier 3 (review id `3855e712…`), run by the maintainer through the Codex CLI on the same three inputs. Four criteria `met`; `AC-EXTENSIONS` `not_met`: `status --evidence-dir` treated any dictionary with a matching canonical digest as a verified record without validating it against `$defs/hardware_evidence`, and never compared the record's `device_identity`, `firmware_version` and `observed_at` with the attested lines, so a five-field stub bound by digest, with those lines typed by hand, earned record-basis `VERIFIED_ON_HARDWARE`. A static code-path finding the same-family round did not make. Corrective action inside scope: validate the found record with the existing `validate_hardware_evidence` and compare every attested line, with regressions.
+- **Correction (ADR-029).** `record_problems` in `scripts/software_hardware.py` owns verification of a found record: schema validity, task, validation, rung, `pass`, attesting operator, and agreement of each attested line with the record's field, each disagreement named in the reason with `evidence_path` still set. Regressions: the five-field stub, a mismatch in each of device, firmware and observed time, the other-operator record, and the consistent record still verifying on the `record` basis. The suite is 337 tests.
+
 ## What must happen before this record becomes evidence
 
 1. ~~PR #22 (reopened #8) merges~~ — merged 2026-09-15 at `494587cf` and merged into this branch.
 2. ~~The `AC-SAMPLE` correction and the residual observations are applied~~ — applied 2026-09-14, see Correction above.
-3. The dogfood is repeated from a fresh ledger against the corrected gate: `init`, `run-checks`, a fresh minimal-context review, the cross-family approving review, `accept`.
+3. The dogfood is repeated from a fresh ledger against the corrected gate: `init`, `run-checks`, a fresh minimal-context review, the cross-family approving review, `accept` — in progress at `_acceptance-demo-9b`; after the round-2 correction the resubmission needs the cross-family approving review (the third and last review slot).
 4. Only then are this document's provisional markers removed and #9's acceptance criteria mapped to evidence.
 
 ## Discovery outside this issue

@@ -415,6 +415,52 @@ class ExampleProjectTests(AcceptanceBase):
         self.assertTrue(entry["evidence_verified"])
         self.assertEqual(Path(entry["evidence_path"]), records / "run.json")
 
+    def attested_adapter_ledger(self, record, lines=None, operator=None):
+        """An accepted low-risk adapter ledger whose VAL-HIL attestation binds `record`'s digest."""
+        ledger, _ = self.start(packet=self.packet_for("SHB-04-adapter", risk="low"))
+        acceptance.run_checks(ledger, EXAMPLES)
+        acceptance.append(ledger, "ATTESTATION",
+                          {"attestation": {"validation_id": "VAL-HIL", "operator": operator or record["operator"],
+                                           "evidence": lines or domain.evidence_lines(record)}},
+                          previous_state=acceptance.replay(ledger))
+        acceptance.accept(ledger, CONTROLLER)
+        records = self.directory / f"records-{self.counter}"
+        records.mkdir()
+        (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
+        return ledger, records
+
+    def test_digest_matched_object_must_be_a_valid_record_that_says_what_was_attested(self):
+        # Cross-family review of the #9 dogfood: a digest proves which bytes were bound, not that
+        # they are a hardware evidence record. A five-field object carrying only the binding
+        # fields, with the attestation's device/firmware/time lines typed by hand, satisfied the
+        # old comparison. Verification now validates the found record against the schema and
+        # compares every attested line with it.
+        full = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+        stub = {key: full[key] for key in ("task_id", "validation_id", "level", "outcome", "operator")}
+        lines = [domain.DIGEST_PREFIX + domain.evidence_digest(stub), "level=hardware_in_loop", "device=Typed by hand",
+                 "firmware=9.9.9", "observed_at=2026-09-14T00:00:00Z", "outcome=pass", f"operator={stub['operator']}"]
+        ledger, records = self.attested_adapter_ledger(stub, lines=lines)
+        checked = domain.status(ledger, records)
+        self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn("not a valid hardware evidence record", checked["reason"])
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertFalse(entry["evidence_verified"])
+        self.assertEqual(Path(entry["evidence_path"]), records / "run.json", "found by digest, refused on content")
+        # A complete record whose attested lines disagree with it does not verify either, field by field.
+        for key, field in (("device", "device_identity"), ("firmware", "firmware_version"), ("observed_at", "observed_at")):
+            with self.subTest(field=field):
+                other = "2001-01-01T00:00:00Z" if key == "observed_at" else "Something else"
+                forged = [f"{key}={other}" if line.startswith(key + "=") else line
+                          for line in domain.evidence_lines(full)]
+                ledger, records = self.attested_adapter_ledger(full, lines=forged)
+                checked = domain.status(ledger, records)
+                self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+                self.assertIn(f"attested {key} differs from the record's {field}", checked["reason"])
+        # The consistent record still verifies on the record basis.
+        ledger, records = self.attested_adapter_ledger(full)
+        checked = domain.status(ledger, records)
+        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+
     def test_record_recorded_by_another_operator_does_not_verify_the_attestation(self):
         # The attestation's operator= line is checked at append time against the attesting operator,
         # but the digest line is only a string then: an attester can bind a record someone else
@@ -436,7 +482,7 @@ class ExampleProjectTests(AcceptanceBase):
         (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
         checked = domain.status(ledger, records)
         self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
-        self.assertIn("operator differ", checked["reason"])
+        self.assertIn("record operator is not the attesting operator", checked["reason"])
         entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
         self.assertFalse(entry["evidence_verified"])
         self.assertEqual(Path(entry["evidence_path"]), records / "run.json", "the record was found; it did not verify")

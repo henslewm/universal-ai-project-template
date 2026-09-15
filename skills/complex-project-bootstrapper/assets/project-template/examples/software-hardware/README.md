@@ -86,8 +86,10 @@ with the test interpreter substituted. `hardware-evidence.example.json` shows th
    implementation actor.
 6. Keep the record file where `status --evidence-dir` can find it; the attestation's digest line
    is what binds it. Without `--evidence-dir`, `status` reports the attested digests as attested,
-   not record-verified, and says so in `evidence_basis` and `reason`; with it, a record recorded by
-   an operator other than the attesting one does not verify, even when the digest matches.
+   not record-verified, and says so in `evidence_basis` and `reason`; with it, the found file must
+   be a valid record for this task, validation and rung, recorded by the attesting operator, and
+   must say what the attestation's lines say — a digest-matched stub, another operator's record,
+   or a record whose device, firmware or time disagree with the attested lines does not verify.
 
 ## Boundaries
 
