@@ -253,7 +253,7 @@ def apply_result(state, result, timestamp):
     state["discoveries"].extend({"attempt_id": attempt["id"], **item} for item in result["discoveries"])
 
 
-def apply(state, event):
+def apply(state, event, stored=False):
     data, timestamp = event["data"], event["timestamp"]
     if state is None:
         if event["kind"] != "INIT":
@@ -374,7 +374,7 @@ def apply(state, event):
                                      "reason": diagnosis["reason"], "evidence": diagnosis["evidence"]}
     elif event["kind"] == "REVIEW":
         exact(data, {"decision"})
-        apply_review(state, data["decision"], timestamp)
+        apply_review(state, data["decision"], timestamp, stored)
     else:
         raise ValueError("Unknown ledger event kind")
     return state
@@ -387,14 +387,30 @@ def rejection_fingerprint(failures):
     return router.digest({"review_failures": normalized})
 
 
-def apply_review(state, decision, timestamp):
-    """Record an independent acceptance decision; the gates themselves live in the acceptance ledger."""
-    shape("review_decision", decision)
+def apply_review(state, decision, timestamp, stored=False):
+    """Record an independent acceptance decision; the gates themselves live in the acceptance ledger.
+
+    A new decision must carry its binding. A REVIEW event already stored in a ledger written
+    before the binding was required replays under the legacy shape, because hash-chained
+    history cannot be amended; the boundary is the presence of the binding fields, and only
+    replay of stored events may cross it.
+    """
+    legacy = stored and "binding" not in decision and "result_dispatch_id" not in decision
+    shape("review_decision_legacy" if legacy else "review_decision", decision)
     if state["pending"] or state["status"] != "REVIEW_PENDING":
         raise ValueError("A review decision requires an unreserved controller awaiting review")
     verdict, actor = decision["verdict"], decision["reviewer"]["actor"]
     if (verdict == "REJECT_BOUNDED") != bool(decision["contract_failures"]):
         raise ValueError("Exactly a bounded rejection names contract failures")
+    if not legacy:
+        # A decision is evidence about one task revision and one worker result. Recording another
+        # ledger's decision here would let a mix-up of ledger paths accept work nobody reviewed.
+        expected = binding(state["packet"])
+        if any(decision["binding"][key] != expected[key] for key in ("task_id", "revision", "contract_hash")):
+            raise ValueError("Acceptance decision is bound to a different task, revision or contract than this ledger")
+        reviewed = state["attempts"][-1]["result"] if state["attempts"] else None
+        if reviewed is None or reviewed["dispatch_id"] != decision["result_dispatch_id"]:
+            raise ValueError("Acceptance decision reviewed a different worker result than the one awaiting review")
     contract = wp.current(state["packet"])["contract"]
     known = ({entry["id"] for entry in contract["acceptance_criteria"]}
              | {check["id"] for check in contract["validation"]})
@@ -456,7 +472,7 @@ def replay(directory):
         current_time = instant(event["timestamp"])
         if previous_time and current_time < previous_time:
             raise ValueError("Feedback ledger timestamps descend")
-        state = apply(state, event)
+        state = apply(state, event, stored=True)
         previous, previous_time = claimed, current_time
     return state, sequence, previous
 

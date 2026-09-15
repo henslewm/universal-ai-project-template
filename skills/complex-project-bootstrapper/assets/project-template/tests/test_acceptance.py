@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -23,6 +24,7 @@ acceptance = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(acceptance)
 wp = acceptance.wp
 feedback = acceptance.feedback
+import github_ledger  # noqa: E402  (the publication seam is exercised end to end below)
 ANCHOR = "a" * 64
 PASS_ARGV = [sys.executable, "-c", "raise SystemExit(0)"]
 FAIL_ARGV = [sys.executable, "-c", "print('observed failure'); raise SystemExit(3)"]
@@ -106,6 +108,47 @@ def make_report(prepared, contract, verdict="APPROVE", **changes):
     }
     value.update(changes)
     return value
+
+
+def bound_to(fb_state, result):
+    """The binding fields decision_for carries; hand-built decisions must carry them too."""
+    packet_binding = feedback.binding(fb_state["packet"])
+    return {"binding": {key: packet_binding[key] for key in ("task_id", "revision", "contract_hash")},
+            "result_dispatch_id": result["dispatch_id"]}
+
+
+def process_alive(pid):
+    if os.name == "nt":
+        import ctypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        alive = bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259
+        kernel32.CloseHandle(handle)
+        return alive
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    try:
+        # A killed child reparented to init is reaped by init; a zombie under us needs a wait.
+        return os.waitpid(pid, os.WNOHANG) == (0, 0)
+    except ChildProcessError:
+        pass
+    # Not our child: in a container whose PID 1 does not reap orphans it may linger as a zombie,
+    # which cannot run or write, so its /proc state decides as the controller's own check does.
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="ascii", errors="replace")
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    fields = stat.rpartition(")")[2].split()
+    return not fields or fields[0] not in ("Z", "X", "x")
 
 
 def make_failure(ref="AC-VALID", kind="criterion", what="Observed value differs from the packet evidence"):
@@ -309,6 +352,461 @@ class DeterministicGateTests(AcceptanceBase):
                                                    "evidence": ["Observed the manual check pass", *HARDWARE_LINES]}},
                                   previous_state=acceptance.replay(ledger))
         self.assertTrue(acceptance.deterministic_satisfied(state))
+
+    def test_reviewer_below_the_contract_reviewer_tier_is_refused(self):
+        # Codex P1 on PR #21: a declared tier-0 reviewer could satisfy a tier-4 task's gate.
+        contract = make_contract(risk="medium")
+        contract["routing"]["reviewer_tier"] = 3
+        ledger, _ = self.start(packet=make_packet(contract))
+        self.checked(ledger)
+        with self.assertRaisesRegex(ValueError, "below the contract's reviewer_tier 3"):
+            self.open_review(ledger, reviewer={"actor": "Weak reviewer", "model_family": "sonnet", "tier": 2})
+        self.assertEqual(self.state(ledger)["reviews"], [])
+        prepared = self.open_review(ledger, reviewer={"actor": "Strong reviewer", "model_family": "sonnet", "tier": 4})
+        self.assertEqual(prepared["reviewer"]["tier"], 4)
+
+    def test_pre_tier_review_openings_replay_but_cannot_satisfy_a_new_acceptance(self):
+        # Codex P1 on PR #22 round 13: a ledger written before the tier was enforced holds a
+        # REVIEW_OPEN below the contract's reviewer_tier that was permitted at the time; it must
+        # replay, marked, and only a new opening or a new acceptance resting on it is refused.
+        contract = make_contract(risk="medium")
+        contract["routing"]["reviewer_tier"] = 3
+        ledger, _ = self.start(packet=make_packet(contract))
+        self.checked(ledger)
+        weak = {"actor": "Weak reviewer", "model_family": "sonnet", "tier": 2}
+
+        def stored_event(kind, data):
+            _, sequence, previous = acceptance.replay(ledger)
+            event = {"sequence": sequence + 1, "previous": previous, "kind": kind,
+                     "timestamp": wp.now(), "data": data}
+            event["hash"] = acceptance.router.digest(event)
+            (ledger / f"{sequence + 1:08d}.json").write_text(json.dumps(event, indent=2) + "\n", encoding="utf-8")
+
+        state = self.state(ledger)
+        review_id = acceptance.router.digest({"binding": state["binding"], "review_number": 1,
+                                              "gate": "model_review", "reviewer": weak})
+        stored_event("REVIEW_OPEN", {"review": {"review_id": review_id, "gate": "model_review", "reviewer": weak}})
+        state = self.state(ledger)
+        self.assertEqual(state["status"], "REVIEW_OPEN")
+        self.assertEqual(state["reviews"][0]["tier_shortfall"], 3)
+        prepared = {"review_id": review_id, "reviewer": weak}
+        self.ingest(ledger, make_report(prepared, contract))
+        self.assertEqual(self.state(ledger)["status"], "GATES_PENDING")
+        with self.assertRaisesRegex(ValueError, "opened at tier 2, below the contract's reviewer_tier 3"):
+            acceptance.accept(ledger, weak["actor"])
+        # An acceptance the previous controller already recorded on that review stands as history.
+        stored_event("ACCEPT", {"actor": weak["actor"]})
+        self.assertEqual(self.state(ledger)["status"], "ACCEPTED")
+        # A pending ledger recovers by opening a review at the required tier, and the legacy
+        # shortfall does not consume the attempt budget: with max_review_attempts 1 already spent
+        # on it, the compliant replacement must still have a slot (Codex P1, round 14).
+        ledger, _ = self.start(packet=make_packet(contract), config=self.config(max_review_attempts=1))
+        self.checked(ledger)
+        stored_event("REVIEW_OPEN", {"review": {"review_id": acceptance.router.digest(
+            {"binding": self.state(ledger)["binding"], "review_number": 1, "gate": "model_review", "reviewer": weak}),
+            "gate": "model_review", "reviewer": weak}})
+        self.ingest(ledger, make_report({"review_id": self.state(ledger)["reviews"][0]["review_id"], "reviewer": weak}, contract))
+        strong = {"actor": "Strong reviewer", "model_family": "sonnet", "tier": 4}
+        prepared = self.open_review(ledger, reviewer=strong)
+        ingested = self.ingest(ledger, make_report(prepared, contract))
+        # Codex P2 on PR #22 round 15: every exposed reviews_used figure has the same semantics.
+        self.assertEqual((ingested["reviews_used"], ingested["max_review_attempts"]), (1, 1))
+        self.assertEqual(acceptance.accept(ledger, strong["actor"])["status"], "ACCEPTED")
+        self.assertNotIn("tier_shortfall", self.state(ledger)["reviews"][1])
+        self.assertEqual(acceptance.reviews_used(self.state(ledger)), 1)
+
+    def test_symlinked_directory_in_the_workspace_is_refused(self):
+        # Codex P2 on PR #21: a directory symlink is neither a file nor descended into, so the
+        # digest silently omitted everything a check could read through it.
+        ledger, _ = self.start()
+        space = self.workspace()
+        outside = self.directory / "outside"
+        outside.mkdir()
+        (outside / "input.txt").write_text("changes without changing the digest\n", encoding="utf-8")
+        try:
+            os.symlink(outside, space / "linked", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, space)
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_symlinked_workspace_root_is_refused_before_resolution(self):
+        # Codex P2 on PR #22: resolve() replaced a symlinked root with its target first.
+        ledger, _ = self.start()
+        real = self.workspace()
+        link = self.directory / "workspace-link"
+        try:
+            os.symlink(real, link, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        with self.assertRaisesRegex(ValueError, "is or lies under a link"):
+            acceptance.run_checks(ledger, link)
+        self.assertIsNone(self.state(ledger)["checks"])
+        # Codex P2 on PR #22 round 11: an ordinary final component beneath a linked ancestor
+        # passed the root check and resolve() then followed the ancestor.
+        (real / "sub").mkdir()
+        with self.assertRaisesRegex(ValueError, "lies under a link"):
+            acceptance.run_checks(ledger, link / "sub")
+        self.assertIsNone(self.state(ledger)["checks"])
+        # Codex P2 on PR #22 round 12: abspath() collapses link/../real lexically to real while
+        # the filesystem would follow the link first, so a parent reference is refused outright.
+        with self.assertRaisesRegex(ValueError, "contains '..'"):
+            acceptance.run_checks(ledger, link / ".." / real.name)
+        self.assertIsNone(self.state(ledger)["checks"])
+        self.assertTrue(acceptance.run_checks(ledger, real)["satisfied"])
+
+    @unittest.skipUnless(os.name == "nt", "NTFS junctions only")
+    def test_junctioned_workspace_root_and_nested_junction_are_refused(self):
+        # Codex P2 on PR #22 round 10: a junction is not a symlink to is_symlink(), yet resolve()
+        # follows it and the scanner descends into it, so checks ran in and digested its target.
+        ledger, _ = self.start()
+        real = self.workspace()
+        outside = self.directory / "outside"
+        outside.mkdir()
+        (outside / "input.txt").write_text("read through the junction\n", encoding="utf-8")
+        link = self.directory / "workspace-junction"
+        made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(real)], capture_output=True, shell=False)
+        if made.returncode != 0:
+            self.skipTest(f"junctions unavailable here: {made.stderr.decode(errors='replace')}")
+        self.assertFalse(link.is_symlink(), "a junction must not already read as a symlink, or the test proves nothing")
+        self.assertTrue(acceptance.is_link(link))
+        with self.assertRaisesRegex(ValueError, "is or lies under a link"):
+            acceptance.run_checks(ledger, link)
+        self.assertIsNone(self.state(ledger)["checks"])
+        (real / "sub").mkdir()
+        with self.assertRaisesRegex(ValueError, "lies under a link"):
+            acceptance.run_checks(ledger, link / "sub")
+        self.assertIsNone(self.state(ledger)["checks"])
+        nested = real / "linked"
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(nested), str(outside)], capture_output=True, shell=False, check=True)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, real)
+        self.assertIsNone(self.state(ledger)["checks"])
+        subprocess.run(["cmd", "/c", "rmdir", str(nested)], capture_output=True, shell=False, check=True)
+        self.assertTrue(acceptance.run_checks(ledger, real)["satisfied"])
+
+    def test_timeout_is_enforced_when_a_descendant_holds_the_output_pipes(self):
+        # Codex P1 on PR #22: killing only the immediate process left a grandchild holding
+        # the pipes, and the unconditional reader joins waited on it indefinitely.
+        script = ("import subprocess, sys, time\n"
+                  "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+                  "sys.stdout.write('parent started'); sys.stdout.flush(); time.sleep(120)")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script], timeout=2)
+        started = time.monotonic()
+        self.checked(ledger)
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, 2 + acceptance.DRAIN_GRACE_SECONDS + 10, "reader joins were not bounded")
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertTrue(entry["timed_out"])
+        self.assertFalse(entry["passed"])
+        self.assertIn("parent started", entry["stdout"])
+
+    def test_symlink_removed_by_a_check_is_caught_before_execution(self):
+        # Codex P1 on PR #22 round 2: a check could read through a link, remove it, and pass
+        # a post-run scan with a digest that never saw the linked inputs.
+        removal = [sys.executable, "-c", "import os; os.rmdir('linked') if os.path.isdir('linked') else os.remove('linked')"]
+        ledger, _ = self.start(argv=removal)
+        space = self.workspace()
+        outside = self.directory / "outside-inputs"
+        outside.mkdir()
+        try:
+            os.symlink(outside, space / "linked", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, space)
+        self.assertTrue((space / "linked").is_symlink(), "the check must not have run")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_descendant_left_behind_by_a_normal_exit_is_killed(self):
+        # Codex P1 on PR #22 round 2: the parent exits normally, a grandchild keeps the pipes,
+        # and abandoning the readers left it running indefinitely.
+        script = ("import subprocess, sys\n"
+                  "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+                  "open('grandchild.pid', 'w').write(str(child.pid)); sys.stdout.write('parent done')")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script])
+        space = self.workspace()
+        started = time.monotonic()
+        acceptance.run_checks(ledger, space)
+        self.assertLess(time.monotonic() - started, 2 * acceptance.DRAIN_GRACE_SECONDS + 10)
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertFalse(entry["passed"])
+        self.assertTrue(entry["timed_out"])
+        self.assertIn("parent done", entry["stdout"])
+        pid = int((space / "grandchild.pid").read_text())
+        self.assertFalse(process_alive(pid), "the grandchild was alive when the digest was taken")
+
+    def test_symlink_created_by_one_check_and_consumed_by_the_next_is_caught(self):
+        # Codex P1 on PR #22 round 3: with several commands, a scan only before the loop and
+        # after it never sees a link that the first check creates and the second removes.
+        outside = self.directory / "outside-inputs"
+        outside.mkdir()
+        try:
+            probe = self.directory / "probe-link"
+            os.symlink(outside, probe, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        contract = make_contract()
+        contract["validation"][0]["criterion_ids"] = ["AC-VALID"]
+        contract["validation"][0]["command"] = {"argv": [
+            sys.executable, "-c", f"import os; os.symlink({str(outside)!r}, 'linked', target_is_directory=True)"]}
+        contract["validation"].append({"id": "VAL-SECOND", "description": "Consumes and removes the link.",
+                                       "criterion_ids": ["AC-INVALID"], "evidence_required": ["Recorded outcome."],
+                                       "command": {"argv": [sys.executable, "-c",
+                                                            "import os; os.rmdir('linked'); open('second-ran', 'w').close()"]}})
+        ledger, _ = self.start(packet=make_packet(contract))
+        space = self.workspace()
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, space)
+        self.assertTrue((space / "linked").is_symlink(), "the first check ran and left its link")
+        self.assertFalse((space / "second-ran").exists(), "the second check must not have run")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_check_tree_is_ended_on_every_exit_path_including_a_controller_failure(self):
+        # ADR-024 invariant (b): the tree is killable and killed on EVERY exit path. Rounds 1-8
+        # each guarded one exit (timeout, abandoned drain, normal exit, dying member); this
+        # asserts the invariant itself by leaving through a path none of them named — an
+        # exception raised in the controller while the check is running.
+        script = ("import os, subprocess, sys\n"
+                  "child = subprocess.Popen([sys.executable, '-c', "
+                  "'import os, time; os.close(1); os.close(2); time.sleep(120)'])\n"
+                  "open('quiet-grandchild.pid', 'w').write(str(child.pid)); sys.stdout.flush(); "
+                  "import time; time.sleep(120)")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script])
+        space = self.workspace()
+        real_wait = subprocess.Popen.wait
+
+        def wait(process, timeout=None):
+            if timeout is None:  # ProcessTree.kill()/close() wait without a timeout; let them.
+                return real_wait(process)
+            deadline = time.monotonic() + 30
+            while not (space / "quiet-grandchild.pid").exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            raise RuntimeError("injected controller failure while the check was running")
+
+        with mock.patch.object(subprocess.Popen, "wait", wait):
+            with self.assertRaisesRegex(RuntimeError, "injected controller failure"):
+                acceptance.run_checks(ledger, space)
+        pid = int((space / "quiet-grandchild.pid").read_text())
+        self.assertFalse(process_alive(pid), "the grandchild outlived a check that left through an exception")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_a_teardown_error_refuses_the_run_instead_of_becoming_a_check_result(self):
+        # Codex P1 on PR #22 round 16: the launch-error handler wrapped the whole owned block,
+        # so an OSError raised while confirming the tree stopped (an unreadable /proc with the
+        # group still present) became an ordinary failed check and the digest ran anyway. Only
+        # a launch failure is a check result; an owner/teardown error propagates and refuses.
+        ledger, _ = self.start()
+        space = self.workspace()
+        with mock.patch.object(acceptance.ProcessTree, "close", side_effect=OSError("proc unreadable")):
+            with self.assertRaisesRegex(OSError, "proc unreadable"):
+                acceptance.run_checks(ledger, space)
+        self.assertIsNone(self.state(ledger)["checks"], "a run whose tree was never confirmed stopped recorded CHECKS")
+        # A launch failure is still an ordinary failed check, recorded and not raised.
+        ledger, _ = self.start(argv=[str(space / "no-such-program")])
+        outcome = self.checked(ledger)
+        self.assertFalse(outcome["satisfied"])
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertIsNone(entry["exit_code"])
+        self.assertFalse(entry["passed"])
+
+    def test_no_command_runs_with_a_cwd_that_is_or_lies_under_a_link(self):
+        # ADR-024 invariant (a): a check runs only in a workspace established as trusted, and
+        # its cwd is inspected component by component before anything follows it. The link is
+        # created by an earlier command, after the initial trust was established, so only the
+        # per-command re-check can refuse it — and it must refuse before the command runs.
+        contract = make_contract(argv=[sys.executable, "-c", "import os; os.symlink('real', 'linked', target_is_directory=True)"])
+        second = copy.deepcopy(contract["validation"][0])
+        second["id"] = "VC-LINKED-CWD"
+        second["command"] = {"argv": [sys.executable, "-c", "open('marker', 'w').write('ran')"], "cwd": "linked"}
+        contract["validation"].append(second)
+        ledger, _ = self.start(packet=make_packet(contract))
+        space = self.workspace()
+        (space / "real").mkdir()
+        try:
+            os.symlink(space / "real", space / "probe", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        (space / "probe").unlink()
+        with self.assertRaisesRegex(ValueError, "Check cwd is or lies under a link"):
+            acceptance.run_checks(ledger, space)
+        self.assertTrue((space / "linked").is_symlink(), "the first command must have created the link")
+        self.assertFalse((space / "real" / "marker").exists(), "the second command ran through the link")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    def test_descendant_that_closed_its_pipes_does_not_outlive_the_check(self):
+        # Codex P1 on PR #22 round 3: a descendant that closes stdout and stderr lets the readers
+        # finish, so nothing was abandoned and nothing was killed; it must still be ended.
+        script = ("import os, subprocess, sys\n"
+                  "child = subprocess.Popen([sys.executable, '-c', "
+                  "'import os, time; os.close(1); os.close(2); time.sleep(120)'])\n"
+                  "open('quiet-grandchild.pid', 'w').write(str(child.pid)); print('parent done')")
+        ledger, _ = self.start(argv=[sys.executable, "-c", script])
+        space = self.workspace()
+        started = time.monotonic()
+        acceptance.run_checks(ledger, space)
+        # On POSIX the readers finish and the check passes; on Windows the grandchild still holds
+        # a duplicated handle and is ended through the abandoned-drain path. Either way it is
+        # already dead when run_checks returns: the digest was taken only after the tree stopped.
+        self.assertLess(time.monotonic() - started, 3 * acceptance.DRAIN_GRACE_SECONDS + 10)
+        pid = int((space / "quiet-grandchild.pid").read_text())
+        self.assertFalse(process_alive(pid), "the quiet grandchild was alive when the digest was taken")
+
+    def test_zombie_only_process_group_counts_as_stopped(self):
+        # Codex P1 on PR #22 round 8: in a container without a reaping PID 1, killed descendants
+        # stay in the group as zombies and group existence never reports stopped.
+        proc = self.directory / "fake-proc"
+        for pid, stat in ((101, "101 (a b) Z 1 4242 4242 0 -1"), (102, "102 (odd) name) S 1 4242 4242 0 -1"),
+                          (103, "103 (other) S 1 9999 9999 0 -1"), (104, "104 (x) X 1 4242 4242 0 -1")):
+            (proc / str(pid)).mkdir(parents=True)
+            (proc / str(pid) / "stat").write_text(stat + " 0 0\n", encoding="ascii")
+        (proc / "self").mkdir()
+        (proc / "notpid").mkdir()
+        self.assertEqual(acceptance.runnable_group_members(4242, proc), 1)
+        (proc / "102" / "stat").write_text("102 (odd) name) Z 1 4242 4242 0 -1 0 0\n", encoding="ascii")
+        self.assertEqual(acceptance.runnable_group_members(4242, proc), 0)
+        self.assertIsNone(acceptance.runnable_group_members(4242, self.directory / "no-proc"))
+        with mock.patch.object(acceptance, "PROC_ROOT", proc):
+            tree = acceptance.ProcessTree.__new__(acceptance.ProcessTree)
+            tree.job, tree.pgid = None, 4242
+            with mock.patch.object(acceptance.os, "name", "posix"), \
+                    mock.patch.object(acceptance.os, "killpg", create=True, return_value=None):
+                self.assertFalse(tree.members_alive(), "zombies only: the tree is stopped")
+        # Unknown fails closed: an unreadable record (a directory where the file should be) and
+        # an unparseable one both count as alive; only a vanished record is skipped. The fake
+        # pids are placed in our group by the kernel answer, since they do not exist here.
+        (proc / "105").mkdir()
+        (proc / "105" / "stat").mkdir()
+        with mock.patch.object(acceptance.os, "getpgid", create=True, return_value=4242):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1)
+            (proc / "106").mkdir()
+            (proc / "106" / "stat").write_text("garbage\n", encoding="ascii")
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
+            (proc / "107").mkdir()  # No stat file at all: the process vanished after listing.
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
+        # Codex P2 on PR #22 round 17 and P1 on round 18: on a hidepid mount every unrelated
+        # process's record is unreadable and a zombie-only group passes the kernel probe, so
+        # those records made a completed run refuse; but ownership cannot rule a record out,
+        # because a setuid helper changes owner without leaving the group. The kernel answers
+        # membership directly: getpgid needs no /proc permission. Another group is skipped, a
+        # vanished pid is skipped, our own group or any other failure stays unknown and alive.
+        with mock.patch.object(acceptance.os, "getpgid", create=True, return_value=9999):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1, "another group's unreadable record counted")
+        with mock.patch.object(acceptance.os, "getpgid", create=True, return_value=4242):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2, "our own group's unreadable record was skipped")
+        with mock.patch.object(acceptance.os, "getpgid", create=True, side_effect=ProcessLookupError):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1, "a vanished pid cannot be a live member")
+        with mock.patch.object(acceptance.os, "getpgid", create=True, side_effect=PermissionError("denied")):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2, "an unanswerable membership must fail closed")
+        with mock.patch.object(acceptance.os, "getpgid", None, create=True):
+            self.assertFalse(acceptance.in_another_group(105, 4242), "no getpgid on this platform: unknown")
+        # Codex P2 on PR #22 round 10: the unreadable records above belong to nobody in particular
+        # (a hidepid mount hides every unrelated process the same way), so the kernel is asked
+        # first: a group that no longer exists is stopped whatever /proc shows, and only a group
+        # that remains has its /proc records counted, still failing closed on the unreadable ones.
+        with mock.patch.object(acceptance, "PROC_ROOT", proc), mock.patch.object(acceptance.os, "name", "posix"):
+            with mock.patch.object(acceptance.os, "killpg", create=True, side_effect=ProcessLookupError):
+                self.assertFalse(tree.members_alive(), "no group left: stopped despite unreadable records")
+            with mock.patch.object(acceptance.os, "killpg", create=True, return_value=None):
+                self.assertTrue(tree.members_alive(), "group remains and records are unreadable: alive")
+            with mock.patch.object(acceptance.os, "killpg", create=True, side_effect=PermissionError):
+                self.assertTrue(tree.members_alive(), "a group the controller cannot signal is alive")
+
+    def test_run_refuses_when_the_tree_cannot_be_confirmed_stopped(self):
+        # Codex P1 on PR #22 round 7: the digest must not be taken while a member is still dying.
+        ledger, _ = self.start()
+        with mock.patch.object(acceptance.ProcessTree, "members_alive", return_value=True):
+            with self.assertRaisesRegex(ValueError, "could not be confirmed stopped"):
+                acceptance.run_checks(ledger, self.workspace())
+        self.assertIsNone(self.state(ledger)["checks"])
+
+    @unittest.skipUnless(os.name == "nt", "Windows job objects only")
+    def test_windows_check_belongs_to_its_job_before_it_runs(self):
+        # Codex P1 on PR #22 round 4: assignment after launch left a window for a fast check
+        # to spawn and exit unisolated. The check is created suspended, assigned, then resumed.
+        process = subprocess.Popen([sys.executable, "-c", "print('ran after resume')"], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, creationflags=acceptance.ProcessTree.creation_flags())
+        tree = acceptance.ProcessTree(process)
+        self.assertIsNotNone(tree.job, "the suspended check must be in a job before it resumes")
+        out, _ = process.communicate(timeout=30)
+        self.assertEqual(process.returncode, 0)
+        self.assertIn(b"ran after resume", out)
+        tree.close()
+
+    def test_workspace_entry_bound_is_enforced_while_scanning(self):
+        # Codex P2 on PR #22 round 5: the tree was materialized before the file bound applied,
+        # so a workspace of many directories and few files could exhaust the controller.
+        ledger, _ = self.start(config=self.config(workspace_digest_max_files=2))
+        space = self.workspace(files=("one.txt",))
+        for index in range(acceptance.ENTRY_MULTIPLIER * 2 + 1):
+            (space / f"dir-{index}").mkdir()
+        with self.assertRaisesRegex(ValueError, "entry bound"):
+            acceptance.run_checks(ledger, space)
+        self.assertIsNone(self.state(ledger)["checks"])
+        ledger, _ = self.start(config=self.config(workspace_digest_max_files=2))
+        small = self.workspace(files=("one.txt", "two.txt", "three.txt"))
+        with self.assertRaisesRegex(ValueError, "digest bound"):
+            acceptance.run_checks(ledger, small)
+
+    @unittest.skipUnless(os.name == "nt", "Windows job objects only")
+    def test_windows_run_refuses_when_the_job_cannot_be_set_up(self):
+        # Codex P1 on PR #22 round 6: resuming without a job left no enforceable cleanup.
+        ledger, _ = self.start()
+        with mock.patch.object(acceptance.ProcessTree, "_windows_job", return_value=None):
+            with self.assertRaisesRegex(ValueError, "not run unisolated"):
+                acceptance.run_checks(ledger, self.workspace())
+        self.assertIsNone(self.state(ledger)["checks"])
+        process = subprocess.Popen([sys.executable, "-c", "print('never')"], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, creationflags=acceptance.ProcessTree.creation_flags())
+        with mock.patch.object(acceptance.ProcessTree, "_windows_job", return_value=None):
+            with self.assertRaises(ValueError):
+                acceptance.ProcessTree(process)
+        self.assertIsNotNone(process.poll(), "the suspended check must have been killed, not resumed")
+        # Codex P2 on PR #22 round 9: a resume failure must refuse now, not wait out the timeout.
+        process = subprocess.Popen([sys.executable, "-c", "print('never')"], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, creationflags=acceptance.ProcessTree.creation_flags())
+        with mock.patch.object(acceptance.ProcessTree, "_windows_resume", return_value=0):
+            with self.assertRaisesRegex(ValueError, "could not be resumed"):
+                acceptance.ProcessTree(process)
+        self.assertIsNotNone(process.poll(), "the unresumable check must have been killed")
+
+    def test_workspace_scan_does_not_use_a_buffering_traversal(self):
+        # Codex P2 on PR #22 round 6: Path.rglob/walk list a whole directory before yielding.
+        ledger, _ = self.start()
+        space = self.workspace(files=("a.txt", "b.txt"))
+        (space / "nested").mkdir()
+        (space / "nested" / "c.txt").write_text("x", encoding="utf-8")
+        with mock.patch.object(Path, "rglob", side_effect=AssertionError("rglob must not be used")):
+            with mock.patch.object(Path, "walk", side_effect=AssertionError("walk must not be used"), create=True):
+                files = acceptance.scan_workspace(space, self.config()["policy"])
+        self.assertEqual([f.name for f in files], ["a.txt", "b.txt", "c.txt"])
+
+    def test_check_output_is_bounded_while_running_and_hashed_in_full(self):
+        # Codex P2 on PR #21: capture_output buffered everything before the bound applied.
+        payload = 300000
+        argv = [sys.executable, "-c", f"import sys; sys.stdout.write('x' * {payload}); sys.stderr.write('e' * 10)"]
+        ledger, _ = self.start(argv=argv, config=self.config(check_output_max_chars=200))
+        self.checked(ledger)
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertTrue(entry["passed"])
+        self.assertEqual(len(entry["stdout"]), 200)
+        self.assertEqual(entry["stderr"], "e" * 10)
+        self.assertTrue(entry["output_truncated"])
+        expected = acceptance.stream_digest(hashlib.sha256(b"x" * payload).hexdigest(),
+                                            hashlib.sha256(b"e" * 10).hexdigest())
+        self.assertEqual(entry["output_sha256"], expected)
+
+    def test_runaway_output_is_stopped_at_the_timeout_with_a_bounded_record(self):
+        argv = [sys.executable, "-c", "import sys\nwhile True: sys.stdout.write('y' * 65536)"]
+        ledger, _ = self.start(argv=argv, timeout=2, config=self.config(check_output_max_chars=200))
+        self.checked(ledger)
+        entry = self.state(ledger)["checks"]["results"][0]
+        self.assertTrue(entry["timed_out"])
+        self.assertFalse(entry["passed"])
+        self.assertIsNone(entry["exit_code"])
+        self.assertEqual(entry["stdout"], "y" * 200)
+        self.assertTrue(entry["output_truncated"])
 
     def test_attestation_over_a_runnable_check_is_refused(self):
         ledger, _ = self.start(argv=FAIL_ARGV)
@@ -734,6 +1232,78 @@ class FeedbackIntegrationTests(AcceptanceBase):
         self.assertEqual(outcome["packet_state"], "ACCEPTED")
         with self.assertRaisesRegex(ValueError, "Controller hold"):
             feedback.reserve(fb, self.settings, self.options(), self.directory)
+        # ADR-025: the accepted task can complete publication. The GitHub ledger refused any
+        # feedback ledger not still at REVIEW_PENDING, so recording the acceptance made the
+        # task unpublishable — the two subsystems were mutually exclusive at the closing step.
+        fb_state = feedback.replay(fb)[0]
+        events = [wp.read_json(path) for path in sorted(fb.glob("*.json"))]
+        verified = wp.transition(fb_state["packet"], "VERIFIED", "integrator", "Integrator",
+                                 "Synthetic verification", ["synthetic://checks"])
+        row = {"issue": 2, "packet": verified, "feedback": events, "branch": None, "pr": None,
+               "superseded_prs": [], "discoveries": {},
+               "acceptance": {"commit": "c" * 40, "evidence": ["synthetic://checks"],
+                              "review": ["synthetic://independent-review"]}}
+        github_ledger.row_valid(fb_state["packet"]["task_id"], row, fb_state["anchor"])
+        # Still refused: a receipt on the accepted-but-unverified packet, so the integrator step
+        # is not skipped; the packet state machine itself forbids any non-reviewer/integrator
+        # transition out of ACCEPTED, and held or unfinished ledgers stay refused as before.
+        premature = dict(row, packet=fb_state["packet"])
+        with self.assertRaisesRegex(ValueError, "Acceptance requires a VERIFIED packet"):
+            github_ledger.row_valid(fb_state["packet"]["task_id"], premature, fb_state["anchor"])
+
+    def test_acceptance_decision_is_bound_to_its_own_task_and_result(self):
+        # Codex P1 on PR #21: task A's accepted ledger forwarded to task B's feedback ledger
+        # recorded A's APPROVE against B. Now the decision carries its binding and the
+        # reviewed result, and both the forwarding step and the task ledger refuse a mismatch.
+        contract_a = make_contract(risk="medium")
+        contract_a["retry_budget"]["max_attempts"] = 8
+        contract_b = copy.deepcopy(contract_a)
+        contract_b["goal"] = "A different task under review at the same time"
+        fb_a, state_a, result_a = self.feedback_to_review(contract_a)
+        fb_b, state_b, result_b = self.feedback_to_review(contract_b)
+        ledger = self.acceptance_for(state_a, result_a)
+        self.checked(ledger)
+        prepared = self.open_review(ledger)
+        self.ingest(ledger, make_report(prepared, wp.current(state_a["packet"])["contract"]))
+        acceptance.accept(ledger, REVIEWER["actor"])
+        with self.assertRaisesRegex(ValueError, "bound to different task revisions"):
+            acceptance.sync_feedback(ledger, fb_b)
+        self.assertEqual(feedback.replay(fb_b)[0]["status"], "REVIEW_PENDING")
+        decision = acceptance.decision_for(*[acceptance.replay(ledger)[i] for i in (0, 2)])
+        self.assertEqual(decision["binding"]["task_id"], state_a["packet"]["task_id"])
+        self.assertEqual(decision["result_dispatch_id"], result_a["dispatch_id"])
+        for field, value in (("binding", {**decision["binding"], "contract_hash": "a" * 64}),
+                             ("binding", {**decision["binding"], "revision": 2}),
+                             ("binding", {**decision["binding"], "task_id": "OTHER-TASK"}),
+                             ("result_dispatch_id", "d" * 64)):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "different"):
+                feedback.review(fb_a, {**decision, field: value})
+        with self.assertRaisesRegex(ValueError, "different task, revision or contract"):
+            feedback.review(fb_b, decision)
+        self.assertEqual(feedback.replay(fb_b)[0]["status"], "REVIEW_PENDING")
+        outcome = acceptance.sync_feedback(ledger, fb_a)
+        self.assertEqual(outcome["feedback_status"], "ACCEPTED")
+
+    def test_pre_binding_review_events_replay_but_new_decisions_require_the_binding(self):
+        # Codex P1 on PR #22 round 2: a ledger written before the binding was required must still
+        # replay; only a new REVIEW event must carry the binding.
+        contract = make_contract(risk="medium")
+        contract["retry_budget"]["max_attempts"] = 8
+        fb, state, result = self.feedback_to_review(contract)
+        legacy = {"review_id": "f" * 64, "verdict": "NEEDS_ESCALATION", "reviewer": dict(REVIEWER),
+                  "summary": "Recorded by the previous schema", "evidence": ["legacy evidence"],
+                  "contract_failures": [], "acceptance_reference": "acceptance-ledger:legacy"}
+        with self.assertRaisesRegex(ValueError, "binding.*required|required property"):
+            feedback.review(fb, legacy)
+        # Write the legacy event exactly as the previous version stored it, on the hash chain.
+        _, sequence, previous = feedback.replay(fb)
+        event = {"sequence": sequence + 1, "previous": previous, "kind": "REVIEW",
+                 "timestamp": wp.now(), "data": {"decision": legacy}}
+        event["hash"] = acceptance.router.digest(event)
+        (fb / f"{sequence + 1:08d}.json").write_text(json.dumps(event, indent=2) + "\n", encoding="utf-8")
+        replayed = feedback.replay(fb)[0]
+        self.assertEqual((replayed["status"], replayed["reason"]), ("NEEDS_ARCHITECT", "REVIEW_ESCALATED"))
+        self.assertEqual(replayed["packet"]["state"], "ESCALATED")
 
     def test_approval_alone_does_not_close_the_feedback_task(self):
         contract = make_contract(risk="medium")
@@ -782,13 +1352,16 @@ class FeedbackIntegrationTests(AcceptanceBase):
                     "contract_failures": [{"failed_ref": "AC-VALID", "kind": "criterion",
                                            "what_failed": "Observed defect",
                                            "corrective_action": "Fix within contract"}],
-                    "acceptance_reference": "acceptance-ledger:synthetic"}
+                    "acceptance_reference": "acceptance-ledger:synthetic", **bound_to(state, result)}
         feedback.review(fb, decision)
         self.assertEqual(feedback.replay(fb)[0]["status"], "IN_PROGRESS")
         dispatch = feedback.reserve(fb, self.settings, self.options(), self.directory)
-        feedback.complete(fb, make_result(feedback.replay(fb)[0]["packet"],
-                                          dispatch_id=dispatch["dispatch_id"]))
+        second = make_result(feedback.replay(fb)[0]["packet"], dispatch_id=dispatch["dispatch_id"])
+        feedback.complete(fb, second)
         self.assertEqual(feedback.replay(fb)[0]["status"], "REVIEW_PENDING")
+        with self.assertRaisesRegex(ValueError, "different worker result"):
+            feedback.review(fb, decision)  # The first decision reviewed the first result, not this one.
+        decision.update(bound_to(feedback.replay(fb)[0], second))
         feedback.review(fb, decision)
         final = feedback.replay(fb)[0]
         self.assertEqual((final["status"], final["reason"]),
@@ -805,7 +1378,8 @@ class FeedbackIntegrationTests(AcceptanceBase):
                             self.settings, self.directory, ARCHITECT)
         decision = {"review_id": "f" * 64, "verdict": "APPROVE", "reviewer": dict(REVIEWER),
                     "summary": "Premature", "evidence": ["x"], "contract_failures": [],
-                    "acceptance_reference": "acceptance-ledger:synthetic"}
+                    "acceptance_reference": "acceptance-ledger:synthetic",
+                    **bound_to(feedback.replay(fb)[0], {"dispatch_id": "e" * 64})}
         with self.assertRaisesRegex(ValueError, "awaiting review"):
             feedback.review(fb, decision)
 
@@ -814,6 +1388,7 @@ class FeedbackIntegrationTests(AcceptanceBase):
         contract["retry_budget"]["max_attempts"] = 8
         fb, state, result = self.feedback_to_review(contract)
         decision = {"review_id": "f" * 64, "verdict": "NEEDS_ESCALATION", "reviewer": dict(REVIEWER),
+                    **bound_to(state, result),
                     "summary": "Synthetic escalation to reach an architect hold",
                     "evidence": ["Synthetic review evidence"], "contract_failures": [],
                     "acceptance_reference": "acceptance-ledger:synthetic"}
