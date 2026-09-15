@@ -101,7 +101,8 @@ def hardware_lines():
     return ["hardware-evidence:sha256=" + "b" * 64, "level=hardware_in_loop", "device=Synthetic unit SN-0",
             "firmware=0.0.0-synthetic", f"observed_at={wp.now()}", "outcome=pass", "operator=Operator",
             "dispatch_id=" + "e" * 64,  # matches make_result's default dispatch_id
-            "artifact_sha256=6766882d92d43cc00acde5b113705a943655c2276020f2ae14458c28fa5b30b1"]  # make_artifact's default content
+            # acceptance.artifact_identity of make_artifact()'s default reference and content combined (ADR-054)
+            "artifact_sha256=ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff"]
 
 
 CONTROLLER, ARCHITECT = "Acceptance controller", "Architect"
@@ -296,6 +297,17 @@ class InitTests(AcceptanceBase):
             acceptance.initialize(self.directory / "big", self.config(artifact_max_chars=200), packet,
                                   make_result(packet), make_artifact("x" * 300 + "\n"),
                                   CONTROLLER, ARCHITECT, IMPLEMENTERS, [])
+
+    def test_artifact_identity_binds_reference_not_only_sha256(self):
+        # Codex round 22 on PR #34 (ADR-054): checked_artifact permits empty content for a
+        # reference-kind artifact, so its sha256 alone is then the fixed empty-content digest
+        # regardless of what reference names -- a resubmission could change the referenced commit
+        # while sha256 (and dispatch_id) stay the same. artifact_identity binds both together.
+        empty_a = dict(make_artifact(""), kind="reference", reference="branch A at commit 1111")
+        empty_b = dict(make_artifact(""), kind="reference", reference="branch A at commit 2222")
+        self.assertEqual(empty_a["sha256"], empty_b["sha256"])
+        self.assertNotEqual(acceptance.artifact_identity(empty_a), acceptance.artifact_identity(empty_b))
+        self.assertEqual(acceptance.artifact_identity(empty_a), acceptance.artifact_identity(dict(empty_a)))
 
     def test_ledger_tampering_is_detected_on_replay(self):
         ledger, _ = self.start()

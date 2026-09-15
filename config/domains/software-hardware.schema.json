@@ -179,7 +179,7 @@
         },
         "artifact_sha256": {
           "$ref": "#/$defs/sha256",
-          "description": "The submitted artifact's sha256 at the time this observation was made, checked against the acceptance ledger's current artifact for the same reason as dispatch_id: a resubmission can replace the artifact together with the result while leaving the contract and revision untouched."
+          "description": "The submitted artifact's identity at the time this observation was made, checked against the acceptance ledger's current artifact for the same reason as dispatch_id: a resubmission can replace the artifact together with the result while leaving the contract and revision untouched. This is not the artifact's own `sha256` field alone: a reference-kind artifact may carry empty content (and so the fixed empty-content digest) regardless of what it references, so the identity checked here combines the artifact's `reference` and `sha256` together."
         },
         "validation_id": {
           "$ref": "#/$defs/identifier"

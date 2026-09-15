@@ -87,6 +87,16 @@ def checked_artifact(artifact, policy):
     return artifact
 
 
+def artifact_identity(artifact) -> str:
+    """What actually identifies this artifact, not just `sha256` alone (Codex round 22 on PR #34):
+    a `reference`-kind artifact may carry empty `content` (checked_artifact permits it), so its
+    `sha256` is then the fixed empty-string digest regardless of what `reference` names -- a
+    resubmission could change the referenced commit while `sha256` (and `dispatch_id`) stay the
+    same. Binding on `reference` and `sha256` together means either changing identifies a
+    different artifact to a domain rule that checks it."""
+    return hashlib.sha256(f"{artifact['reference']}\n{artifact['sha256']}".encode("utf-8")).hexdigest()
+
+
 def pending_review(state):
     reviews = state["reviews"]
     if reviews and reviews[-1]["report"] is None and reviews[-1]["abandoned"] is None:
@@ -280,7 +290,7 @@ def apply(state, event, stored=False):
         if domain is not None and not state.get("domain_shortfall"):
             try:
                 domain.validate_attestation(state["contract"], attestation, timestamp,
-                                            state["result"]["dispatch_id"], state["artifact"]["sha256"],
+                                            state["result"]["dispatch_id"], artifact_identity(state["artifact"]),
                                             state["submitted_at"])
             except ValueError as exc:
                 # A stored attestation the profile rule would now refuse replays marked (ADR-032);

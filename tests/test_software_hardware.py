@@ -898,7 +898,7 @@ class ExampleProjectTests(AcceptanceBase):
         # UNVERIFIED_ON_HARDWARE only because this packet declares synthetic: true, per ADR-050).
         ledger, record = self.rejected_and_resubmitted_adapter(
             lambda original, result, artifact: live(original, dispatch_id=result["dispatch_id"],
-                                                     artifact_sha256=artifact["sha256"]))
+                                                     artifact_sha256=acceptance.artifact_identity(artifact)))
         records = self.directory / f"records-{self.counter}"
         records.mkdir()
         (records / "run.json").write_text(json.dumps(record), encoding="utf-8")

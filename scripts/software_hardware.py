@@ -352,7 +352,8 @@ def status(ledger, evidence_dir=None) -> dict:
     # Contract identity alone does not identify which implementation was tested: a rejected
     # result can be resubmitted under the same contract and revision (ADR-047), so record
     # verification also binds the observation to the submission the ledger currently holds.
-    submission = {**binding, "dispatch_id": state["result"]["dispatch_id"], "artifact_sha256": state["artifact"]["sha256"]}
+    submission = {**binding, "dispatch_id": state["result"]["dispatch_id"],
+                  "artifact_sha256": acceptance.artifact_identity(state["artifact"])}
     if binding["domain_profile"] != PROFILE:
         raise ValueError(f"Ledger profile is {binding['domain_profile']}, not {PROFILE}")
     if state.get("domain_shortfall"):

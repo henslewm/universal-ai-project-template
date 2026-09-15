@@ -4,7 +4,7 @@
   "revision": 1,
   "contract_hash": "7d63523a572d8b073714984141f1955fa4febe2c39f7e9aba19b033529befca8",
   "dispatch_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-  "artifact_sha256": "6766882d92d43cc00acde5b113705a943655c2276020f2ae14458c28fa5b30b1",
+  "artifact_sha256": "ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff",
   "validation_id": "VAL-HIL",
   "level": "hardware_in_loop",
   "device_identity": "FICTIONAL SYNTH-SENSOR-1 board rev A, asset tag SYN-0001. No such device exists; this record illustrates the shape only.",

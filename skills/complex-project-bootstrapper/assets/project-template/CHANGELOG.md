@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 22 answered (ADR-054)
+
+- P1: `checked_artifact` permits empty content for a reference-kind artifact, so its sha256 is then the fixed empty-content digest regardless of what `reference` names -- a resubmission could change the referenced commit while sha256 (and dispatch_id) both stay the same, and an old hardware evidence record would still verify against the new reference on either basis. `acceptance.artifact_identity(artifact)` combines `reference` and `sha256` into one digest; every place a hardware record binds to the current artifact now uses this identity instead of `sha256` alone. Regression: two reference-kind artifacts sharing one empty-content digest still produce two different identities.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 21 answered (ADR-053)
 
 - P1: `deterministic_status` counts a domain-shortfall-marked attestation as ATTESTED so a ledger already accepted on one keeps replaying as accepted, but a ledger that had only reached GATES_PENDING before the rule existed could still be freshly accepted today, using evidence the current rules explicitly reject. `acceptable` now refuses a new (not-yet-stored) ACCEPT that would rest on a shortfall-marked attestation, while a stored ACCEPT over the same shortfall still replays accepted, preserving history per ADR-032. Regression covers both: a new accept is refused and requires a fresh attestation; a stored accept keeps replaying.
