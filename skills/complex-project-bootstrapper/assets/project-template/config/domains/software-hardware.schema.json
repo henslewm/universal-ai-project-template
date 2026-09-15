@@ -140,6 +140,7 @@
         "schema_version",
         "task_id",
         "revision",
+        "contract_hash",
         "validation_id",
         "level",
         "device_identity",
@@ -164,6 +165,10 @@
           "type": "integer",
           "minimum": 1,
           "description": "The work-packet contract revision this observation was made against; record verification refuses one that does not match the acceptance ledger's binding, so hardware evidence for a changed implementation cannot verify a later revision."
+        },
+        "contract_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "The exact contract's hash at that revision. Revision numbers are lineage-local: two independently revised variants of the same task can both be \"revision 2\" with different content, so record verification checks this against the acceptance ledger's binding as well, binding the observation to the contract actually reviewed rather than merely its revision number."
         },
         "validation_id": {
           "$ref": "#/$defs/identifier"

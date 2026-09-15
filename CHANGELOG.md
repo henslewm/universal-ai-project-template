@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 13 answered (ADR-044)
+
+- P1: revision numbers are lineage-local -- two independently revised variants of the same task can both be "revision 2" with different content, so binding a hardware evidence record by revision number alone let a record from one variant verify a ledger bound to the other. The schema now also requires `contract_hash` (sha256), and `record_problems` checks it against the acceptance ledger's binding alongside `revision`. Regression revises the same base packet twice with different content, both landing on revision 2, and shows a record bound to one variant refused against the other's ledger.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 12 answered (ADR-043)
 
 - P1: a hardware evidence record carried no contract revision, so record verification checked only task and validation identity; a revision that keeps the same task, validation ID and rung let hardware evidence from a changed, earlier revision verify a later one. The schema now requires `revision` on every record and `record_problems` refuses one that does not match the acceptance ledger's `binding.revision`. Regression revises the packet to revision 2 and shows a revision-1 record refused while a matching-revision record still verifies.

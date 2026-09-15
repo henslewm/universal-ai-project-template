@@ -351,12 +351,13 @@ class HardwareEvidenceTests(unittest.TestCase):
     def test_record_shape_is_closed(self):
         for field, value in (("outcome", "passed"), ("level", "unit"), ("observed_at", "yesterday"),
                              ("artifacts", [{"reference": "x", "sha256": "short"}]), ("extra", 1),
-                             ("revision", 0), ("revision", "1")):
+                             ("revision", 0), ("revision", "1"), ("contract_hash", "short"),
+                             ("contract_hash", "g" * 64)):
             record = copy.deepcopy(EVIDENCE)
             record[field] = value
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "hardware evidence"):
                 domain.validate_hardware_evidence(record)
-        for field in ("observed_behavior", "revision"):
+        for field in ("observed_behavior", "revision", "contract_hash"):
             record = copy.deepcopy(EVIDENCE)
             del record[field]
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -568,13 +569,13 @@ class ExampleProjectTests(AcceptanceBase):
 
     def test_adapter_packet_splits_the_fake_port_run_from_the_physical_read(self):
         # Risk lowered to exercise the deterministic gate alone; the real packet is high risk.
-        ledger, _ = self.start(packet=self.packet_for("SHB-04-adapter", risk="low"))
+        ledger, packet = self.start(packet=self.packet_for("SHB-04-adapter", risk="low"))
         outcome = acceptance.run_checks(ledger, EXAMPLES)
         self.assertFalse(outcome["satisfied"])
         self.assertEqual(outcome["deterministic"], {"VAL-UNIT-ADAPTER": "PASSED", "VAL-HIL": "NEEDS_ATTESTATION"})
         with self.assertRaisesRegex(ValueError, "Deterministic gate unsatisfied"):
             acceptance.accept(ledger, CONTROLLER)
-        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
         acceptance.append(ledger, "ATTESTATION",
                           {"attestation": {"validation_id": "VAL-HIL", "operator": record["operator"],
                                            "evidence": domain.evidence_lines(record)}},
@@ -591,11 +592,12 @@ class ExampleProjectTests(AcceptanceBase):
         self.assertTrue(entry["evidence_verified"])
         self.assertEqual(Path(entry["evidence_path"]), records / "run.json")
 
-    def revised_adapter_packet(self):
-        """The SHB-04-adapter packet revised once (revision 2), back at REVIEW."""
+    def revised_adapter_packet(self, note="Revised once for the ADR-043 regression."):
+        """The SHB-04-adapter packet revised once (revision 2), back at REVIEW. Two calls with
+        different `note` text are two independently revised, same-revision-number variants."""
         packet = self.packet_for("SHB-04-adapter", risk="low")
         contract = copy.deepcopy(wp.current(packet)["contract"])
-        contract["goal"] += " Revised once for the ADR-043 regression."
+        contract["goal"] += " " + note
         packet = wp.revise(packet, contract, "Architect", "Synthetic revision for the ADR-043 regression")
         for target, role, actor in (
             ("ARCHITECTED", "architect", "Architect"), ("READY", "architect", "Architect"),
@@ -604,6 +606,12 @@ class ExampleProjectTests(AcceptanceBase):
         ):
             packet = wp.transition(packet, target, role, actor, "Synthetic state assertion", ["synthetic-state-evidence"])
         return packet
+
+    def adapter_evidence(self, **changes):
+        """EVIDENCE bound to a fresh, revision-1 SHB-04-adapter packet's task and contract hash --
+        the packet `attested_adapter_ledger` builds by default when its own `packet` is None."""
+        packet = self.packet_for("SHB-04-adapter", risk="low")
+        return dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"], **changes)
 
     def attested_adapter_ledger(self, record, lines=None, operator=None, packet=None):
         """An accepted low-risk adapter ledger whose VAL-HIL attestation binds `record`'s digest."""
@@ -625,7 +633,7 @@ class ExampleProjectTests(AcceptanceBase):
         # fields, with the attestation's device/firmware/time lines typed by hand, satisfied the
         # old comparison. Verification now validates the found record against the schema and
         # compares every attested line with it.
-        full = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+        full = self.adapter_evidence()
         stub = {key: full[key] for key in ("task_id", "validation_id", "level", "outcome", "operator")}
         lines = [domain.DIGEST_PREFIX + domain.evidence_digest(stub), "level=hardware_in_loop", "device=Typed by hand",
                  "firmware=9.9.9", "observed_at=2026-09-14T00:00:00Z", "outcome=pass", f"operator={stub['operator']}"]
@@ -667,16 +675,35 @@ class ExampleProjectTests(AcceptanceBase):
         self.assertIn("record revision 1 is not the ledger's 2", checked["reason"])
         entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
         self.assertFalse(entry["evidence_verified"])
-        # A record made against the actual revision still verifies.
-        current = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=2)
-        ledger, records = self.attested_adapter_ledger(current, packet=self.revised_adapter_packet())
+        # A record made against the actual revision and contract still verifies.
+        matching = self.revised_adapter_packet()
+        current = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=2, contract_hash=wp.current(matching)["hash"])
+        ledger, records = self.attested_adapter_ledger(current, packet=matching)
         checked = domain.status(ledger, records)
         self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+
+    def test_a_record_bound_to_a_different_same_numbered_revision_does_not_verify(self):
+        # Codex round 13 on PR #34 (ADR-043 extended): revision numbers are lineage-local -- two
+        # independently revised variants of the same task can both be "revision 2" with different
+        # content. A record observed against one variant must not verify a ledger bound to the
+        # other, even though the revision number matches.
+        variant_a = self.revised_adapter_packet("Revision 2, variant A.")
+        variant_b = self.revised_adapter_packet("Revision 2, variant B.")
+        self.assertEqual(wp.current(variant_a)["version"], wp.current(variant_b)["version"])
+        self.assertNotEqual(wp.current(variant_a)["hash"], wp.current(variant_b)["hash"])
+        record_for_a = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=2, contract_hash=wp.current(variant_a)["hash"])
+        ledger, records = self.attested_adapter_ledger(record_for_a, packet=variant_b)
+        checked = domain.status(ledger, records)
+        self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn(f"record contract_hash {wp.current(variant_a)['hash']} is not the ledger's "
+                      f"{wp.current(variant_b)['hash']}", checked["reason"])
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertFalse(entry["evidence_verified"])
 
     def test_evidence_fields_are_compared_exactly_and_only_the_operator_is_case_folded(self):
         # Codex round 2 on PR #34: `device=SN-ABC` must not verify against `device_identity: SN-abc`;
         # a different case is a different unit. The operator keeps the controller's actor normalization.
-        full = dict(EVIDENCE, task_id="ACCEPT-SYN-001", device_identity="SN-ABC", operator="Bench Operator")
+        full = self.adapter_evidence(device_identity="SN-ABC", operator="Bench Operator")
         for key, other in (("device", "SN-abc"), ("firmware", full["firmware_version"].upper()),
                            ("observed_at", full["observed_at"].lower())):
             with self.subTest(field=key):
@@ -692,7 +719,7 @@ class ExampleProjectTests(AcceptanceBase):
     def test_record_file_with_a_duplicate_key_is_named_as_refused_not_missing(self):
         # ADR-034: the file the attestation would bind carries outcome fail then pass. It is
         # refused by the loader and status says so, rather than reporting no record at all.
-        full = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+        full = self.adapter_evidence()
         ledger, records = self.attested_adapter_ledger(full)
         (records / "run.json").write_text(json.dumps(dict(full, outcome="fail"))[:-1] + ', "outcome": "pass"}',
                                           encoding="utf-8")
@@ -795,7 +822,7 @@ class CommandLineTests(unittest.TestCase):
             acceptance.initialize(ledger, wp.read_json(ROOT / "config/acceptance.example.json"), packet,
                                   make_result(packet), make_artifact(), CONTROLLER, ARCHITECT, IMPLEMENTERS, [])
             acceptance.run_checks(ledger, EXAMPLES)
-            record = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+            record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
             acceptance.append(ledger, "ATTESTATION",
                               {"attestation": {"validation_id": "VAL-HIL", "operator": record["operator"],
                                                "evidence": domain.evidence_lines(record)}},

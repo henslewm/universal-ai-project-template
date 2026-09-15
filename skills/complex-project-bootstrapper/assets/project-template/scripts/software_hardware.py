@@ -268,6 +268,11 @@ def record_problems(record, binding, validation_id, level, attestation) -> list[
         # A revised contract keeps the same task_id and can keep the same validation_id and rung,
         # so nothing else here would refuse a record made against a different, changed revision.
         problems.append(f"record revision {record['revision']} is not the ledger's {binding['revision']}")
+    if record["contract_hash"] != binding["contract_hash"]:
+        # Revision numbers are lineage-local (Codex round 13): two independently revised variants
+        # of the same task can both be "revision 2" with different content, so the exact contract
+        # is checked too, not merely its revision number.
+        problems.append(f"record contract_hash {record['contract_hash']} is not the ledger's {binding['contract_hash']}")
     if record["validation_id"] != validation_id:
         problems.append(f"record validation_id {record['validation_id']} is not {validation_id}")
     if record["level"] != level:

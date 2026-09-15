@@ -2,6 +2,7 @@
   "schema_version": "1.0",
   "task_id": "SHB-04-adapter",
   "revision": 1,
+  "contract_hash": "bc025db9fc8fb1cd9a4b8808e92bd028dc64fbde86ddd20b8cdda9b80ef06c44",
   "validation_id": "VAL-HIL",
   "level": "hardware_in_loop",
   "device_identity": "FICTIONAL SYNTH-SENSOR-1 board rev A, asset tag SYN-0001. No such device exists; this record illustrates the shape only.",
