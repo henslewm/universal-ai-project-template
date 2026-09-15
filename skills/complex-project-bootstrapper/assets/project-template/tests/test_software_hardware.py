@@ -524,6 +524,8 @@ class ExampleProjectTests(AcceptanceBase):
         checked = domain.status(ledger, records)
         self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         self.assertIn("not a valid hardware evidence record", checked["reason"])
+        self.assertEqual(checked["highest_level_satisfied"], "unit",
+                         "a hardware rung whose record failed verification is not a satisfied rung")
         entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
         self.assertFalse(entry["evidence_verified"])
         self.assertEqual(Path(entry["evidence_path"]), records / "run.json", "found by digest, refused on content")

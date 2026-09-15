@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 4 answered (ADR-035)
+
+- The adapter class recurred a fourth time (a write that raised after a partial transmission left the port open), so the ADR-033 owner is widened from `receive` to every port call: `_wire` closes the port on any exception leaving contact with the port; only a receive that timed out having consumed nothing leaves it open (ADR-035). Regression: a raising read before or after the header, and a raising write, each close the port.
+- P2: `status` counts a hardware rung toward `highest_level_satisfied` only when its record verified on the record basis; an attested rung whose record is missing, invalid or inconsistent is not a satisfied rung.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 3 answered after a second stop-for-diagnosis (ADR-033, ADR-034)
 
 - The adapter class recurred a third time (a body read that raises left the port open with a started frame), so the ADR-031 invariant now has one owner: everything after the first consumed byte runs under a single guard that closes the port on any exception (ADR-033). Regression: a port that raises after the header closes the adapter; before any byte, it stays open (33 sample tests).

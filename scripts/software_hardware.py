@@ -326,7 +326,10 @@ def status(ledger, evidence_dir=None) -> dict:
                   "re-verified by digest, task, validation, rung, outcome and operator.")
     else:
         earned, reason = UNVERIFIED, "A hardware-rung validation lacks an attestation."
-    satisfied = [c["level"] for c in checks if c["gate"] in {"PASSED", "ATTESTED"}]
+    # On the record basis a hardware rung counts only when its record verified; an attested rung
+    # whose record is missing, invalid or inconsistent is not a satisfied rung.
+    satisfied = [c["level"] for c in checks
+                 if c["gate"] == "PASSED" or (c["gate"] == "ATTESTED" and c["evidence_verified"] is not False)]
     highest = max(satisfied, key=LEVELS.index) if satisfied else None
     return {"task_id": binding["task_id"], "revision": binding["revision"], "ledger_status": state["status"],
             "declared_hardware_status": domain["hardware_status"], "earned_hardware_status": earned,

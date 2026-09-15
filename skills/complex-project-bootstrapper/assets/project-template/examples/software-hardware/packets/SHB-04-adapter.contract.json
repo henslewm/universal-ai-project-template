@@ -26,7 +26,7 @@
     },
     {
       "name": "Host rules",
-      "description": "Read one whole frame by declared length within the caller's timeout, handing each port read the time remaining; a frame left incomplete at the deadline, a short write or an oversized frame closes the port; closed adapter refuses I/O."
+      "description": "Read one whole frame by declared length within the caller's timeout, handing each port read the time remaining; any failure on the wire — a frame left incomplete at the deadline, a short write, an oversized frame, a port call that raises — closes the port before it propagates; only a timeout that consumed nothing leaves it open; closed adapter refuses I/O."
     },
     {
       "name": "Hardware-in-loop procedure",

@@ -129,26 +129,38 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertTrue(all(0 <= t <= 0.051 for t in port.timeouts), port.timeouts)
         self.assertFalse(port.closed, "nothing was consumed, so the port stays open")
 
-    def test_port_failure_after_a_started_frame_closes_the_port(self):
-        # ADR-033: the closure has one owner, so a read that raises (a disconnect) after the
-        # header is consumed closes the port too; before any byte is consumed it does not.
+    def test_any_port_failure_closes_the_port(self):
+        # ADR-033/ADR-035: one guard owns close-on-failure for every port call. A read that
+        # raises (a disconnect), before or after the header, closes the port; so does a write
+        # that raises after a partial transmission; only a quiet timeout leaves it open.
         class FailingPort(FakePort):
+            def __init__(self, replies=(), write_raises=False):
+                super().__init__(replies)
+                self.write_raises = write_raises
+
             def read(self, size, timeout_s):
                 if self.buffer:
                     return super().read(size, timeout_s)
                 raise OSError("device disconnected")
 
-        port = FailingPort([WHOLE_FRAME[:2]])
+            def write(self, data):
+                if self.write_raises:
+                    raise OSError("write interrupted after 1 byte")
+                return super().write(data)
+
+        for name, port in (("read after header", FailingPort([WHOLE_FRAME[:2]])), ("read before header", FailingPort())):
+            with self.subTest(failure=name):
+                adapter = self.adapter(port)
+                with self.assertRaisesRegex(OSError, "disconnected"):
+                    adapter.receive(0.1)
+                self.assertTrue(port.closed)
+                self.assertFalse(adapter.is_open)
+        port = FailingPort(write_raises=True)
         adapter = self.adapter(port)
-        with self.assertRaisesRegex(OSError, "disconnected"):
-            adapter.receive(0.1)
+        with self.assertRaisesRegex(OSError, "interrupted"):
+            adapter.send(WHOLE_FRAME)
         self.assertTrue(port.closed)
         self.assertFalse(adapter.is_open)
-        port = FailingPort()
-        adapter = self.adapter(port)
-        with self.assertRaises(OSError):
-            adapter.receive(0.1)
-        self.assertFalse(port.closed, "nothing was consumed")
 
     def test_partial_frame_at_timeout_closes_the_port(self):
         # ADR-031: a frame this call started but could not finish never lingers to be read as
