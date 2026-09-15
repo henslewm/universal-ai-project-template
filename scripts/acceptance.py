@@ -524,9 +524,11 @@ def runnable_group_members(pgid, proc_root=None):
     stays in the group as a zombie, so group existence alone would never report stopped.
     Returns None where /proc is unavailable, and the caller falls back to the group probe.
 
-    A record that cannot be read is unknown and counts as alive, unless membership can be
-    ruled out by ownership: the check runs with the controller's privileges, so a process
-    owned by another user (what a `hidepid` mount hides) cannot be a member of its group.
+    A record that cannot be read is unknown and counts as alive, unless the kernel itself
+    rules membership out: `getpgid` needs no /proc permission, so a process a `hidepid` mount
+    hides is skipped when it belongs to another group and still counts when it is ours.
+    Ownership cannot stand in for that answer — a setuid helper changes owner without
+    leaving the group — so a same-group record that cannot be read fails closed as alive.
     """
     root = PROC_ROOT if proc_root is None else Path(proc_root)
     if not root.is_dir():
@@ -540,8 +542,8 @@ def runnable_group_members(pgid, proc_root=None):
         except FileNotFoundError:
             continue  # The only error that proves the process is gone: it exited after listing.
         except OSError:
-            if not owned_by_another_user(entry):
-                members += 1  # Unreadable and possibly ours: unknown fails closed as alive.
+            if not in_another_group(int(entry.name), pgid):
+                members += 1  # Unreadable and not provably elsewhere: unknown fails closed as alive.
             continue
         _, _, rest = stat.rpartition(")")  # The command name may contain spaces or parentheses.
         fields = rest.split()
@@ -554,17 +556,20 @@ def runnable_group_members(pgid, proc_root=None):
     return members
 
 
-def owned_by_another_user(entry):
-    """Whether a /proc entry provably belongs to a different user than the controller.
+def in_another_group(pid, pgid):
+    """Whether the kernel says a pid provably belongs to a process group other than `pgid`.
 
-    Only a definite answer excludes a record: no uid on this platform, or an ownership that
-    cannot be read, keeps the record in the unknown-therefore-alive class.
+    Only a definite answer excludes a record: a platform without `getpgid`, a pid that has
+    vanished, or a call that fails for any other reason keeps the record in the
+    unknown-therefore-alive class; a vanished pid is harmless there, since it cannot write.
     """
-    getuid = getattr(os, "getuid", None)
-    if getuid is None:
+    getpgid = getattr(os, "getpgid", None)
+    if getpgid is None:
         return False
     try:
-        return entry.stat().st_uid != getuid()
+        return getpgid(pid) != pgid
+    except ProcessLookupError:
+        return True  # Gone: it cannot be a live member.
     except OSError:
         return False
 

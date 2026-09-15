@@ -663,34 +663,37 @@ class DeterministicGateTests(AcceptanceBase):
         with mock.patch.object(acceptance, "PROC_ROOT", proc):
             tree = acceptance.ProcessTree.__new__(acceptance.ProcessTree)
             tree.job, tree.pgid = None, 4242
-            with mock.patch.object(acceptance.os, "name", "posix"),                     mock.patch.object(acceptance.os, "killpg", create=True, return_value=None):
+            with mock.patch.object(acceptance.os, "name", "posix"), \
+                    mock.patch.object(acceptance.os, "killpg", create=True, return_value=None):
                 self.assertFalse(tree.members_alive(), "zombies only: the tree is stopped")
         # Unknown fails closed: an unreadable record (a directory where the file should be) and
-        # an unparseable one both count as alive; only a vanished record is skipped.
+        # an unparseable one both count as alive; only a vanished record is skipped. The fake
+        # pids are placed in our group by the kernel answer, since they do not exist here.
         (proc / "105").mkdir()
         (proc / "105" / "stat").mkdir()
-        self.assertEqual(acceptance.runnable_group_members(4242, proc), 1)
-        (proc / "106").mkdir()
-        (proc / "106" / "stat").write_text("garbage\n", encoding="ascii")
-        self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
-        (proc / "107").mkdir()  # No stat file at all: the process vanished after listing.
-        self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
-        # Codex P2 on PR #22 round 17: on a hidepid mount every unrelated user's record is
-        # unreadable, and a zombie-only group passes the kernel probe, so those records made a
-        # completed run refuse. Ownership rules a record out: a check runs with the controller's
-        # privileges, so a record owned by another uid cannot be a member. Same uid, or
-        # ownership that cannot be read, stays unknown and alive.
-        owner = (proc / "105").stat().st_uid
-        with mock.patch.object(acceptance.os, "getuid", create=True, return_value=owner + 1):
-            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1, "another user's unreadable record counted")
-        with mock.patch.object(acceptance.os, "getuid", create=True, return_value=owner):
-            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2, "our own unreadable record was skipped")
-        hidden = mock.Mock()
-        hidden.stat.side_effect = PermissionError("hidden")
-        with mock.patch.object(acceptance.os, "getuid", create=True, return_value=owner + 1):
-            self.assertFalse(acceptance.owned_by_another_user(hidden), "unreadable ownership must fail closed")
-        with mock.patch.object(acceptance.os, "getuid", None, create=True):
-            self.assertFalse(acceptance.owned_by_another_user(proc / "105"), "no uid on this platform: unknown")
+        with mock.patch.object(acceptance.os, "getpgid", create=True, return_value=4242):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1)
+            (proc / "106").mkdir()
+            (proc / "106" / "stat").write_text("garbage\n", encoding="ascii")
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
+            (proc / "107").mkdir()  # No stat file at all: the process vanished after listing.
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2)
+        # Codex P2 on PR #22 round 17 and P1 on round 18: on a hidepid mount every unrelated
+        # process's record is unreadable and a zombie-only group passes the kernel probe, so
+        # those records made a completed run refuse; but ownership cannot rule a record out,
+        # because a setuid helper changes owner without leaving the group. The kernel answers
+        # membership directly: getpgid needs no /proc permission. Another group is skipped, a
+        # vanished pid is skipped, our own group or any other failure stays unknown and alive.
+        with mock.patch.object(acceptance.os, "getpgid", create=True, return_value=9999):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1, "another group's unreadable record counted")
+        with mock.patch.object(acceptance.os, "getpgid", create=True, return_value=4242):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2, "our own group's unreadable record was skipped")
+        with mock.patch.object(acceptance.os, "getpgid", create=True, side_effect=ProcessLookupError):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 1, "a vanished pid cannot be a live member")
+        with mock.patch.object(acceptance.os, "getpgid", create=True, side_effect=PermissionError("denied")):
+            self.assertEqual(acceptance.runnable_group_members(4242, proc), 2, "an unanswerable membership must fail closed")
+        with mock.patch.object(acceptance.os, "getpgid", None, create=True):
+            self.assertFalse(acceptance.in_another_group(105, 4242), "no getpgid on this platform: unknown")
         # Codex P2 on PR #22 round 10: the unreadable records above belong to nobody in particular
         # (a hidepid mount hides every unrelated process the same way), so the kernel is asked
         # first: a group that no longer exists is stopped whatever /proc shows, and only a group
