@@ -1,17 +1,18 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-14 UTC
+- **Prepared:** 2026-09-15 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `issue-8-codex-findings` (PR #22). `main` is at `0c8fc8c` and still carries the bypassable gate. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** Issue #8, reopened by ADR-021. Nothing else is active; #9 has not been started.
+- **Branch:** main
+- **Latest accepted merge:** `494587cfae01f9dde442a5d0e5fbe50cdfb6b257` (PR #22, closed #8 again; parents `0c8fc8c` and `3a4e92b`). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Scope:** none active. #9 is next and has not been started.
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #8](https://github.com/henslewm/universal-ai-project-template/issues/8) and [PR #22](https://github.com/henslewm/universal-ai-project-template/pull/22). Issues #2 through #7 are closed through merged PRs #15 to #20; #8 was closed through PR #21 and reopened the same evening because Codex's review of the merged head landed after the closure. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #9](https://github.com/henslewm/universal-ai-project-template/issues/9) — complete software + hardware domain template. Issues #2 through #8 are closed through merged PRs #15 to #22; #8 was closed through PR #21, reopened the same evening because Codex's review of the merged head landed after the closure, and closed again through PR #22. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
 
-## Where PR #22 stands
+## What the reopening of #8 left you
 
-Every Codex finding on the PR has a reply on GitHub (read them with `gh api`, never from email). The loop that produced 26 findings in 15 reviews was stopped for diagnosis: rounds 1–14 patched each lifetime or trust defect where it was noticed, and ADR-024 turned both into invariants — `ProcessTree.run` owns a check from launch to confirmed-stopped and ends the tree on every exit, `trusted_workspace`/`check_cwd` establish filesystem trust before any command and inspect every path component before resolution — with one regression per invariant. ADR-025 lets the GitHub ledger extend and publish a feedback ledger at `ACCEPTED`, the status `sync-feedback` leaves, so accepted work can complete publication end to end (regression in `test_full_acceptance_closes_the_feedback_task`). The standing rule: if a Codex round returns findings in the lifetime or trust class again, stop and report — the diagnosis would be wrong.
+Every Codex finding on PR #22 has a reply on GitHub (read them with `gh api`, never from email). The loop that produced 30 findings in 17 reviews was stopped for diagnosis: rounds 1–14 patched each lifetime or trust defect where it was noticed, and ADR-024 turned both into invariants — `ProcessTree.own` holds a check from launch to confirmed-stopped and ends the tree on every exit (an error in its own teardown refuses the run rather than becoming a check result), `trusted_workspace`/`check_cwd` establish filesystem trust before any command and inspect every path component before resolution — with one regression per invariant. ADR-025 lets the GitHub ledger extend and publish a feedback ledger at `ACCEPTED`, the status `sync-feedback` leaves, so accepted work can complete publication end to end (regression in `test_full_acceptance_closes_the_feedback_task`). After ADR-024 the only lifetime-class returns were two defects in the new code itself — the launch-error handler wrapping the owned block, and a uid-based membership inference that a setuid helper defeats — both closed fail-closed (membership now comes from the kernel's `getpgid`). The standing rule, R-012: if a review class recurs, stop for diagnosis and write the invariant before code. Read the last two Codex rounds on PR #22 before touching the `/proc` liveness code again; eight findings landed there, and a future change should replace the primitive rather than patch it.
 
-To finish: confirm a Codex review exists whose `commit_id` equals the current head with no unanswered finding and CI green; check whether Codex is already reviewing before posting `@codex review`; then wait for the maintainer's explicit merge approval. After the merge, re-close #8 with a completion comment, record the limitations below, and only then begin #9 in a fresh session.
+A clean Codex result arrives as an issue comment ("Didn't find any major issues", with the reviewed commit), not as a PR review; poll `issues/22/comments` as well as `pulls/22/reviews` when waiting for one.
 
 ## What #8 left you
 
@@ -27,11 +28,11 @@ Third, for #9: the machine-runnable-versus-attested validation split is exactly 
 
 ## Verified state
 
-306 tests pass on Windows; the acceptance suite (66 tests, 3 Windows-only skips) and the GitHub ledger suite (59) pass under WSL Linux. Repository validation passes 67 required paths and `scripts/sync_skills.py --check` reports 0 differing files. Every push to PR #22 has had CI `validate` green.
+307 tests pass on Windows; the acceptance suite (67 tests, 3 Windows-only skips) and the GitHub ledger suite (59) pass under WSL Linux. Repository validation passes 67 required paths and `scripts/sync_skills.py --check` reports 0 differing files. CI `validate` was green on every push to PR #22 and on the merged head.
 
 ## Exact next action
 
-Finish PR #22 under the review protocol above. Do not merge, comment on, or close #8 without the maintainer's explicit approval, and do not start #9 while #8 has an unanswered finding.
+Begin #9 in a fresh session, orienting from master #14 and #9 only plus these durable documents. Do not start it in the session that merged #8 — master #14 requires rereading it before selecting the next child. Nothing is in flight, no branch is pending, no reservation and no acceptance ledger is open. The construction branch `issue-8-codex-findings` remains until the later authorized cleanup.
 
 ## Limitations carried forward (outside #8; maintainer chose a note, not an issue)
 

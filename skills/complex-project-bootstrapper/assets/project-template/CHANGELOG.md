@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #8 closed again through merged PR #22
+
+- PR #22 merged at `494587cfae01f9dde442a5d0e5fbe50cdfb6b257` (merge commit; parents `0c8fc8c` and `3a4e92b`) after a clean Codex review of the head, CI green and explicit maintainer authorization; #8 closed with its completion comment and master #14 noted. State records updated on `main` with the merge SHA and dates; OL-012 closed, OL-014 unblocked.
+
 ## 2026-09-13 — Issue #8 reopened: answer the Codex findings on PR #21
 
 - 2026-09-14: `PROJECT_STATE.md`, `HANDOFF_CURRENT.md`, `OPEN_LOOPS.md` and `docs/ISSUE_8_VALIDATION.md` now say #8 is reopened with PR #22 in flight and #9 blocked, replacing the closure wording that Codex found still directing a fresh session into #9 (P2); `RISK_REGISTER.md` adds R-012 for the patch/review loop.
