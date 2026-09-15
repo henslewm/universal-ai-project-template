@@ -32,6 +32,9 @@ class FakeSensorPort:
         chunk, self._pending = self._pending[:size], self._pending[size:]
         return chunk
 
+    def available(self):
+        return len(self._pending)
+
     def close(self):
         self.closed = True
 

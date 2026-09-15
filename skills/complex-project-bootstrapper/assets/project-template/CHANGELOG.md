@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 follow-up: PR #35 P2 answered (ADR-058)
+
+- P2: ADR-057 made a zero-timeout `receive()`'s body read unconditional, fixing a fully-buffered frame but reopening the ADR-042 hazard from the other direction (a body that only became available after the poll instant could still be returned as received in time), and never fixed a pre-existing bug where a port handing back an already-fully-buffered frame in small chunks timed out on data that had been sitting there from the start. `receive(0)` now samples `Port.available()` once before touching the port and never draws more than that many bytes across the whole call; a trickling but fully-buffered frame now assembles complete, and a body that arrives only after the poll instant still times out and closes the port.
+- Found by a follow-up review of PR #35 (Codex plus an independent review), posted on the PR itself.
+
 ## 2026-09-15 — Issue #9 follow-up: post-merge independent review answered (ADR-056, ADR-057)
 
 - P1: the printed hardware-evidence lines omitted `validation_id`, so a schema-valid record made for one hardware-rung check could be appended unchanged for a different check in the same submission -- level, device, firmware, observed_at, outcome, operator, dispatch_id and artifact_sha256 can all legitimately match across two checks. Reproduced with a room-temperature record attested against a maximum-temperature check; default status wrongly reported `VERIFIED_ON_HARDWARE`. A hardware-rung attestation now also carries `validation_id`, checked against the attestation's own target at append time and against the record on the record basis.

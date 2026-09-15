@@ -15,11 +15,17 @@ from .transport import TransportTimeout
 
 class Port(Protocol):
     """What the adapter needs from a serial port. `read` returns what arrived within `timeout_s`,
-    possibly fewer bytes than asked and possibly none; it never blocks past that time."""
+    possibly fewer bytes than asked and possibly none; it never blocks past that time. `available`
+    reports, without blocking or consuming a byte, how many bytes are buffered right now -- the
+    one fact a zero-timeout `receive()` can use to tell bytes that already existed at its poll
+    instant from bytes a real device hands over only afterward, since no two of its own read
+    calls, however fast, can be assumed to have happened at the same instant."""
 
     def write(self, data: bytes) -> int: ...
 
     def read(self, size: int, timeout_s: float) -> bytes: ...
+
+    def available(self) -> int: ...
 
     def close(self) -> None: ...
 
@@ -76,14 +82,23 @@ class SerialAdapter:
         wire — a frame started but not finished, an oversized declaration, a read that raises —
         closes the port before it propagates, so leftover bytes can never be read as the next
         frame's header. A timeout that consumed nothing is a quiet line and leaves the port open.
+        A zero-timeout call additionally samples `Port.available()` once, before touching the
+        port, as a fixed byte budget it never exceeds (ADR-058): a frame already sitting in the
+        port is assembled whole however it is chunked, and a byte that only arrives after that
+        poll is never returned as part of it.
         """
         if self._port is None:
             raise RuntimeError("adapter is closed")
         if timeout_s < 0:
             raise ValueError("timeout must be non-negative")
         deadline = time.monotonic() + timeout_s
+        polled = timeout_s == 0
+        budget = self._port.available() if polled else 0
         with self._wire():
-            header = self._read_within(2, deadline, first_contact=True)
+            if polled:
+                header, budget = self._read_polled(2, budget)
+            else:
+                header = self._read_within(2, deadline, first_contact=True)
             if not header:
                 quiet = True
             else:
@@ -93,30 +108,48 @@ class SerialAdapter:
                 length = header[1]
                 if 2 + length + 1 > self._frame_max:
                     raise RuntimeError("oversized frame; port closed")
-                # A pure poll (timeout_s == 0) never waits at all, at either position, so it can
-                # never return data later than its own instant; the body earns the same
-                # unconditional first contact the header always gets (post-merge independent
-                # review, ADR-057). A positive timeout keeps ADR-042: only the header's contact is
-                # unconditional, so a body read after a real deadline the header already spent
-                # cannot scoop up data that arrived only after that deadline.
-                body = self._read_within(length + 1, deadline, first_contact=(timeout_s == 0))
+                if polled:
+                    body, budget = self._read_polled(length + 1, budget)
+                else:
+                    body = self._read_within(length + 1, deadline, first_contact=False)
                 if len(body) < length + 1:
                     raise TransportTimeout("frame incomplete at timeout; port closed")
                 return header + body
         if quiet:
             raise TransportTimeout("no frame header")
 
+    def _read_polled(self, size: int, budget: int) -> tuple[bytes, int]:
+        """Up to `size` bytes, drawn only from `budget` -- the count `Port.available()` reported
+        once, before this receive() touched the port at all (ADR-058). `_read_within`'s wall-clock
+        deadline degenerates at timeout_s=0 (deadline == start), so it cannot tell "the rest of
+        what a trickling port already held at the poll instant" from "bytes a real device handed
+        over only afterward" -- both are an ordinary non-empty read on a second call, however
+        fast. `budget` is the one fact that can: sampled once, it is never exceeded, however many
+        non-blocking calls a trickling port takes to hand it over, and an empty read spends it
+        outright, so a port that stops short of its own reported count is never asked again for
+        more.
+        """
+        buffer = b""
+        while len(buffer) < size and budget > 0:
+            chunk = self._port.read(min(size - len(buffer), budget), 0.0)
+            if not chunk:
+                budget = 0
+                break
+            buffer += chunk
+            budget -= len(chunk)
+        if len(buffer) < size:
+            self._port.read(0, 0.0)  # a call still happens; it can ask for nothing this poll lacked
+        return buffer, budget
+
     def _read_within(self, size: int, deadline: float, first_contact: bool) -> bytes:
         """Up to `size` bytes, each read bounded by the time left; stops short when time runs out.
 
-        `first_contact` exempts this call's own first port contact from the deadline (ADR-042,
-        ADR-057): the header's always does, and the body's does too exactly when the whole
-        `receive()` call is itself a zero-timeout poll (nothing was ever going to wait, so an
-        instantaneous check at either position cannot return data any later than the instant it
-        was called). With a positive timeout, only the header's contact is unconditional; once
-        the deadline has passed, a further read at either position -- a retry at the same one, or
-        the body's own first one -- is refused, so bytes that arrive after a real deadline are
-        never returned as a frame received in time.
+        Only reached for a positive timeout (ADR-058); `timeout_s == 0` goes through
+        `_read_polled` instead. `first_contact` exempts this call's own first port contact from
+        the deadline (ADR-042): the header's always does, the body's never does, so once the
+        deadline has passed, a further read at either position -- a retry at the same one, or the
+        body's own first one -- is refused, so bytes that arrive after a real deadline are never
+        returned as a frame received in time.
         """
         buffer = b""
         asked = not first_contact

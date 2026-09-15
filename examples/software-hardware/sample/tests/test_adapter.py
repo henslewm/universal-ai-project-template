@@ -43,6 +43,11 @@ class FakePort:
     def close(self):
         self.closed = True
 
+    def available(self):
+        """How many bytes are sitting in the buffer right now, without consuming any of them --
+        a real port's `in_waiting`/`bytesAvailable()` equivalent."""
+        return len(self.buffer)
+
 
 class TricklePort(FakePort):
     """Returns at most one byte per read, as a slow serial line would."""
@@ -251,6 +256,43 @@ class SerialAdapterTests(unittest.TestCase):
             adapter.receive(0)
         self.assertEqual(len(port.timeouts), 2, "header and the one body poll, no retry")
         self.assertTrue(port.closed)
+
+    def test_zero_timeout_drains_an_already_buffered_frame_trickled_in_chunks(self):
+        # PR #35 review (ADR-058): a port that can only hand back one byte per call, but whose
+        # buffer already holds the whole frame before receive() is ever called, must still be
+        # drained completely at timeout_s=0 -- the bytes were all there at the poll instant, so
+        # chunking must not turn them into a spurious incomplete-frame timeout.
+        port = TricklePort(WHOLE_FRAME)
+        adapter = self.adapter(port)
+        self.assertEqual(adapter.receive(0), WHOLE_FRAME)
+        self.assertEqual(len(port.timeouts), 5, "one non-blocking read per byte of the frame")
+        self.assertTrue(all(t == 0.0 for t in port.timeouts))
+        self.assertTrue(adapter.is_open, "a complete frame in time leaves the port open")
+
+    def test_zero_timeout_does_not_return_a_body_that_only_arrives_after_the_poll_instant(self):
+        # PR #35 review (ADR-058): a header genuinely present when receive(0) polls the port must
+        # not license reading a body that only shows up afterward, however fast the two reads
+        # happen to be back to back -- no elapsed-wall-clock measurement can tell that apart from
+        # the trickled-but-already-buffered case above, so this fake is driven by an explicit call
+        # count, never real time, to stay deterministic.
+        class LateBodyAfterPollPort(FakePort):
+            def __init__(self):
+                super().__init__([WHOLE_FRAME[:2]])
+
+            def read(self, size, timeout_s):
+                if len(self.timeouts) == 1:
+                    # the header's own read has already happened; the body "arrives" only now --
+                    # strictly after `available()` reported the poll-instant budget.
+                    self.buffer[:] = self.buffer + WHOLE_FRAME[2:]
+                return super().read(size, timeout_s)
+
+        port = LateBodyAfterPollPort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "frame incomplete at timeout; port closed"):
+            adapter.receive(0)
+        self.assertEqual(len(port.timeouts), 2, "the header, and one zero-sized body poll")
+        self.assertTrue(port.closed, "a started frame closes the port")
+        self.assertFalse(adapter.is_open)
 
     def test_partial_frame_at_timeout_closes_the_port(self):
         # ADR-031: a frame this call started but could not finish never lingers to be read as
