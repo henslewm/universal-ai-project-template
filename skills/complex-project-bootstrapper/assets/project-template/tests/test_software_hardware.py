@@ -342,6 +342,10 @@ class HardwareEvidenceTests(unittest.TestCase):
                     domain.validate_hardware_evidence(dict(EVIDENCE, **{field: "SN-1\noutcome=fail"}))
                 with self.assertRaisesRegex(ValueError, field):
                     domain.validate_hardware_evidence(dict(EVIDENCE, **{field: "SN-1\r\noutcome=fail"}))
+                # Codex round 9: an end anchor matches before a trailing newline, so the prohibition is explicit.
+                for trailing in ("SN-1\n", "SN-1\r", "SN-1\r\n", "\nSN-1"):
+                    with self.assertRaisesRegex(ValueError, field):
+                        domain.validate_hardware_evidence(dict(EVIDENCE, **{field: trailing}))
         domain.validate_hardware_evidence(dict(EVIDENCE, test_setup="Multi-line narrative\nis fine here"))
 
     def test_record_shape_is_closed(self):

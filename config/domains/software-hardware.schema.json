@@ -11,8 +11,11 @@
     "single_line": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^[^\\r\\n]*\\S[^\\r\\n]*$",
-      "description": "Non-blank and on one physical line; the fields that become attestation lines use this."
+      "pattern": "\\S",
+      "not": {
+        "pattern": "[\\r\\n]"
+      },
+      "description": "Non-blank and on one physical line: no CR or LF anywhere, stated as a prohibition because an end anchor matches before a trailing newline."
     },
     "identifier": {
       "type": "string",

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 9 answered
+
+- P2: `single_line` states its prohibition as `not: {pattern: "[\r\n]"}` instead of an anchored pattern, because `$` matches before a trailing newline; a record whose `device_identity`, `firmware_version` or `operator` ends in a line break is now refused at the record rather than accepted there and refused at attestation (ADR-039 completed). Regression for trailing and leading CR, LF and CRLF.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 8 answered (ADR-039, ADR-040)
 
 - P1: `device_identity`, `firmware_version` and `operator` are `single_line` by schema and `validate_attestation` refuses any element carrying CR or LF, so ADR-038's seven lines are seven physical lines (ADR-039).

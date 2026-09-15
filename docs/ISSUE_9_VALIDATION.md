@@ -87,6 +87,8 @@ What the run established beyond #9: the cross-family gate did its job on the tem
 
 - **Round 8 on head `b0f3ca1`**: one P1 and one P2. The evidence class a fourth time — a record value with an embedded line break became one attestation element reading as two lines; ADR-039 makes the three fields that become lines single-line by schema and refuses any attestation element carrying a break. The P2 is round 1's class again — a published listing of the orientation fields (`references/intake-schema.md`) still named the legacy three; ADR-040 makes `DOMAIN_FIELDS` the single source with a regression over the reference and the schema. CI on `b0f3ca1` failed on payload drift from one test edit made after the last sync; resynchronized here.
 
+- **Round 9 on head `8a217fc`**: one P2 — the ADR-039 pattern's `$` anchor matched before a trailing newline, so a record ending in a line break validated and then could not be attested. The prohibition is now explicit (`not` a CR/LF pattern) with a regression for leading and trailing breaks.
+
 ## Discovery outside this issue
 
 Codex's four findings on PR #21 (two P1, two P2) were handled by reopening #8, per the maintainer's decision, not by a follow-up issue. The standing rules that resulted are in `MASTER_INSTRUCTIONS.md`.
