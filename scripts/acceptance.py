@@ -279,7 +279,8 @@ def apply(state, event, stored=False):
         domain = wp.domain_module(state["binding"]["domain_profile"])
         if domain is not None and not state.get("domain_shortfall"):
             try:
-                domain.validate_attestation(state["contract"], attestation, timestamp)
+                domain.validate_attestation(state["contract"], attestation, timestamp,
+                                            state["result"]["dispatch_id"], state["artifact"]["sha256"])
             except ValueError as exc:
                 # A stored attestation the profile rule would now refuse replays marked (ADR-032);
                 # the profile's status derivation reports it unverified. A new one is refused.

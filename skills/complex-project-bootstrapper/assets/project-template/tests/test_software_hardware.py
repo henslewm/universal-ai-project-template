@@ -412,6 +412,38 @@ class AttestationRuleTests(AcceptanceBase):
                                  {"attestation": {"validation_id": "VAL-FRAMES", "operator": operator, "evidence": evidence}},
                                  previous_state=acceptance.replay(ledger))
 
+    def test_attestation_is_refused_for_a_result_or_artifact_it_was_not_observed_against(self):
+        # Codex round 18 on PR #34 (ADR-049): the attestation basis alone (no --evidence-dir) must
+        # also refuse a record bound to a different submission, not only the record basis
+        # (ADR-047). Neither field needs a resubmission to demonstrate: any mismatch is refused
+        # the moment it is attested.
+        ledger = self.hardware_ledger()
+        for field, other in (("dispatch_id", "f" * 64), ("artifact_sha256", "0" * 64)):
+            with self.subTest(field=field):
+                record = dict(EVIDENCE, **{field: other})
+                with self.assertRaisesRegex(ValueError, "ledger's current"):
+                    self.attest(ledger, record["operator"], domain.evidence_lines(record))
+
+    def test_non_synthetic_contract_can_earn_verified_on_hardware(self):
+        # Codex round 18 on PR #34 (ADR-050): synthetic contracts are capped at
+        # UNVERIFIED_ON_HARDWARE, but that cap must be specific to synthetic:true, not a blanket
+        # regression -- a contract that omits it can still earn VERIFIED_ON_HARDWARE.
+        contract = hardware_contract()
+        del contract["domain"]["synthetic"]
+        ledger, packet = self.start(packet=make_packet(contract))
+        self.checked(ledger)
+        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", validation_id="VAL-FRAMES",
+                     contract_hash=wp.current(packet)["hash"])
+        self.attest(ledger, record["operator"], domain.evidence_lines(record))
+        acceptance.accept(ledger, CONTROLLER)
+        self.assertEqual(domain.status(ledger)["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
+        records = self.directory / "records"
+        records.mkdir()
+        (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
+        checked = domain.status(ledger, records)
+        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+        self.assertEqual(checked["highest_level_satisfied"], "hardware_in_loop")
+
     def test_hardware_rung_attestation_must_bind_a_passing_record(self):
         ledger = self.hardware_ledger()
         lines = domain.evidence_lines(EVIDENCE)
@@ -535,11 +567,13 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertEqual(domain.status(ledger)["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         acceptance.accept(ledger, CONTROLLER)
         earned = domain.status(ledger)
-        self.assertEqual(earned["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
-        # Without an evidence directory the verdict rests on the attestations and says so.
+        # This contract declares synthetic: true (ADR-050), so it never earns VERIFIED_ON_HARDWARE
+        # or credits the attested hardware rung toward highest_level_satisfied, no matter how
+        # completely it is attested; the attestation itself is still recorded and reported.
+        self.assertIn("synthetic: true", earned["reason"])
         self.assertEqual(earned["evidence_basis"], "attestation")
-        self.assertIn("not record-verified", earned["reason"])
-        self.assertEqual(earned["highest_level_satisfied"], "hardware_in_loop")
+        self.assertIsNone(earned["highest_level_satisfied"])
+        self.assertEqual(earned["validations"][0]["gate"], "ATTESTED")
         self.assertEqual(earned["validations"][0]["evidence_digest"], domain.evidence_digest(EVIDENCE))
         self.assertIsNone(earned["validations"][0]["evidence_path"])
         # The bound record must be findable and consistent when an evidence directory is supplied.
@@ -623,9 +657,10 @@ class ExampleProjectTests(AcceptanceBase):
         records.mkdir()
         (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
         earned = domain.status(ledger, records)
-        self.assertEqual(earned["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
+        # UNVERIFIED_ON_HARDWARE only because this packet declares synthetic: true (ADR-050); the
+        # record itself verified, which is what this test exercises.
+        self.assertIn("synthetic: true", earned["reason"])
         self.assertEqual(earned["evidence_basis"], "record")
-        self.assertIn("re-verified", earned["reason"])
         entry = next(v for v in earned["validations"] if v["validation_id"] == "VAL-HIL")
         self.assertTrue(entry["evidence_verified"])
         self.assertEqual(Path(entry["evidence_path"]), records / "run.json")
@@ -674,7 +709,8 @@ class ExampleProjectTests(AcceptanceBase):
         full = self.adapter_evidence()
         stub = {key: full[key] for key in ("task_id", "validation_id", "level", "outcome", "operator")}
         lines = [domain.DIGEST_PREFIX + domain.evidence_digest(stub), "level=hardware_in_loop", "device=Typed by hand",
-                 "firmware=9.9.9", "observed_at=2026-09-14T00:00:00Z", "outcome=pass", f"operator={stub['operator']}"]
+                 "firmware=9.9.9", "observed_at=2026-09-14T00:00:00Z", "outcome=pass", f"operator={stub['operator']}",
+                 f"dispatch_id={full['dispatch_id']}", f"artifact_sha256={full['artifact_sha256']}"]
         ledger, records = self.attested_adapter_ledger(stub, lines=lines)
         checked = domain.status(ledger, records)
         self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
@@ -694,10 +730,13 @@ class ExampleProjectTests(AcceptanceBase):
                 checked = domain.status(ledger, records)
                 self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
                 self.assertIn(f"attested {key} differs from the record's {field}", checked["reason"])
-        # The consistent record still verifies on the record basis.
+        # The consistent record still verifies on the record basis (UNVERIFIED_ON_HARDWARE only
+        # because this packet declares synthetic: true, ADR-050).
         ledger, records = self.attested_adapter_ledger(full)
         checked = domain.status(ledger, records)
-        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+        self.assertEqual(checked["evidence_basis"], "record")
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertTrue(entry["evidence_verified"])
 
     def test_a_record_bound_to_an_earlier_revision_does_not_verify_a_later_one(self):
         # Codex round 12 on PR #34 (ADR-043): task_id and validation_id identity were checked, but
@@ -713,12 +752,15 @@ class ExampleProjectTests(AcceptanceBase):
         self.assertIn("record revision 1 is not the ledger's 2", checked["reason"])
         entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
         self.assertFalse(entry["evidence_verified"])
-        # A record made against the actual revision and contract still verifies.
+        # A record made against the actual revision and contract record-verifies (remains
+        # UNVERIFIED_ON_HARDWARE only because this packet declares synthetic: true, ADR-050).
         matching = self.revised_adapter_packet()
         current = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=2, contract_hash=wp.current(matching)["hash"])
         ledger, records = self.attested_adapter_ledger(current, packet=matching)
         checked = domain.status(ledger, records)
-        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+        self.assertEqual(checked["evidence_basis"], "record")
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertTrue(entry["evidence_verified"])
 
     def test_a_record_bound_to_a_different_same_numbered_revision_does_not_verify(self):
         # Codex round 13 on PR #34 (ADR-043 extended): revision numbers are lineage-local -- two
@@ -774,25 +816,19 @@ class ExampleProjectTests(AcceptanceBase):
         acceptance.accept(ledger, "Independent reviewer")
         return ledger, record
 
-    def test_a_record_bound_to_a_rejected_submission_does_not_verify_the_resubmission(self):
-        # Codex round 16 on PR #34 (ADR-047): contract identity alone does not identify which
-        # implementation was tested. RESUBMIT clears the prior attestation, but re-attesting the
-        # same unchanged evidence file -- describing the rejected implementation's observation,
-        # never repeated against the resubmission -- must not verify the new submission.
-        ledger, record = self.rejected_and_resubmitted_adapter(lambda original, result, artifact: original)
-        records = self.directory / f"records-{self.counter}"
-        records.mkdir()
-        (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
-        checked = domain.status(ledger, records)
-        self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
-        self.assertIn("record dispatch_id", checked["reason"])
-        self.assertIn("record artifact_sha256", checked["reason"])
-        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
-        self.assertFalse(entry["evidence_verified"])
+    def test_re_attesting_a_rejected_submissions_record_after_resubmit_is_refused(self):
+        # Codex round 16 on PR #34 (ADR-047), closed at append time by round 18's ADR-049: contract
+        # identity alone does not identify which implementation was tested. RESUBMIT clears the
+        # prior attestation, and re-attesting the same unchanged evidence file -- describing the
+        # rejected implementation's observation, never repeated against the resubmission -- is now
+        # refused as soon as it is attested, not only when a record is later re-verified.
+        with self.assertRaisesRegex(ValueError, "ledger's current result is"):
+            self.rejected_and_resubmitted_adapter(lambda original, result, artifact: original)
 
     def test_a_record_bound_to_the_resubmission_verifies(self):
         # The other half of the round-16 regression: a record actually made against the
-        # resubmission's result and artifact still verifies.
+        # resubmission's result and artifact is attested and record-verifies (both remain
+        # UNVERIFIED_ON_HARDWARE only because this packet declares synthetic: true, per ADR-050).
         ledger, record = self.rejected_and_resubmitted_adapter(
             lambda original, result, artifact: dict(original, dispatch_id=result["dispatch_id"],
                                                      artifact_sha256=artifact["sha256"]))
@@ -800,7 +836,9 @@ class ExampleProjectTests(AcceptanceBase):
         records.mkdir()
         (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
         checked = domain.status(ledger, records)
-        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+        self.assertEqual(checked["evidence_basis"], "record")
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertTrue(entry["evidence_verified"])
 
     def test_evidence_fields_are_compared_exactly_and_only_the_operator_is_case_folded(self):
         # Codex round 2 on PR #34: `device=SN-ABC` must not verify against `device_identity: SN-abc`;
@@ -816,7 +854,10 @@ class ExampleProjectTests(AcceptanceBase):
                 self.assertIn(f"attested {key} differs", checked["reason"])
         lines = ["operator=bench operator" if line.startswith("operator=") else line for line in domain.evidence_lines(full)]
         ledger, records = self.attested_adapter_ledger(full, lines=lines, operator="BENCH OPERATOR")
-        self.assertEqual(domain.status(ledger, records)["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
+        checked = domain.status(ledger, records)
+        self.assertIn("synthetic: true", checked["reason"])  # ADR-050; the case-folded match itself verified
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertTrue(entry["evidence_verified"])
 
     def test_record_file_with_a_duplicate_key_is_named_as_refused_not_missing(self):
         # ADR-034: the file the attestation would bind carries outcome fail then pass. It is
@@ -833,7 +874,9 @@ class ExampleProjectTests(AcceptanceBase):
         (records / "a-bad.json").write_text(json.dumps(dict(full, extra=1)).replace('"extra": 1', '"extra": NaN'), encoding="utf-8")
         (records / "b-bad.json").write_text(json.dumps(dict(full, extra=1)).replace('"extra": 1', '"extra": 1e999'), encoding="utf-8")
         checked = domain.status(ledger, records)
-        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+        self.assertEqual(checked["evidence_basis"], "record")
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertTrue(entry["evidence_verified"])
         with tempfile.TemporaryDirectory() as temporary:
             broken = Path(temporary) / "dup.json"
             broken.write_text(json.dumps(EVIDENCE)[:-1] + ', "outcome": "pass"}', encoding="utf-8")
@@ -856,8 +899,12 @@ class ExampleProjectTests(AcceptanceBase):
                           {"attestation": {"validation_id": "VAL-HIL", "operator": "Attesting operator", "evidence": lines}},
                           previous_state=acceptance.replay(ledger))
         acceptance.accept(ledger, CONTROLLER)
-        self.assertEqual(domain.status(ledger)["earned_hardware_status"], "VERIFIED_ON_HARDWARE",
-                         "attestation-basis status reports what was attested")
+        before = domain.status(ledger)
+        # Attestation-basis status reports what was attested (no operator mismatch here, since
+        # nothing re-checks the record without --evidence-dir); UNVERIFIED_ON_HARDWARE only
+        # because this packet declares synthetic: true (ADR-050).
+        self.assertIn("synthetic: true", before["reason"])
+        self.assertEqual(next(v for v in before["validations"] if v["validation_id"] == "VAL-HIL")["gate"], "ATTESTED")
         records = self.directory / "records"
         records.mkdir()
         (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
@@ -884,7 +931,11 @@ class ExampleProjectTests(AcceptanceBase):
         self.assertIn(domain.DIGEST_PREFIX, packet_text)
         self.ingest(ledger, make_report(prepared, wp.current(packet)["contract"]))
         acceptance.accept(ledger, "Independent reviewer")
-        self.assertEqual(domain.status(ledger)["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
+        checked = domain.status(ledger)
+        # Acceptance succeeded with the cross-family gate satisfied; UNVERIFIED_ON_HARDWARE only
+        # because this packet declares synthetic: true (ADR-050), not for lack of acceptance.
+        self.assertEqual(checked["ledger_status"], "ACCEPTED")
+        self.assertIn("synthetic: true", checked["reason"])
 
 
 class CommandLineTests(unittest.TestCase):
@@ -930,18 +981,22 @@ class CommandLineTests(unittest.TestCase):
                                                "evidence": domain.evidence_lines(record)}},
                               previous_state=acceptance.replay(ledger))
             acceptance.accept(ledger, CONTROLLER)
+            # This packet declares synthetic: true (ADR-050), so earned_hardware_status is capped
+            # at UNVERIFIED_ON_HARDWARE throughout; evidence_basis is what this test names.
             attested = self.run_cli("status", ledger)
-            self.assertEqual((attested["earned_hardware_status"], attested["evidence_basis"]),
-                             ("VERIFIED_ON_HARDWARE", "attestation"))
-            self.assertIn("not record-verified", attested["reason"])
+            self.assertEqual(attested["evidence_basis"], "attestation")
+            self.assertIn("synthetic: true", attested["reason"])
+            self.assertEqual(next(v for v in attested["validations"] if v["validation_id"] == "VAL-HIL")["gate"],
+                             "ATTESTED")
             records = base / "records"
             records.mkdir()
-            self.assertEqual(self.run_cli("status", ledger, "--evidence-dir", records)["earned_hardware_status"],
-                             "UNVERIFIED_ON_HARDWARE", "an empty record directory verifies nothing")
+            empty = self.run_cli("status", ledger, "--evidence-dir", records)
+            self.assertIn("no hardware evidence record with the attested digest", empty["reason"],
+                         "an empty record directory verifies nothing")
             (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
             verified = self.run_cli("status", ledger, "--evidence-dir", records)
-            self.assertEqual((verified["earned_hardware_status"], verified["evidence_basis"]),
-                             ("VERIFIED_ON_HARDWARE", "record"))
+            self.assertEqual(verified["evidence_basis"], "record")
+            self.assertTrue(next(v for v in verified["validations"] if v["validation_id"] == "VAL-HIL")["evidence_verified"])
 
 
 class BootstrapIntakeTests(unittest.TestCase):

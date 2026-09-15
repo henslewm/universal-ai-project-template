@@ -34,7 +34,10 @@ COMPONENTS = tuple(SCHEMA["$defs"]["component"]["enum"])
 UNVERIFIED, VERIFIED, NOT_FACING = "UNVERIFIED_ON_HARDWARE", "VERIFIED_ON_HARDWARE", "NOT_HARDWARE_FACING"
 DIGEST_PREFIX = "hardware-evidence:sha256="
 # Lines a hardware-rung attestation must carry; each is derived from the bound evidence record.
-EVIDENCE_KEYS = ("level", "device", "firmware", "observed_at", "outcome", "operator")
+# dispatch_id and artifact_sha256 (ADR-049) bind the attestation to the ledger's current
+# submission at append time, not only when a record is later re-verified.
+EVIDENCE_KEYS = ("level", "device", "firmware", "observed_at", "outcome", "operator",
+                 "dispatch_id", "artifact_sha256")
 
 
 def canonical(value) -> str:
@@ -178,7 +181,8 @@ def evidence_lines(record: dict) -> list[str]:
     validate_hardware_evidence(record)
     values = {"level": record["level"], "device": record["device_identity"],
               "firmware": record["firmware_version"], "observed_at": record["observed_at"],
-              "outcome": record["outcome"], "operator": record["operator"]}
+              "outcome": record["outcome"], "operator": record["operator"],
+              "dispatch_id": record["dispatch_id"], "artifact_sha256": record["artifact_sha256"]}
     return [DIGEST_PREFIX + evidence_digest(record)] + [f"{key}={values[key]}" for key in EVIDENCE_KEYS]
 
 
@@ -211,12 +215,18 @@ def parsed_evidence_strict(lines) -> tuple[str | None, dict, list[str]]:
     return (digests[0] if len(digests) == 1 else None), values, unrecognized
 
 
-def validate_attestation(contract: dict, attestation: dict, attested_at: str) -> None:
+def validate_attestation(contract: dict, attestation: dict, attested_at: str,
+                         dispatch_id: str, artifact_sha256: str) -> None:
     """Refuse a hardware-rung attestation that does not bind a passing hardware evidence record.
 
     `attested_at` is the ATTESTATION event's own timestamp: an observation cannot be attested
     before it happened, so a declared `observed_at` later than the event that attests it is
     refused, whether or not a hardware evidence record is ever supplied to re-verify it.
+
+    `dispatch_id` and `artifact_sha256` are the ledger's current submission (ADR-049): contract
+    identity survives a RESUBMIT unchanged, so without checking these here an operator could
+    re-attest an unchanged, rejected record and have it reported VERIFIED_ON_HARDWARE on the
+    attestation basis alone, never reaching record_problems's equivalent check.
     """
     level = contract["domain"]["validation_levels"].get(attestation["validation_id"])
     if level not in HARDWARE_LEVELS:
@@ -246,6 +256,13 @@ def validate_attestation(contract: dict, attestation: dict, attested_at: str) ->
         raise ValueError(f"Hardware evidence observed_at {values['observed_at']} is after the "
                          f"attestation recording it at {attested_at}; an observation cannot be "
                          "attested before it happens")
+    if values["dispatch_id"] != dispatch_id:
+        raise ValueError(f"Hardware evidence was recorded for result {values['dispatch_id']} but "
+                         f"the ledger's current result is {dispatch_id}; a resubmission clears "
+                         "prior attestations and must be observed again")
+    if values["artifact_sha256"] != artifact_sha256:
+        raise ValueError(f"Hardware evidence was recorded for artifact {values['artifact_sha256']} "
+                         f"but the ledger's current artifact is {artifact_sha256}")
 
 
 def _find_record(evidence_dir: Path, digest: str):
@@ -268,7 +285,8 @@ def _find_record(evidence_dir: Path, digest: str):
 # What a found record must agree with: the ledger binding, the contract, and every line the
 # attestation carried. A digest proves the bytes; it does not prove they are a hardware record.
 RECORD_FIELDS = {"device": "device_identity", "firmware": "firmware_version", "observed_at": "observed_at",
-                 "operator": "operator", "level": "level", "outcome": "outcome"}
+                 "operator": "operator", "level": "level", "outcome": "outcome",
+                 "dispatch_id": "dispatch_id", "artifact_sha256": "artifact_sha256"}
 
 
 def record_problems(record, binding, validation_id, level, attestation) -> list[str]:
@@ -306,7 +324,7 @@ def record_problems(record, binding, validation_id, level, attestation) -> list[
     if record["operator"].strip().casefold() != attestation["operator"].strip().casefold():
         problems.append("record operator is not the attesting operator")
     attested = parsed_evidence(attestation["evidence"])[1]
-    for key in ("device", "firmware", "observed_at", "level", "outcome"):
+    for key in ("device", "firmware", "observed_at", "level", "outcome", "dispatch_id", "artifact_sha256"):
         # Exact: a device identity or firmware version that differs in case is a different unit.
         if attested.get(key) != str(record[RECORD_FIELDS[key]]):
             problems.append(f"attested {key} differs from the record's {RECORD_FIELDS[key]}")
@@ -376,19 +394,30 @@ def status(ledger, evidence_dir=None) -> dict:
         earned, reason = UNVERIFIED, "No validation reaches a hardware rung; machine-runnable checks cannot verify hardware."
     elif problems:
         earned, reason = UNVERIFIED, "; ".join(problems)
-    elif all(gate[v] == "ATTESTED" for v in hardware_ids):
+    elif not all(gate[v] == "ATTESTED" for v in hardware_ids):
+        earned, reason = UNVERIFIED, "A hardware-rung validation lacks an attestation."
+    elif domain.get("synthetic"):
+        # Codex round 18 on PR #34: synthetic:true declares every input fictional, establishing
+        # no real hardware behavior. Checked last, only once nothing else disqualifies the
+        # contract, so this refuses the upgrade to VERIFIED_ON_HARDWARE specifically -- a genuine
+        # mismatch still reports its own reason above -- rather than masking real problems.
+        earned, reason = UNVERIFIED, ("The contract declares synthetic: true; every input is fictional and "
+                                      "establishes no real hardware behavior, so this profile refuses to "
+                                      "derive VERIFIED_ON_HARDWARE for it.")
+    else:
         earned = VERIFIED
         reason = ("Accepted with every hardware-rung validation attested; each attestation's declared digest "
                   "is reported as attested, not record-verified (no --evidence-dir was supplied)."
                   if basis == "attestation" else
                   "Accepted with every hardware-rung validation attested and every bound evidence record "
                   "re-verified by digest, task, validation, rung, outcome and operator.")
-    else:
-        earned, reason = UNVERIFIED, "A hardware-rung validation lacks an attestation."
     # On the record basis a hardware rung counts only when its record verified; an attested rung
-    # whose record is missing, invalid or inconsistent is not a satisfied rung.
+    # whose record is missing, invalid or inconsistent is not a satisfied rung. For a synthetic
+    # contract a hardware rung never counts here either, for the same reason it never earns
+    # VERIFIED_ON_HARDWARE above: an attested fictional observation is not a satisfied rung.
     satisfied = [c["level"] for c in checks
-                 if c["gate"] == "PASSED" or (c["gate"] == "ATTESTED" and c["evidence_verified"] is not False)]
+                 if c["gate"] == "PASSED"
+                 or (c["gate"] == "ATTESTED" and c["evidence_verified"] is not False and not domain.get("synthetic"))]
     highest = max(satisfied, key=LEVELS.index) if satisfied else None
     return {"task_id": binding["task_id"], "revision": binding["revision"], "ledger_status": state["status"],
             "declared_hardware_status": domain["hardware_status"], "earned_hardware_status": earned,

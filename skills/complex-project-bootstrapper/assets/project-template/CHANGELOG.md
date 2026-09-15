@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 18 answered (ADR-049, ADR-050)
+
+- P1: ADR-047 closed the record-basis gap for a resubmitted result and artifact, but the attestation-basis path (no `--evidence-dir`) still trusted an operator's re-attested, unchanged record after a resubmission and reported it VERIFIED_ON_HARDWARE without the ADR-047 comparison ever running. A hardware-rung attestation now also carries `dispatch_id` and `artifact_sha256` (extending ADR-038's line count from six to eight recognized lines), and `validate_attestation` refuses one that does not match the ledger's current result and artifact at append time, on either basis (ADR-049).
+- P1: every canonical SHB example and dogfood packet declares `synthetic: true`, but nothing checked that flag, so an attested illustrative record could be reported VERIFIED_ON_HARDWARE, misrepresenting fictional dogfood as physical verification. `status` now refuses to derive VERIFIED_ON_HARDWARE for a synthetic contract regardless of attestation or acceptance state, and excludes an attested hardware rung on one from `highest_level_satisfied` (ADR-050).
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 17 answered (ADR-048)
 
 - P2: `device_identity`, `firmware_version` and `operator` were unbounded, so a schema-valid record could still be refused at attestation once `evidence_lines()` added a key prefix and the value exceeded acceptance's own 2000-character `bounded_text` element limit. `single_line` now caps at 1991 characters, leaving room for the longest key (`firmware=` / `operator=`).

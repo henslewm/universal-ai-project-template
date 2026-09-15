@@ -49,7 +49,11 @@ a non-implementer operator, and that attestation must bind a hardware evidence r
 The contract can declare only `UNVERIFIED_ON_HARDWARE` or `NOT_HARDWARE_FACING`;
 `VERIFIED_ON_HARDWARE` is derived from the ledger and can be earned only by an accepted task whose
 hardware rungs were all attested. Passing every fake-port test in `SHB-04-adapter` leaves it
-`UNVERIFIED_ON_HARDWARE`; that is the point.
+`UNVERIFIED_ON_HARDWARE`; that is the point. Every packet here also declares `domain.synthetic:
+true`, so no amount of attesting or accepting ever derives `VERIFIED_ON_HARDWARE` for it: an
+attestation and a record can still be validated and shown to agree, but the earned status stays
+`UNVERIFIED_ON_HARDWARE` with the reason naming `synthetic: true`, because every input is
+fictional and establishes no real hardware behavior.
 
 ## Walkthrough
 
