@@ -17,7 +17,7 @@ invented. No frame, timing, device response or evidence record describes real ha
 
 ## Decomposition
 
-`sample/` holds the reference implementation and its 27 `unittest` checks. `packets/` holds one
+`sample/` holds the reference implementation and its 28 `unittest` checks. `packets/` holds one
 contract per component; each packet's `context_scope` names only its own files and the
 interfaces it consumes, so no worker needs the whole repository.
 
@@ -31,7 +31,12 @@ interfaces it consumes, so no worker needs the whole repository.
 | `SHB-06-workflow` | business_logic | integration, **field** | UNVERIFIED_ON_HARDWARE |
 
 Dependency order: codec, transport and telemetry first; device after codec and transport; adapter
-after transport; the workflow last. The fake sensor lives in the device packet because it exists
+after transport; the workflow last, after codec, device, adapter and telemetry. A packet's
+declared scope is checked against what its files actually import: `tests/test_software_hardware.py`
+parses every module and test the `context_scope` names and refuses an import of a `synth_bridge`
+module the packet neither owns nor lists as a consumed interface, and refuses a consumed interface
+whose owning packet is not a declared dependency. The adapter's checks therefore speak raw
+transport bytes; the device-through-adapter crossing lives in the workflow packet. The fake sensor lives in the device packet because it exists
 only to test that boundary; a project with a richer simulator gives it its own `simulator_fake`
 packet.
 
@@ -80,7 +85,9 @@ with the test interpreter substituted. `hardware-evidence.example.json` shows th
    `acceptance.py attest`. The attesting operator must be the record's operator and must not be an
    implementation actor.
 6. Keep the record file where `status --evidence-dir` can find it; the attestation's digest line
-   is what binds it.
+   is what binds it. Without `--evidence-dir`, `status` reports the attested digests as attested,
+   not record-verified, and says so in `evidence_basis` and `reason`; with it, a record recorded by
+   an operator other than the attesting one does not verify, even when the digest matches.
 
 ## Boundaries
 

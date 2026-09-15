@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-14 — Issue #9 corrections after the provisional dogfood
+
+- Merge `origin/main` (PR #22, #8 closed again) into `issue-9-software-hardware-domain` with a merge commit; the branch's hardware-evidence and merge-before-review risks are renumbered R-013 and R-014 because `main`'s R-012 is #8's patch/review-loop risk; state records now say #9 started 2026-09-13 with an approved design rather than "not started".
+- `AC-SAMPLE` (ADR-028): the adapter's sample tests consume only the transport interface and speak raw bytes; the device-through-adapter case moves to the workflow packet; `SHB-06-workflow` declares the codec and the device packet's test double it consumes; the scoping test parses every named file's `synth_bridge` imports with `ast` and compares them to the declared scope and dependencies, with a negative control. The sample suite is 28 tests.
+- `validate_contract(contract, profile)` requires a registered profile — no default, `None` refused — and every caller names one (ADR-026).
+- The `software-hardware` domain block is closed (`additionalProperties: false`, `template_child_issue` declared for the template's dogfood packets) and the literal `VERIFIED_ON_HARDWARE` is refused in any string it carries; the example contract loses its undeclared `fixture_protocol` key (ADR-026).
+- `software_hardware.py status` reports `evidence_basis` (`attestation` or `record`), says in its reason when digests are attested but not record-verified, emits `evidence_path` on every entry, and under `--evidence-dir` refuses a record recorded by an operator other than the attesting one (ADR-027). Regressions for each, including a CLI test of `status` with and without `--evidence-dir`.
+- Two #8 regressions from PR #22 that append a second validation now map it to a rung, as the #9 rules require.
+
 ## 2026-09-15 — Issue #8 closed again through merged PR #22
 
 - PR #22 merged at `494587cfae01f9dde442a5d0e5fbe50cdfb6b257` (merge commit; parents `0c8fc8c` and `3a4e92b`) after a clean Codex review of the head, CI green and explicit maintainer authorization; #8 closed with its completion comment and master #14 noted. State records updated on `main` with the merge SHA and dates; OL-012 closed, OL-014 unblocked.

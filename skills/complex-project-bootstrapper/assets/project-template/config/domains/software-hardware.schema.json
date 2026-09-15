@@ -58,7 +58,7 @@
     },
     "contract_domain": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
         "component",
         "hardware_status",
@@ -115,8 +115,14 @@
         "synthetic": {
           "type": "boolean",
           "description": "True when every input is fictional and establishes no real hardware behavior."
+        },
+        "template_child_issue": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "For this template's own dogfood packets only: the child issue the packet reviews."
         }
-      }
+      },
+      "description": "Closed: no free-text field exists in which a hardware claim could be written; hardware status is carried by hardware_status alone and VERIFIED_ON_HARDWARE is refused wherever it appears."
     },
     "hardware_evidence": {
       "type": "object",

@@ -59,6 +59,13 @@ class BridgeIntegrationTests(unittest.TestCase):
         adapter.send(codec.encode_read_request())
         self.assertEqual(adapter.receive(0.1), codec.encode(bytes([0, 1])))
 
+    def test_device_reads_through_the_adapter_over_a_fake_port(self):
+        # Composition of the device and adapter interfaces: the adapter packet's own checks stay
+        # at the transport boundary, so this crossing is exercised here.
+        adapter = SerialAdapter("SYNTH0", lambda name: FakeSensorPort([42]))
+        adapter.open()
+        self.assertEqual(SensorDevice(adapter).read().value, 42)
+
 
 if __name__ == "__main__":
     unittest.main()

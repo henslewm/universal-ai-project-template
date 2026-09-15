@@ -49,6 +49,7 @@
     "description": "Composition only; every component interface is consumed at its recorded version."
   },
   "dependencies": [
+    "SHB-01-codec",
     "SHB-03-device",
     "SHB-04-adapter",
     "SHB-05-telemetry"
@@ -135,7 +136,7 @@
   "context_scope": [
     "This contract.",
     "sample/tests/test_integration.py",
-    "Interfaces of synth_bridge.adapter, synth_bridge.device and synth_bridge.telemetry only."
+    "Interfaces of synth_bridge.adapter, synth_bridge.device, synth_bridge.telemetry, synth_bridge.codec and synth_bridge.fake_device (the device packet's test double) only."
   ],
   "architecture_boundaries": [
     "No component interface changes; composition only."

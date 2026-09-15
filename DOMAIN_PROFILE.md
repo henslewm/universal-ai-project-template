@@ -41,7 +41,9 @@ contract is validated:
   hardware assumption exists.
 - `validation_levels`: every validation id mapped to exactly one rung of the ladder.
 - `hardware_status`: `UNVERIFIED_ON_HARDWARE` or `NOT_HARDWARE_FACING`. A contract cannot declare
-  `VERIFIED_ON_HARDWARE`; it is earned, never authored.
+  `VERIFIED_ON_HARDWARE`; it is earned, never authored. The block is closed — no undeclared key
+  and no free text can carry that literal anywhere in it — and `validate_contract` takes the
+  profile as a required argument, so no caller skips these rules by omitting it.
 
 ## Verification ladder
 
@@ -56,7 +58,10 @@ evidence record by digest. A hardware rung with a command is refused as a simula
 as hardware; a machine rung without one is refused as attestation substituting for a runnable
 check. `software_hardware.py status` derives the earned status from the ledger:
 `VERIFIED_ON_HARDWARE` only for an accepted task whose hardware rungs were all attested. A compile
-or simulation pass never upgrades it.
+or simulation pass never upgrades it. The output names its `evidence_basis`: without
+`--evidence-dir` the status rests on the ledger's attestations and their declared digests, and
+says it is attested, not record-verified; with `--evidence-dir` every bound record is found by
+digest and re-verified for task, validation, rung, a `pass` outcome and the attesting operator.
 
 ## Cost posture
 

@@ -28,10 +28,22 @@ Ledger `_acceptance-demo-9` beside the repository, packet `ISSUE-9-ACCEPTANCE` a
 - **Residual observations from the reviewer, not contract failures, to be addressed with the correction:** `status` without `--evidence-dir` reports `VERIFIED_ON_HARDWARE` on attested digests alone and should say it is attested, not record-verified, status; `status --evidence-dir` does not compare the record's operator to the attestation; `validate_contract` keeps a `profile=None` default that skips domain rules for any caller not passing the profile; `additionalProperties: true` lets the literal `VERIFIED_ON_HARDWARE` appear in free-text domain fields.
 - **Cross-family gate.** Unsatisfied. The round-1 reviewer is same-family and says so. The maintainer intends to provide the approving review from a different strong model family after the correction, rather than record a waiver.
 
+## Correction — 2026-09-14, against the merged gate
+
+`origin/main` (PR #22 merged at `494587cf`; #8 closed again) was merged into the branch with a merge commit (`4b2b579`), so the acceptance controller the repeat dogfood runs through is the corrected one. The branch's two risk rows became R-013 and R-014 because `main`'s R-012 is #8's patch/review-loop risk. Two #8 regressions from PR #22 that append a second validation without a rung were refused by the #9 domain rules, correctly, and now map it.
+
+The corrections this record called for, each with a regression (ADR-026 to ADR-028):
+
+- **`AC-SAMPLE`.** `test_adapter.py` imports only `synth_bridge.adapter` and `synth_bridge.transport` and speaks raw SYNTH-FRAME-1 bytes; the device-through-adapter case moved to `test_integration.py`, which the workflow packet owns; `SHB-06-workflow` now declares `SHB-01-codec` as a dependency and names `synth_bridge.codec` and `synth_bridge.fake_device` among its consumed interfaces. `test_example_packets_form_a_dag_with_component_scoped_context` parses every file each packet names with `ast` and refuses an import the declared scope does not admit or a consumed interface whose owner is not a declared dependency, with a negative control for both. The sample suite is 28 tests.
+- **Attested versus record-verified.** `status` reports `evidence_basis` (`attestation` without `--evidence-dir`, `record` with it); the `VERIFIED_ON_HARDWARE` reason without a directory says the digests are attested, not record-verified. `evidence_path` is present on every entry. A CLI regression covers both forms.
+- **Operator under `--evidence-dir`.** A record found by digest must also have been recorded by the attesting operator; the regression binds another operator's record with the attester's name copied into the `operator=` line and shows `status --evidence-dir` refusing it.
+- **No `profile=None`.** `validate_contract(contract, profile)` requires a registered profile; `None` is refused; every caller in the scripts and tests names one.
+- **Closed block.** `contract_domain` has `additionalProperties: false` (`synthetic` and `template_child_issue` declared) and the literal `VERIFIED_ON_HARDWARE` is refused in any string the block carries, as a whole word so the declared `UNVERIFIED_ON_HARDWARE` is not a claim. The example contract's undeclared `fixture_protocol` key was removed.
+
 ## What must happen before this record becomes evidence
 
-1. PR #22 (reopened #8) merges after its Codex review of the current head is answered, on the maintainer's go-ahead.
-2. The `AC-SAMPLE` correction and the residual observations are applied on the #9 branch with regressions.
+1. ~~PR #22 (reopened #8) merges~~ — merged 2026-09-15 at `494587cf` and merged into this branch.
+2. ~~The `AC-SAMPLE` correction and the residual observations are applied~~ — applied 2026-09-14, see Correction above.
 3. The dogfood is repeated from a fresh ledger against the corrected gate: `init`, `run-checks`, a fresh minimal-context review, the cross-family approving review, `accept`.
 4. Only then are this document's provisional markers removed and #9's acceptance criteria mapped to evidence.
 

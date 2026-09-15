@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 SCHEMA = json.loads((ROOT / "config/work-packet.schema.json").read_text(encoding="utf-8"))
+PROFILES = tuple(SCHEMA["properties"]["domain_profile"]["enum"])
 # Profile-specific rules over the `domain` extension. A registered module adds structure and
 # refusals for its profile; it can never relax the common contract, which is enforced first.
 DOMAIN_MODULES = {"software-hardware": "software_hardware"}
@@ -118,7 +119,14 @@ def domain_module(profile):
     return importlib.import_module(name) if name else None
 
 
-def validate_contract(contract, profile=None) -> list[str]:
+def validate_contract(contract, profile) -> list[str]:
+    """Common contract rules, then the registered domain rules for `profile`.
+
+    The profile is mandatory: a caller that does not know which profile it validates for would
+    otherwise skip that profile's domain rules silently, and `None` is refused for the same reason.
+    """
+    if not isinstance(profile, str) or profile not in PROFILES:
+        raise ValueError(f"validate_contract requires a registered domain profile, not {profile!r}")
     errors = schema_errors(CONTRACT_VALIDATOR, contract)
     if errors:
         return errors

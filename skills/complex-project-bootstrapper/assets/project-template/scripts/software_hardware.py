@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -48,10 +49,25 @@ def _schema_errors(name, value) -> list[str]:
             for e in sorted(_validator(name).iter_errors(value), key=lambda e: str(list(e.absolute_path)))]
 
 
+def _strings(value, path="domain"):
+    if isinstance(value, str):
+        yield path, value
+    elif isinstance(value, dict):
+        for key, child in value.items():
+            yield from _strings(child, f"{path}/{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _strings(child, f"{path}/{index}")
+
+
 def validate_contract_domain(contract: dict) -> list[str]:
     """Cross-field rules over a schema-valid common contract; returns error strings."""
     domain = contract.get("domain")
     errors = _schema_errors("contract_domain", domain)
+    # The block is closed by schema, so every string it can carry is enumerable; none may assert
+    # the status only the ledger can earn, whichever field it is written into.
+    errors.extend(f"{path}: {VERIFIED} is earned in the acceptance ledger, never authored"
+                  for path, text in _strings(domain) if re.search(rf"\b{VERIFIED}\b", text))
     if errors:
         return errors
     sources = {entry["id"] for entry in contract["sources"]}
@@ -181,21 +197,29 @@ def status(ledger, evidence_dir=None) -> dict:
         identifier = check["id"]
         entry = {"validation_id": identifier, "level": levels[identifier], "gate": gate[identifier],
                  "machine_runnable": levels[identifier] in MACHINE_LEVELS, "evidence_digest": None,
-                 "evidence_verified": None}
+                 "evidence_verified": None, "evidence_path": None}
         attestation = state["attestations"].get(identifier)
         if attestation is not None:
             entry["evidence_digest"] = parsed_evidence(attestation["evidence"])[0]
             if evidence_dir is not None and levels[identifier] in HARDWARE_LEVELS:
                 path, record = _find_record(Path(evidence_dir), entry["evidence_digest"] or "")
+                # The digest binds the record's content; the record must also be the one this task,
+                # validation and rung expected, a passing observation, and recorded by the operator
+                # who attested it — a matching digest recorded by someone else is not the attestation's.
                 bound = (record is not None and record["task_id"] == binding["task_id"]
                          and record["validation_id"] == identifier and record["level"] == levels[identifier]
-                         and record["outcome"] == "pass")
+                         and record["outcome"] == "pass"
+                         and record["operator"].strip().casefold() == attestation["operator"].strip().casefold())
                 entry["evidence_verified"] = bound
                 entry["evidence_path"] = str(path) if path else None
                 if not bound:
-                    problems.append(f"{identifier}: no matching hardware evidence record for its attested digest")
+                    problems.append(f"{identifier}: no matching hardware evidence record for its attested digest"
+                                    + ("" if record is None else " (task, validation, rung, outcome or operator differ)"))
         checks.append(entry)
     hardware_ids = [c["validation_id"] for c in checks if not c["machine_runnable"]]
+    # What the verdict rests on. Without an evidence directory the ledger's attestations are the
+    # only stream read: the digests they declare are reported, not re-verified against records.
+    basis = "record" if evidence_dir is not None else "attestation"
     if domain["hardware_status"] == NOT_FACING:
         earned, reason = NOT_FACING, "The contract declares no hardware assumption."
     elif state["status"] != "ACCEPTED":
@@ -205,15 +229,20 @@ def status(ledger, evidence_dir=None) -> dict:
     elif problems:
         earned, reason = UNVERIFIED, "; ".join(problems)
     elif all(gate[v] == "ATTESTED" for v in hardware_ids):
-        earned, reason = VERIFIED, "Accepted with every hardware-rung validation attested against a bound evidence record."
+        earned = VERIFIED
+        reason = ("Accepted with every hardware-rung validation attested; each attestation's declared digest "
+                  "is reported as attested, not record-verified (no --evidence-dir was supplied)."
+                  if basis == "attestation" else
+                  "Accepted with every hardware-rung validation attested and every bound evidence record "
+                  "re-verified by digest, task, validation, rung, outcome and operator.")
     else:
         earned, reason = UNVERIFIED, "A hardware-rung validation lacks an attestation."
     satisfied = [c["level"] for c in checks if c["gate"] in {"PASSED", "ATTESTED"}]
     highest = max(satisfied, key=LEVELS.index) if satisfied else None
     return {"task_id": binding["task_id"], "revision": binding["revision"], "ledger_status": state["status"],
             "declared_hardware_status": domain["hardware_status"], "earned_hardware_status": earned,
-            "reason": reason, "component": domain["component"], "highest_level_satisfied": highest,
-            "validations": checks}
+            "evidence_basis": basis, "reason": reason, "component": domain["component"],
+            "highest_level_satisfied": highest, "validations": checks}
 
 
 def main(argv=None):
@@ -227,7 +256,9 @@ def main(argv=None):
     evidence.add_argument("--validation-id", help="Refuse a record recorded for a different validation")
     derive = commands.add_parser("status", help="Derive the earned hardware status from an acceptance ledger")
     derive.add_argument("ledger", type=Path)
-    derive.add_argument("--evidence-dir", type=Path, help="Verify attested digests against record files here")
+    derive.add_argument("--evidence-dir", type=Path,
+                        help="Re-verify every attested digest against the record files here; without it the "
+                             "status rests on the ledger's attestations alone and says so")
     args = parser.parse_args(argv)
     try:
         if args.command == "validate-contract":

@@ -4,7 +4,7 @@
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Branch:** main
 - **Latest accepted merge:** `494587cfae01f9dde442a5d0e5fbe50cdfb6b257` (PR #22, closed #8 again; parents `0c8fc8c` and `3a4e92b`). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** none active. #9 is next and has not been started.
+- **Scope:** #9 in progress on `issue-9-software-hardware-domain`. Started 2026-09-13 with an approved design (issue #9, first comment); the branch was merged up to `main` on 2026-09-14 with a merge commit and its provisional dogfood is being repeated against the merged gate.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #9](https://github.com/henslewm/universal-ai-project-template/issues/9) — complete software + hardware domain template. Issues #2 through #8 are closed through merged PRs #15 to #22; #8 was closed through PR #21, reopened the same evening because Codex's review of the merged head landed after the closure, and closed again through PR #22. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
 
@@ -32,7 +32,7 @@ Third, for #9: the machine-runnable-versus-attested validation split is exactly 
 
 ## Exact next action
 
-Begin #9 in a fresh session, orienting from master #14 and #9 only plus these durable documents. Do not start it in the session that merged #8 — master #14 requires rereading it before selecting the next child. Nothing is in flight, no branch is pending, no reservation and no acceptance ledger is open. The construction branch `issue-8-codex-findings` remains until the later authorized cleanup.
+Continue #9 on `issue-9-software-hardware-domain`, orienting from master #14 and #9 only plus these durable documents; `docs/ISSUE_9_VALIDATION.md` records what has been corrected, what the repeat dogfood established and what remains. The construction branch `issue-8-codex-findings` remains until the later authorized cleanup.
 
 ## Limitations carried forward (outside #8; maintainer chose a note, not an issue)
 

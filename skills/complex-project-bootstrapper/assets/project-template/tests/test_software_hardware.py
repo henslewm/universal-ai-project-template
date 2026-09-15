@@ -1,9 +1,12 @@
 """Software + hardware domain rules: simulated success never becomes hardware verification."""
 from __future__ import annotations
 
+import ast
 import copy
 import importlib.util
 import json
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -51,6 +54,52 @@ def local_argv(contract):
     return value
 
 
+def declared_scope(contract):
+    """What a packet's context_scope says it owns (sample modules and tests) and consumes (interfaces)."""
+    owned = {Path(item).stem for item in contract["context_scope"] if item.startswith("sample/synth_bridge/")}
+    consumed = {name for item in contract["context_scope"] if item.startswith("Interface")
+                for name in re.findall(r"synth_bridge\.(\w+)", item)}
+    files = [item for item in contract["context_scope"] if item.startswith("sample/") and item.endswith(".py")]
+    return owned, consumed, files
+
+
+def synth_bridge_imports(path):
+    """The synth_bridge modules a sample file imports, parsed rather than pattern-matched."""
+    names = set()
+    inside_package = path.parent.name == "synth_bridge"
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.ImportFrom):
+            if node.level and inside_package:  # `from . import codec` / `from .transport import X`
+                if node.module is None:
+                    names.update(alias.name for alias in node.names)
+                else:
+                    names.add(node.module.split(".")[0])
+            elif node.module == "synth_bridge":
+                names.update(alias.name for alias in node.names)
+            elif node.module and node.module.startswith("synth_bridge."):
+                names.add(node.module.split(".")[1])
+        elif isinstance(node, ast.Import):
+            names.update(alias.name.split(".")[1] for alias in node.names if alias.name.startswith("synth_bridge."))
+    return names
+
+
+def scope_violations(contracts, sample_root):
+    """Imports a packet's files make that its declared scope does not admit, plus consumed
+    interfaces whose owning packet is not a declared dependency. Empty means the scopes are true."""
+    owner = {module: task for task, contract in contracts.items() for module in declared_scope(contract)[0]}
+    problems = []
+    for task, contract in contracts.items():
+        owned, consumed, files = declared_scope(contract)
+        for item in files:
+            extra = synth_bridge_imports(sample_root / Path(item).relative_to("sample")) - owned - consumed
+            if extra:
+                problems.append(f"{task}: {item} imports undeclared {sorted(extra)}")
+        for module in sorted(consumed):
+            if owner.get(module) not in contract["dependencies"]:
+                problems.append(f"{task}: consumes {module} owned by {owner.get(module)} without declaring the dependency")
+    return problems
+
+
 class ContractRuleTests(unittest.TestCase):
     def test_example_contracts_satisfy_the_domain_rules(self):
         self.assertEqual(errors_for(example()), [])
@@ -62,9 +111,28 @@ class ContractRuleTests(unittest.TestCase):
     def test_domain_rules_apply_only_to_the_registered_profile(self):
         broken = example()
         broken["domain"] = {"synthetic": True}
-        self.assertEqual(wp.validate_contract(broken), [])
+        self.assertEqual(wp.validate_contract(broken, "family-law"), [])
         self.assertTrue(any(e.startswith("domain:") for e in errors_for(broken)))
         self.assertIsNone(wp.domain_module("family-law"))
+        # There is no default profile: a caller cannot skip the domain rules by omitting it.
+        with self.assertRaises(TypeError):
+            wp.validate_contract(broken)
+        with self.assertRaisesRegex(ValueError, "registered domain profile"):
+            wp.validate_contract(broken, None)
+
+    def test_domain_block_is_closed_and_the_earned_status_is_refused_in_any_text(self):
+        contract = example()
+        contract["domain"]["notes"] = "Reviewed and VERIFIED_ON_HARDWARE by the author"
+        self.assertTrue(any("Additional properties" in e and "notes" in e for e in errors_for(contract)))
+        for path, mutate in (("assumption", lambda c: c["domain"]["hardware_assumptions"][0].__setitem__(
+                                  "assumption", "Bench VERIFIED_ON_HARDWARE already")),
+                             ("component", lambda c: c["domain"].__setitem__("component", "VERIFIED_ON_HARDWARE"))):
+            with self.subTest(path=path):
+                contract = example()
+                mutate(contract)
+                self.assertTrue(any("earned in the acceptance ledger, never authored" in e for e in errors_for(contract)))
+        # The declared status UNVERIFIED_ON_HARDWARE contains the literal as a substring and is not a claim.
+        self.assertEqual(errors_for(example()), [])
 
     def test_verified_on_hardware_is_never_authored(self):
         contract = example()
@@ -152,12 +220,24 @@ class ContractRuleTests(unittest.TestCase):
         self.assertEqual(order[-1], "SHB-06-workflow")
         components = {wp.current(p)["contract"]["domain"]["component"] for p in packets}
         self.assertEqual(len(components), 6)
-        for packet in packets:
-            contract = wp.current(packet)["contract"]
-            with self.subTest(task=packet["task_id"]):
-                self.assertNotIn("sample/synth_bridge/", " ".join(
-                    item for item in contract["context_scope"] if "Interface" in item))
-                self.assertLessEqual(len([i for i in contract["context_scope"] if i.startswith("sample/synth_bridge/")]), 2)
+        contracts = {p["task_id"]: wp.current(p)["contract"] for p in packets}
+        # Declared scope is checked against actual imports, not against the shape of the paths:
+        # every module a packet's files import is owned by the packet or named as a consumed
+        # interface, and every consumed interface's owner is a declared dependency.
+        self.assertEqual(scope_violations(contracts, EXAMPLES / "sample"), [])
+        owned, consumed, _ = declared_scope(contracts["SHB-04-adapter"])
+        self.assertEqual((owned, consumed), ({"adapter"}, {"transport"}))
+        self.assertEqual(synth_bridge_imports(EXAMPLES / "sample/tests/test_adapter.py"), {"adapter", "transport"})
+        # Negative control: the comparison sees an undeclared import and an undeclared dependency.
+        copied = Path(self.enterContext(tempfile.TemporaryDirectory())) / "sample"
+        shutil.copytree(EXAMPLES / "sample", copied)
+        adapter_test = copied / "tests/test_adapter.py"
+        adapter_test.write_text("from synth_bridge import codec\n" + adapter_test.read_text(encoding="utf-8"), encoding="utf-8")
+        self.assertEqual(scope_violations(contracts, copied), ["SHB-04-adapter: sample/tests/test_adapter.py imports undeclared ['codec']"])
+        narrowed = copy.deepcopy(contracts)
+        narrowed["SHB-06-workflow"]["dependencies"].remove("SHB-01-codec")
+        self.assertIn("SHB-06-workflow: consumes codec owned by SHB-01-codec without declaring the dependency",
+                      scope_violations(narrowed, EXAMPLES / "sample"))
         levels = {p["task_id"]: wp.current(p)["contract"]["domain"]["validation_levels"] for p in packets}
         self.assertEqual(levels["SHB-04-adapter"]["VAL-HIL"], "hardware_in_loop")
         self.assertEqual(levels["SHB-06-workflow"]["VAL-FIELD"], "field")
@@ -241,12 +321,17 @@ class AttestationRuleTests(AcceptanceBase):
         acceptance.accept(ledger, CONTROLLER)
         earned = domain.status(ledger)
         self.assertEqual(earned["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
+        # Without an evidence directory the verdict rests on the attestations and says so.
+        self.assertEqual(earned["evidence_basis"], "attestation")
+        self.assertIn("not record-verified", earned["reason"])
         self.assertEqual(earned["highest_level_satisfied"], "hardware_in_loop")
         self.assertEqual(earned["validations"][0]["evidence_digest"], domain.evidence_digest(EVIDENCE))
+        self.assertIsNone(earned["validations"][0]["evidence_path"])
         # The bound record must be findable and consistent when an evidence directory is supplied.
         records = self.directory / "records"
         records.mkdir()
-        self.assertEqual(domain.status(ledger, records)["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        checked = domain.status(ledger, records)
+        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("UNVERIFIED_ON_HARDWARE", "record"))
         (records / "hil.json").write_text(json.dumps(EVIDENCE), encoding="utf-8")
         self.assertEqual(domain.status(ledger, records)["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE",
                          "The example record is for SHB-04-adapter, not this task")
@@ -295,7 +380,7 @@ class ExampleProjectTests(AcceptanceBase):
         completed = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
                                    cwd=EXAMPLES / "sample", capture_output=True, text=True)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("Ran 27 tests", completed.stderr)
+        self.assertIn("Ran 28 tests", completed.stderr)
 
     def test_deterministic_gate_reexecutes_the_codec_packet_commands(self):
         ledger, _ = self.start(packet=self.packet_for("SHB-01-codec"))
@@ -324,7 +409,37 @@ class ExampleProjectTests(AcceptanceBase):
         (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
         earned = domain.status(ledger, records)
         self.assertEqual(earned["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
-        self.assertTrue(next(v for v in earned["validations"] if v["validation_id"] == "VAL-HIL")["evidence_verified"])
+        self.assertEqual(earned["evidence_basis"], "record")
+        self.assertIn("re-verified", earned["reason"])
+        entry = next(v for v in earned["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertTrue(entry["evidence_verified"])
+        self.assertEqual(Path(entry["evidence_path"]), records / "run.json")
+
+    def test_record_recorded_by_another_operator_does_not_verify_the_attestation(self):
+        # The attestation's operator= line is checked at append time against the attesting operator,
+        # but the digest line is only a string then: an attester can bind a record someone else
+        # recorded and copy their own name into the line. status --evidence-dir compares the
+        # record's operator to the attesting operator, so that record does not verify.
+        ledger, _ = self.start(packet=self.packet_for("SHB-04-adapter", risk="low"))
+        acceptance.run_checks(ledger, EXAMPLES)
+        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", operator="Someone else at the bench")
+        lines = [line if not line.startswith("operator=") else "operator=Attesting operator"
+                 for line in domain.evidence_lines(record)]
+        acceptance.append(ledger, "ATTESTATION",
+                          {"attestation": {"validation_id": "VAL-HIL", "operator": "Attesting operator", "evidence": lines}},
+                          previous_state=acceptance.replay(ledger))
+        acceptance.accept(ledger, CONTROLLER)
+        self.assertEqual(domain.status(ledger)["earned_hardware_status"], "VERIFIED_ON_HARDWARE",
+                         "attestation-basis status reports what was attested")
+        records = self.directory / "records"
+        records.mkdir()
+        (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
+        checked = domain.status(ledger, records)
+        self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn("operator differ", checked["reason"])
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertFalse(entry["evidence_verified"])
+        self.assertEqual(Path(entry["evidence_path"]), records / "run.json", "the record was found; it did not verify")
 
     def test_high_risk_adapter_packet_needs_cross_family_review_as_well(self):
         ledger, packet = self.start(packet=self.packet_for("SHB-04-adapter"))
@@ -370,6 +485,36 @@ class CommandLineTests(unittest.TestCase):
             contract["domain"]["hardware_status"] = "VERIFIED_ON_HARDWARE"
             broken.write_text(json.dumps(contract), encoding="utf-8")
             self.assertIn("hardware_status", self.run_cli("validate-contract", broken, ok=False))
+
+    def test_status_command_names_its_evidence_basis(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            contract = local_argv(wp.read_json(EXAMPLES / "packets/SHB-04-adapter.contract.json"))
+            contract["risk"] = "low"
+            contract["dependencies"] = []
+            packet = make_packet(contract)
+            ledger = base / "ledger"
+            acceptance.initialize(ledger, wp.read_json(ROOT / "config/acceptance.example.json"), packet,
+                                  make_result(packet), make_artifact(), CONTROLLER, ARCHITECT, IMPLEMENTERS, [])
+            acceptance.run_checks(ledger, EXAMPLES)
+            record = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+            acceptance.append(ledger, "ATTESTATION",
+                              {"attestation": {"validation_id": "VAL-HIL", "operator": record["operator"],
+                                               "evidence": domain.evidence_lines(record)}},
+                              previous_state=acceptance.replay(ledger))
+            acceptance.accept(ledger, CONTROLLER)
+            attested = self.run_cli("status", ledger)
+            self.assertEqual((attested["earned_hardware_status"], attested["evidence_basis"]),
+                             ("VERIFIED_ON_HARDWARE", "attestation"))
+            self.assertIn("not record-verified", attested["reason"])
+            records = base / "records"
+            records.mkdir()
+            self.assertEqual(self.run_cli("status", ledger, "--evidence-dir", records)["earned_hardware_status"],
+                             "UNVERIFIED_ON_HARDWARE", "an empty record directory verifies nothing")
+            (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
+            verified = self.run_cli("status", ledger, "--evidence-dir", records)
+            self.assertEqual((verified["earned_hardware_status"], verified["evidence_basis"]),
+                             ("VERIFIED_ON_HARDWARE", "record"))
 
 
 class BootstrapIntakeTests(unittest.TestCase):

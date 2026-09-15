@@ -130,7 +130,6 @@
     ],
     "validation_levels": {
       "VAL-FRAMES": "unit"
-    },
-    "fixture_protocol": "SYNTH-FRAME-1"
+    }
   }
 }

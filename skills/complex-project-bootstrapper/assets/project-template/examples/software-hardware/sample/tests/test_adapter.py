@@ -2,13 +2,17 @@
 
 Everything here runs against an in-memory port. It establishes the adapter's host-side
 rules and nothing about a physical SYNTH-SENSOR-1; that rung is attested, not executed.
+
+The adapter is framing only: it consumes the transport interface and nothing else, so these
+checks speak raw bytes. SYNTH-FRAME-1 layout: TAG(0xA1) LEN PAYLOAD[LEN] XOR-CHECKSUM over
+TAG..PAYLOAD; the codec that produces such frames is another packet's interface.
 """
 import unittest
 
-from synth_bridge import codec
 from synth_bridge.adapter import SerialAdapter
-from synth_bridge.device import SensorDevice
 from synth_bridge.transport import TransportTimeout
+
+WHOLE_FRAME = b"\xa1\x02\x12\x34\x85"  # TAG, LEN=2, payload 0x12 0x34, checksum 0xA1^0x02^0x12^0x34
 
 
 class FakePort:
@@ -54,9 +58,8 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertFalse(adapter.is_open)
 
     def test_reads_one_whole_frame_by_its_declared_length(self):
-        reply = codec.encode(bytes([0x12, 0x34]))
-        adapter = self.adapter(FakePort([reply, b"\xff"]))
-        self.assertEqual(adapter.receive(0.1), reply)
+        adapter = self.adapter(FakePort([WHOLE_FRAME, b"\xff"]))
+        self.assertEqual(adapter.receive(0.1), WHOLE_FRAME)
 
     def test_missing_header_is_a_timeout_not_a_crash(self):
         adapter = self.adapter(FakePort([b"\xa1"]))
@@ -84,11 +87,11 @@ class SerialAdapterTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             adapter.receive(0.1)
 
-    def test_device_reads_through_the_adapter_over_a_fake_port(self):
-        port = FakePort([codec.encode(bytes([0x00, 0x2A]))])
+    def test_send_writes_the_bytes_it_was_given_unchanged(self):
+        port = FakePort()
         adapter = self.adapter(port)
-        self.assertEqual(SensorDevice(adapter).read().value, 42)
-        self.assertEqual(port.written, [codec.encode_read_request()])
+        adapter.send(WHOLE_FRAME)
+        self.assertEqual(port.written, [WHOLE_FRAME])
 
 
 if __name__ == "__main__":
