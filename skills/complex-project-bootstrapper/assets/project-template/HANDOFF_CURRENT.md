@@ -4,7 +4,7 @@
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Branch:** main
 - **Latest accepted merge:** `494587cfae01f9dde442a5d0e5fbe50cdfb6b257` (PR #22, closed #8 again; parents `0c8fc8c` and `3a4e92b`). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** #9 in progress on `issue-9-software-hardware-domain`. Started 2026-09-13 with an approved design (issue #9, first comment); the branch was merged up to `main` on 2026-09-14 with a merge commit and its provisional dogfood is being repeated against the merged gate.
+- **Scope:** #9 in progress on `issue-9-software-hardware-domain`. Started 2026-09-13 with an approved design (issue #9, first comment); the branch was merged up to `main` on 2026-09-14 with a merge commit; the repeat dogfood at `_acceptance-demo-9b` was accepted the same day on a cross-family approval (no waiver). Next: the PR's Codex review, then the maintainer's merge decision.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #9](https://github.com/henslewm/universal-ai-project-template/issues/9) — complete software + hardware domain template. Issues #2 through #8 are closed through merged PRs #15 to #22; #8 was closed through PR #21, reopened the same evening because Codex's review of the merged head landed after the closure, and closed again through PR #22. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
 

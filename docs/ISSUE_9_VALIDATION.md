@@ -1,10 +1,21 @@
-# Issue #9 validation and review — PROVISIONAL
+# Issue #9 validation and review
 
 Issue: [Complete software + hardware domain template and hardware-in-loop discipline](https://github.com/henslewm/universal-ai-project-template/issues/9). Design approved by the maintainer as proposed on 2026-09-13 and recorded in the issue. Implementation is on `issue-9-software-hardware-domain` at `27ebdf3` (records drafted at `d0fdc05`). Locked master #14 title/body and order remain unchanged.
 
 ## Status of this record
 
-**Nothing in this document is acceptance evidence yet.** The dogfood acceptance run described below was made through the acceptance controller as merged at `226353c6` (#8), in which two P1 defects found by Codex on PR #21 were unfixed at the time: an acceptance decision was not bound to its feedback task, and the reviewer tier was not enforced at `REVIEW_OPEN`. #8 was reopened on 2026-09-13 to fix them (PR #22). Until that PR is merged and the #9 run is repeated against the corrected gate, the run below establishes only that the deterministic gate observed the suite pass and that a minimal-context reviewer found a real defect. It does not establish that #9's acceptance would be sound, and #9 is not advanced until #8 is correct.
+**Accepted 2026-09-14** through the acceptance controller as merged through PR #22, at `_acceptance-demo-9b` beside the repository: an 11-event hash-chained ledger ending `ACCEPT` (head `4ef315f6…`) for task `ISSUE-9-ACCEPTANCE` revision 1, with the deterministic gate passed on both submissions, a same-family minimal-context approval, a cross-family rejection that found a real defect, the correction, and a cross-family approval by `Codex (OpenAI, cross-family reviewer, round 3)`, family `openai`, tier 3 — no waiver recorded. The earlier run at `_acceptance-demo-9` (below) went through the unfixed #8 gate and remains provisional history only; nothing in it is acceptance evidence.
+
+## Acceptance criteria of Issue #9 mapped to evidence
+
+| # | Criterion (issue #9) | Evidence |
+|---|---|---|
+| 1 | Interactive software/hardware bootstrap is complete | `validate_bootstrap.DOMAIN_FIELDS["software-hardware"]` requires nine orientation fields (hardware identity, interfaces, specifications, environment, known paths, validation resources, physical access, architecture boundaries, baseline); `config/bootstrap.example.json` supplies them; `BootstrapIntakeTests` shows the example activating and a `TBD` placeholder refused before review. Dogfood criterion `AC-BOOTSTRAP` met in rounds 1–3. |
+| 2 | Domain work-packet extensions cover hardware assumptions, protocol references, simulator/HIL tests, and evidence | `config/domains/software-hardware.schema.json` (closed block) and `scripts/software_hardware.py`: assumptions cite contract sources, protocol references required when assumptions exist, every validation mapped to one rung, machine rungs need a command and hardware rungs must not, hardware-rung attestation binds a validated evidence record by digest, and `status --evidence-dir` verifies the found record's schema, binding and every attested line (ADR-018, ADR-020, ADR-029). Dogfood `AC-EXTENSIONS`: rejected in round 2 for the record-verification gap, met in round 3 after the correction. |
+| 3 | Hardware validation status is explicit and machine-readable | A contract declares only `UNVERIFIED_ON_HARDWARE` or `NOT_HARDWARE_FACING`; `VERIFIED_ON_HARDWARE` is refused anywhere in the block; `software_hardware.py status` derives the earned status from the ledger as JSON with `evidence_basis`, and a machine-only acceptance never earns `VERIFIED_ON_HARDWARE` (ADR-019, ADR-026, ADR-027). Dogfood `AC-STATUS` met; this packet's own status derives as `NOT_HARDWARE_FACING`. |
+| 4 | A representative sample project can be decomposed into independent packets without every worker understanding the whole repository | `examples/software-hardware/`: six component-scoped packets forming a DAG, each `context_scope` naming only its own files and consumed interfaces, checked against the files' actual imports with a negative control (ADR-028); the codec and adapter packets' declared commands execute through the deterministic gate in the test suite; the 28-test sample suite passes. Dogfood `AC-SAMPLE`: rejected in the provisional run for the scope contradiction, met in rounds 1–3 after the correction. |
+
+The fifth dogfood criterion, `AC-SPLIT` (simulated success distinct from hardware verification through the existing split, no controller loosened), is master goal 10's requirement rather than an issue #9 bullet and was met in every round.
 
 ## Delivered on the branch
 
@@ -19,7 +30,7 @@ Issue: [Complete software + hardware domain template and hardware-in-loop discip
 
 309 tests pass on Windows with the maintainer's working interpreter. Repository validation passes 81 required paths; `scripts/sync_skills.py --check` reports 0 differing files. The 25 domain tests cover every contract refusal, hook propagation to packet validation and acceptance init, the attestation rule with and without a bound record, status derivation including the machine-only never-upgrades case, the six example packets validating and forming a DAG, the sample commands executing through `run-checks`, and the bootstrap field set. CI on Linux has not yet run for this branch because no pull request has been opened; that is deliberate while #8 is open.
 
-## Dogfood — provisional
+## First dogfood — provisional (through the unfixed #8 gate; history only)
 
 Ledger `_acceptance-demo-9` beside the repository, packet `ISSUE-9-ACCEPTANCE` at `high` risk (gates: deterministic, model review, cross-family), `domain` block declared `NOT_HARDWARE_FACING` under the rules the diff introduces.
 
@@ -49,12 +60,14 @@ Fresh ledger beside the repository; packet `ISSUE-9-ACCEPTANCE` revision 1, cont
 - **Round 2 — cross-family, REJECT_BOUNDED.** Reviewer "Codex (OpenAI, cross-family reviewer, round 2)", family `openai`, tier 3 (review id `3855e712…`), run by the maintainer through the Codex CLI on the same three inputs. Four criteria `met`; `AC-EXTENSIONS` `not_met`: `status --evidence-dir` treated any dictionary with a matching canonical digest as a verified record without validating it against `$defs/hardware_evidence`, and never compared the record's `device_identity`, `firmware_version` and `observed_at` with the attested lines, so a five-field stub bound by digest, with those lines typed by hand, earned record-basis `VERIFIED_ON_HARDWARE`. A static code-path finding the same-family round did not make. Corrective action inside scope: validate the found record with the existing `validate_hardware_evidence` and compare every attested line, with regressions.
 - **Correction (ADR-029).** `record_problems` in `scripts/software_hardware.py` owns verification of a found record: schema validity, task, validation, rung, `pass`, attesting operator, and agreement of each attested line with the record's field, each disagreement named in the reason with `evidence_path` still set. Regressions: the five-field stub, a mismatch in each of device, firmware and observed time, the other-operator record, and the consistent record still verifying on the `record` basis. The suite is 337 tests.
 
-## What must happen before this record becomes evidence
+## Round 3 and acceptance — 2026-09-14
 
-1. ~~PR #22 (reopened #8) merges~~ — merged 2026-09-15 at `494587cf` and merged into this branch.
-2. ~~The `AC-SAMPLE` correction and the residual observations are applied~~ — applied 2026-09-14, see Correction above.
-3. The dogfood is repeated from a fresh ledger against the corrected gate: `init`, `run-checks`, a fresh minimal-context review, the cross-family approving review, `accept` — in progress at `_acceptance-demo-9b`; after the round-2 correction the resubmission needs the cross-family approving review (the third and last review slot).
-4. Only then are this document's provisional markers removed and #9's acceptance criteria mapped to evidence.
+- **Resubmission.** `resubmit` with the corrected artifact (diff of `d8ee149` against `main` `f4f709f`, sha256 `a04a0c62…`); `run-checks` re-executed the declared command and recorded `VAL-SUITE` PASSED (337 tests, 81 paths, 0 drift, exit 0), workspace digest `0d419b8a…`. Contract revision 1 stayed bound; its `SRC-BRANCH` names the original submission and the result says so.
+- **Round 3 — cross-family, APPROVE.** Reviewer "Codex (OpenAI, cross-family reviewer, round 3)", family `openai`, tier 3 (review id `79b0fd4b…`), a fresh Codex session run by the maintainer on the rules, the 20,795-character packet (carrying the round-2 rejection under `prior_reviews`) and the diff. The report confirmed the round-2 corrective action present in the diff and re-verified all five criteria `met`; `verify-review` valid; `ingest-review` recorded; this was the third and last review slot (`max_review_attempts` 3).
+- **Acceptance.** `accept --actor "Codex (OpenAI, cross-family reviewer, round 3)"` recorded `ACCEPTED`, `ALL_GATES_PASSED`: deterministic `VAL-SUITE` PASSED, model review `79b0fd4b…` APPROVE, cross-family `waived: false`. The condensed decision references the ledger head `4ef315f6…`, the workspace digest and all three review ids. `software_hardware.py status` on the accepted ledger reports declared and earned `NOT_HARDWARE_FACING`, highest level satisfied `integration`, basis `attestation`.
+- **Ledger.** Eleven events: INIT, CHECKS, REVIEW_OPEN, REVIEW_RESULT (round 1 APPROVE), REVIEW_OPEN, REVIEW_RESULT (round 2 REJECT_BOUNDED), RESUBMIT, CHECKS, REVIEW_OPEN, REVIEW_RESULT (round 3 APPROVE), ACCEPT. Preserved at `_acceptance-demo-9b` with both submissions' inputs, the three review directories and the workspace.
+
+What the run established beyond #9: the cross-family gate did its job on the template's own child for the first time — a same-family reviewer approved a diff that a different family rejected for a real, in-scope defect, and acceptance rested on the cross-family approval with no waiver (OL-013 practice now exercised once). The reviewer packet renders field names but not field types, which refused two well-formed reports on shape before they were re-issued; that is an observation on #8's renderer, recorded here and not fixed in #9.
 
 ## Discovery outside this issue
 

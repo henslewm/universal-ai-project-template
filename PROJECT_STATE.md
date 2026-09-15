@@ -1,10 +1,10 @@
 # Project State
 
-- **Status:** TEMPLATE MAINTENANCE — #8 closed again through merged PR #22; #9 in progress on `issue-9-software-hardware-domain` (started 2026-09-13, design approved, corrections and repeat dogfood in this pass)
+- **Status:** TEMPLATE MAINTENANCE — #9 accepted through its dogfood on 2026-09-14; PR against `main` pending Codex review and the maintainer's merge decision
 - **Last verified:** 2026-09-15 UTC
 - **Active branch:** issue-9-software-hardware-domain (merged up to `main` at `f4f709f` with a merge commit)
 - **Controlling scope:** [Locked master #14](https://github.com/henslewm/universal-ai-project-template/issues/14); title/body/order unchanged.
-- **Active child:** [Issue #9](https://github.com/henslewm/universal-ai-project-template/issues/9) — complete software + hardware domain template. Started 2026-09-13 with the design approved in the issue's first comment; three commits on the branch by 2026-09-13; its first dogfood run went through the unfixed #8 gate and is provisional (ADR-021) until repeated against the merged gate, which is this pass's work (ADR-026 to ADR-028).
+- **Active child:** [Issue #9](https://github.com/henslewm/universal-ai-project-template/issues/9) — complete software + hardware domain template. Started 2026-09-13 with the design approved in the issue's first comment; three commits on the branch by 2026-09-13; its first dogfood run went through the unfixed #8 gate and was provisional (ADR-021); the repeat at `_acceptance-demo-9b` against the merged gate was accepted 2026-09-14 on a cross-family approval after corrections (ADR-026 to ADR-029). Merge and closure await the PR's Codex review and the maintainer's explicit go-ahead.
 
 ## Verified foundation
 
