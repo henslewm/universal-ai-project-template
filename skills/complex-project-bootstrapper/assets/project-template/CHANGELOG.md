@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 17 answered (ADR-048)
+
+- P2: `device_identity`, `firmware_version` and `operator` were unbounded, so a schema-valid record could still be refused at attestation once `evidence_lines()` added a key prefix and the value exceeded acceptance's own 2000-character `bounded_text` element limit. `single_line` now caps at 1991 characters, leaving room for the longest key (`firmware=` / `operator=`).
+- P2: `identifier` and `sha256`'s `$`-anchored patterns admitted a trailing newline (the same class ADR-039 found for `single_line`), so `task_id`, `contract_hash`, `dispatch_id` and `artifact_sha256` could carry one and validate while differing from the strictly compared ledger binding. Both now use the strict end assertion `(?![\s\S])`, matching `config/acceptance.schema.json`'s own idiom.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 16 answered (ADR-047)
 
 - P1: contract identity does not identify which implementation was tested. `RESUBMIT` replaces the result and artifact under the same contract and revision and clears prior attestations, but nothing stopped an operator from re-attesting the same unchanged evidence file after a rejection, silently verifying the resubmission it was never observed against. The schema now also requires `dispatch_id` and `artifact_sha256` on every record, and `record_problems` checks both against the acceptance ledger's current result and artifact. Regression rejects an attested submission, resubmits with a different result and artifact, and shows the unchanged evidence refused against the resubmission while a record made against the new submission verifies.

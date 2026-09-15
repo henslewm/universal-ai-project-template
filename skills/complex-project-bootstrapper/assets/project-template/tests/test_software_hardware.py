@@ -357,12 +357,34 @@ class HardwareEvidenceTests(unittest.TestCase):
                         domain.validate_hardware_evidence(dict(EVIDENCE, **{field: trailing}))
         domain.validate_hardware_evidence(dict(EVIDENCE, test_setup="Multi-line narrative\nis fine here"))
 
+    def test_single_line_fields_are_bounded_so_their_attestation_line_fits(self):
+        # Codex round 17 on PR #34: device_identity, firmware_version and operator were unbounded,
+        # so a schema-valid record could still be refused at attestation once evidence_lines()
+        # adds a key prefix and the value exceeds acceptance's own 2000-character bounded_text
+        # element limit. The bound leaves room for the longest key ("firmware=" / "operator=").
+        for field, key in (("device_identity", "device"), ("firmware_version", "firmware"), ("operator", "operator")):
+            with self.subTest(field=field):
+                record = dict(EVIDENCE, **{field: "a" * 1991})
+                domain.validate_hardware_evidence(record)
+                emitted = next(line for line in domain.evidence_lines(record) if line.startswith(key + "="))
+                self.assertLessEqual(len(emitted), 2000)
+                with self.assertRaisesRegex(ValueError, "hardware evidence"):
+                    domain.validate_hardware_evidence(dict(EVIDENCE, **{field: "a" * 1992}))
+
     def test_record_shape_is_closed(self):
         for field, value in (("outcome", "passed"), ("level", "unit"), ("observed_at", "yesterday"),
                              ("artifacts", [{"reference": "x", "sha256": "short"}]), ("extra", 1),
                              ("revision", 0), ("revision", "1"), ("contract_hash", "short"),
                              ("contract_hash", "g" * 64), ("dispatch_id", "short"),
-                             ("artifact_sha256", "g" * 64)):
+                             ("artifact_sha256", "g" * 64),
+                             # Codex round 17: an end anchor matches before a trailing newline, so
+                             # identifier and sha256 use a strict end assertion instead (as
+                             # acceptance.schema.json does), matching ADR-039's class for single_line.
+                             ("task_id", EVIDENCE["task_id"] + "\n"),
+                             ("validation_id", EVIDENCE["validation_id"] + "\n"),
+                             ("contract_hash", EVIDENCE["contract_hash"] + "\n"),
+                             ("dispatch_id", EVIDENCE["dispatch_id"] + "\n"),
+                             ("artifact_sha256", EVIDENCE["artifact_sha256"] + "\n")):
             record = copy.deepcopy(EVIDENCE)
             record[field] = value
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "hardware evidence"):

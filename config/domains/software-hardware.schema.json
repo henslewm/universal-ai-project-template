@@ -11,21 +11,22 @@
     "single_line": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 1991,
       "pattern": "\\S",
       "not": {
         "pattern": "[\\r\\n]"
       },
-      "description": "Non-blank and on one physical line: no CR or LF anywhere, stated as a prohibition because an end anchor matches before a trailing newline."
+      "description": "Non-blank and on one physical line: no CR or LF anywhere, stated as a prohibition because an end anchor matches before a trailing newline. The 1991 bound leaves room for the longest key prefix (`firmware=` or `operator=`, 9 characters) an attestation line adds, so a schema-valid value can always be attested within the acceptance schema's 2000-character bounded_text limit."
     },
     "identifier": {
       "type": "string",
       "minLength": 1,
       "maxLength": 80,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}(?![\\s\\S])"
     },
     "sha256": {
       "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
     },
     "component": {
       "type": "string",
