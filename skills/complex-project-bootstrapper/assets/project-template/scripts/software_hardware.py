@@ -138,6 +138,11 @@ def evidence_lines(record: dict) -> list[str]:
 
 
 def parsed_evidence(lines) -> tuple[str | None, dict]:
+    """The digest and the recognized key=value lines of an attestation.
+
+    A recognized key that appears more than once is refused: keeping the first (or last) value
+    would let a contradictory line ride along unverified, and every attested line is verified.
+    """
     digests, values = [], {}
     for line in lines:
         if line.startswith(DIGEST_PREFIX):
@@ -145,7 +150,10 @@ def parsed_evidence(lines) -> tuple[str | None, dict]:
         elif "=" in line:
             key, _, value = line.partition("=")
             if key in EVIDENCE_KEYS:
-                values.setdefault(key, value)
+                if key in values:
+                    raise ValueError(f"Attestation carries more than one {key}= line; each attested line is "
+                                     "verified, so a duplicate cannot be resolved by choosing one")
+                values[key] = value
     return (digests[0] if len(digests) == 1 else None), values
 
 
@@ -231,7 +239,14 @@ def status(ledger, evidence_dir=None) -> dict:
                  "evidence_verified": None, "evidence_path": None}
         attestation = state["attestations"].get(identifier)
         if attestation is not None:
-            entry["evidence_digest"] = parsed_evidence(attestation["evidence"])[0]
+            try:
+                entry["evidence_digest"] = parsed_evidence(attestation["evidence"])[0]
+            except ValueError as exc:  # a stored attestation from before duplicates were refused
+                entry["evidence_digest"] = None
+                entry["evidence_verified"] = False
+                problems.append(f"{identifier}: {exc}")
+                checks.append(entry)
+                continue
             if evidence_dir is not None and levels[identifier] in HARDWARE_LEVELS:
                 path, record = _find_record(Path(evidence_dir), entry["evidence_digest"] or "")
                 # The digest proves which bytes were bound. Verification then requires those bytes to

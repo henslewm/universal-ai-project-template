@@ -6,6 +6,7 @@ hardware-in-loop observation an operator records; nothing in this module can est
 """
 from __future__ import annotations
 
+import time
 from typing import Callable, Protocol
 
 from .transport import TransportTimeout
@@ -48,15 +49,33 @@ class SerialAdapter:
             raise RuntimeError("short write; port closed")
 
     def receive(self, timeout_s: float) -> bytes:
+        """One whole frame by its declared length, or TransportTimeout when it does not arrive in time.
+
+        A port read may return fewer bytes than asked for (the SHB-04 port assumption: read(size)
+        returns what has arrived), so the frame is assembled across reads until it is complete or
+        the caller's timeout expires. Bytes already read stay consumed: a timeout mid-frame is a
+        transport failure the caller sees, not a corrupted next frame.
+        """
         if self._port is None:
             raise RuntimeError("adapter is closed")
-        header = self._port.read(2)
-        if len(header) < 2:
-            raise TransportTimeout("no frame header")
+        if timeout_s < 0:
+            raise ValueError("timeout must be non-negative")
+        deadline = time.monotonic() + timeout_s
+        header = self._read_exactly(2, deadline, "no frame header")
         length = header[1]
-        rest = self._port.read(length + 1)
-        frame = header + rest
-        if len(frame) > self._frame_max:
+        if 2 + length + 1 > self._frame_max:
             self.close()
             raise RuntimeError("oversized frame; port closed")
-        return frame
+        return header + self._read_exactly(length + 1, deadline, "frame incomplete at timeout")
+
+    def _read_exactly(self, size: int, deadline: float, why: str) -> bytes:
+        buffer = b""
+        while len(buffer) < size:
+            chunk = self._port.read(size - len(buffer))
+            if chunk:
+                buffer += chunk
+                continue
+            if time.monotonic() >= deadline:
+                raise TransportTimeout(why)
+            time.sleep(0.001)
+        return buffer

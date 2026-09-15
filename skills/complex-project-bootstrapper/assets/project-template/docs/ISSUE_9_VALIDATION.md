@@ -69,6 +69,10 @@ Fresh ledger beside the repository; packet `ISSUE-9-ACCEPTANCE` revision 1, cont
 
 What the run established beyond #9: the cross-family gate did its job on the template's own child for the first time — a same-family reviewer approved a diff that a different family rejected for a real, in-scope defect, and acceptance rested on the cross-family approval with no waiver (OL-013 practice now exercised once). The reviewer packet renders field names but not field types, which refused two well-formed reports on shape before they were re-issued; that is an observation on #8's renderer, recorded here and not fixed in #9.
 
+## Pull request #34 — Codex review rounds
+
+- **Round 1 on head `9df06f0`** (auto-triggered on open; review 5205120098): one P1 and three P2, all answered in one batch with a regression each (ADR-030). P1 — duplicate recognized keys in an attestation were resolved first-wins, so `outcome=pass` then `outcome=fail` attested a failed observation as passing; now refused at parse and at `attest`, and a stored attestation that no longer parses is reported unverified by `status`. P2 — the sample adapter returned a truncated frame on a partial port read and ignored `timeout_s`; `receive` now assembles the frame to its declared length within the caller's deadline and refuses an oversized frame by declared length before reading its body (sample suite 30 tests). P2 — the published bootstrap schema still required the three legacy fields; it now names the validator's nine, and a test binds the two.
+
 ## Discovery outside this issue
 
 Codex's four findings on PR #21 (two P1, two P2) were handled by reopening #8, per the maintainer's decision, not by a follow-up issue. The standing rules that resulted are in `MASTER_INSTRUCTIONS.md`.

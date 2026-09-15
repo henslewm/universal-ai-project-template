@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 1 answered (ADR-030)
+
+- P1: `parsed_evidence` refuses a recognized attestation key that appears more than once instead of keeping the first; `status` reports a stored attestation that no longer parses as unverified. Regressions at parse, at `attest`, and in the digest-lines test.
+- P2: the sample `SerialAdapter.receive` assembles a frame across partial port reads until the declared length arrives or the caller's `timeout_s` expires, and refuses an oversized frame by declared length before reading its body. Sample tests add a trickling port and a timeout-governance check (30 sample tests).
+- P2: `config/bootstrap.schema.json` requires the same nine software-hardware orientation fields as `validate_bootstrap.DOMAIN_FIELDS`; a regression binds the schema to the validator.
+
 ## 2026-09-14 — Issue #9 corrections after the provisional dogfood
 
 - Merge `origin/main` (PR #22, #8 closed again) into `issue-9-software-hardware-domain` with a merge commit; the branch's hardware-evidence and merge-before-review risks are renumbered R-013 and R-014 because `main`'s R-012 is #8's patch/review-loop risk; state records now say #9 started 2026-09-13 with an approved design rather than "not started".

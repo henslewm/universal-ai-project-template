@@ -421,24 +421,69 @@
             "type": "object",
             "required": [
               "baseline",
+              "hardware_identity",
               "interfaces",
-              "validation_resources"
+              "specifications",
+              "environment",
+              "known_paths",
+              "validation_resources",
+              "physical_access",
+              "architecture_boundaries"
             ],
             "properties": {
               "baseline": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Existing repository, software baseline and known-good state, with source references"
+              },
+              "hardware_identity": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Exact hardware models, board revisions and firmware versions in scope"
               },
               "interfaces": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Protocols and interfaces (bus, wire format, transport, timing) with versions"
+              },
+              "specifications": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Authoritative manuals, datasheets and specifications, and where they are held"
+              },
+              "environment": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Host, toolchain and deployment environment for the software"
+              },
+              "known_paths": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Known-good and known-failing paths or workflows, with how each was observed"
               },
               "validation_resources": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Test fixtures, simulators, loopback and hardware-in-loop resources available"
+              },
+              "physical_access": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Physical-access constraints: who can operate the hardware, when, and safety limits"
+              },
+              "architecture_boundaries": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Architecture boundaries whose change requires user approval"
               }
             }
           }

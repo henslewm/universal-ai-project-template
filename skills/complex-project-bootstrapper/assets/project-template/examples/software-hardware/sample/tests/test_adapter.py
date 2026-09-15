@@ -7,6 +7,7 @@ The adapter is framing only: it consumes the transport interface and nothing els
 checks speak raw bytes. SYNTH-FRAME-1 layout: TAG(0xA1) LEN PAYLOAD[LEN] XOR-CHECKSUM over
 TAG..PAYLOAD; the codec that produces such frames is another packet's interface.
 """
+import time
 import unittest
 
 from synth_bridge.adapter import SerialAdapter
@@ -33,6 +34,16 @@ class FakePort:
 
     def close(self):
         self.closed = True
+
+
+class TricklePort(FakePort):
+    """Returns at most one byte per read, as a slow serial line would."""
+
+    def __init__(self, data):
+        super().__init__([data])
+
+    def read(self, size):
+        return super().read(min(size, 1))
 
 
 class SerialAdapterTests(unittest.TestCase):
@@ -64,7 +75,28 @@ class SerialAdapterTests(unittest.TestCase):
     def test_missing_header_is_a_timeout_not_a_crash(self):
         adapter = self.adapter(FakePort([b"\xa1"]))
         with self.assertRaises(TransportTimeout):
-            adapter.receive(0.1)
+            adapter.receive(0.05)
+
+    def test_frame_arriving_in_pieces_is_assembled_to_its_declared_length(self):
+        # A serial port may hand back fewer bytes than asked for; the adapter keeps reading.
+        adapter = self.adapter(TricklePort(WHOLE_FRAME + b"\xff"))
+        self.assertEqual(adapter.receive(0.5), WHOLE_FRAME)
+
+    def test_receive_honors_the_requested_timeout(self):
+        # The header arrives, the body never does: the call returns at the caller's deadline,
+        # and a longer deadline waits longer, so the argument governs the wait.
+        adapter = self.adapter(FakePort([WHOLE_FRAME[:3]]))
+        started = time.monotonic()
+        with self.assertRaisesRegex(TransportTimeout, "incomplete"):
+            adapter.receive(0.05)
+        short = time.monotonic() - started
+        adapter = self.adapter(FakePort([WHOLE_FRAME[:3]]))
+        started = time.monotonic()
+        with self.assertRaises(TransportTimeout):
+            adapter.receive(0.2)
+        self.assertGreater(time.monotonic() - started, short)
+        with self.assertRaises(ValueError):
+            adapter.receive(-1)
 
     def test_oversized_frame_closes_the_port(self):
         port = FakePort([bytes([0xA1, 0xFF]) + bytes(256)])

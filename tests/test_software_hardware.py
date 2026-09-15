@@ -250,9 +250,14 @@ class HardwareEvidenceTests(unittest.TestCase):
         self.assertEqual(lines[0], domain.DIGEST_PREFIX + domain.evidence_digest(EVIDENCE))
         self.assertIn("outcome=pass", lines)
         self.assertIn("operator=" + EVIDENCE["operator"], lines)
-        digest, values = domain.parsed_evidence(lines + ["free text", "device=ignored duplicate"])
+        digest, values = domain.parsed_evidence(lines + ["free text", "unknown=ignored"])
         self.assertEqual(digest, domain.evidence_digest(EVIDENCE))
         self.assertEqual(values["device"], EVIDENCE["device_identity"])
+        # A recognized key twice is refused rather than resolved by position (Codex P1 on PR #34).
+        for extra in ("device=another unit", "outcome=fail", "operator=" + EVIDENCE["operator"]):
+            with self.subTest(extra=extra):
+                with self.assertRaisesRegex(ValueError, "more than one"):
+                    domain.parsed_evidence(lines + [extra])
 
     def test_record_shape_is_closed(self):
         for field, value in (("outcome", "passed"), ("level", "unit"), ("observed_at", "yesterday"),
@@ -304,6 +309,16 @@ class AttestationRuleTests(AcceptanceBase):
         state = self.attest(ledger, operator, lines)
         self.assertTrue(acceptance.deterministic_satisfied(state))
         self.assertEqual(acceptance.deterministic_status(state)["VAL-FRAMES"], "ATTESTED")
+
+    def test_contradictory_duplicate_line_is_refused_at_attestation(self):
+        # Codex P1 on PR #34: `outcome=pass` followed by `outcome=fail` used to keep the first and
+        # attest a failed observation as passing. Append refuses it; a stored attestation that
+        # slipped through before the rule is reported unverified by status, not replayed as good.
+        ledger = self.hardware_ledger()
+        lines = domain.evidence_lines(EVIDENCE) + ["outcome=fail"]
+        with self.assertRaisesRegex(ValueError, "more than one outcome= line"):
+            self.attest(ledger, EVIDENCE["operator"], lines)
+        self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "NEEDS_ATTESTATION")
 
     def test_runnable_check_is_still_executed_never_attested(self):
         ledger, _ = self.start()
@@ -380,7 +395,7 @@ class ExampleProjectTests(AcceptanceBase):
         completed = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
                                    cwd=EXAMPLES / "sample", capture_output=True, text=True)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("Ran 28 tests", completed.stderr)
+        self.assertIn("Ran 30 tests", completed.stderr)
 
     def test_deterministic_gate_reexecutes_the_codec_packet_commands(self):
         ledger, _ = self.start(packet=self.packet_for("SHB-01-codec"))
@@ -574,6 +589,19 @@ class BootstrapIntakeTests(unittest.TestCase):
         self.assertEqual(validate_bootstrap.activation_errors(data), [])
         data["domain"]["physical_access"] = "TBD"
         self.assertTrue(any("domain.physical_access" in e for e in validate_bootstrap.activation_errors(data)))
+
+    def test_published_bootstrap_schema_requires_the_same_fields_as_the_validator(self):
+        # Codex P2 on PR #34: the schema editors read still named the three legacy fields, so an
+        # approval package the validator refuses looked complete to schema-based tooling.
+        schema = wp.read_json(ROOT / "config/bootstrap.schema.json")
+        clause = next(c for c in schema["allOf"]
+                      if c.get("if", {}).get("properties", {}).get("domain_profile", {}).get("const") == PROFILE)
+        domain_schema = clause["then"]["properties"]["domain"]
+        import validate_bootstrap
+        self.assertEqual(set(domain_schema["required"]), set(validate_bootstrap.DOMAIN_FIELDS[PROFILE]))
+        self.assertEqual(set(domain_schema["properties"]), set(validate_bootstrap.DOMAIN_FIELDS[PROFILE]))
+        for key in ("hardware_identity", "physical_access"):
+            self.assertEqual(domain_schema["properties"][key]["pattern"], "\\S")
 
 
 if __name__ == "__main__":
