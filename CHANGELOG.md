@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 15 answered (ADR-046)
+
+- P2: nothing compared a hardware evidence record's declared `observed_at` to when it was attested, so an observation dated after its own attestation (or arbitrarily in the future) passed both the attestation-basis and record-basis checks, letting an accepted ledger report `VERIFIED_ON_HARDWARE` for an observation that had not yet occurred. `validate_attestation` now takes the ATTESTATION event's own timestamp and refuses a declared `observed_at` later than it, using a `parse_timestamp` helper factored out of the existing date-time format checker. Regression appends an attestation dated after the event and shows it refused.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 14 answered (ADR-045)
 
 - P2: the example hardware evidence record's `contract_hash` was fictional-but-valid, not the actual fingerprint of the SHB-04-adapter packet it documents, so the standalone `hardware-evidence` command passed while `status --evidence-dir` would refuse it against a real ledger -- the canonical example could not demonstrate the flow the README describes. The record now carries revision 1's real `work_packet.fingerprint`; a regression checks it directly against the packet file.

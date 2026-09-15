@@ -407,6 +407,12 @@ class AttestationRuleTests(AcceptanceBase):
             self.attest(ledger, "Someone else", lines)
         with self.assertRaisesRegex(ValueError, "cannot attest its own"):
             self.attest(ledger, "Worker", [line.replace("operator=" + operator, "operator=Worker") for line in lines])
+        # Codex round 15 on PR #34: an observation dated after the attestation event that records
+        # it cannot have happened yet, whether or not a hardware evidence record is ever supplied.
+        with self.assertRaisesRegex(ValueError, "is after the attestation recording it"):
+            self.attest(ledger, operator,
+                       ["observed_at=2099-01-01T00:00:00Z" if line.startswith("observed_at=") else line
+                        for line in lines])
         state = self.attest(ledger, operator, lines)
         self.assertTrue(acceptance.deterministic_satisfied(state))
         self.assertEqual(acceptance.deterministic_status(state)["VAL-FRAMES"], "ATTESTED")

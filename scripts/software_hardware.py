@@ -42,6 +42,15 @@ def canonical(value) -> str:
 
 
 FORMATS = FormatChecker()
+RFC3339 = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?"
+                      r"(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])")
+
+
+def parse_timestamp(value: str) -> datetime:
+    """An RFC 3339 string as a real calendar value; the pattern alone would admit 2026-99-99."""
+    if not RFC3339.fullmatch(value):
+        raise ValueError(f"not an RFC 3339 timestamp: {value!r}")
+    return datetime.fromisoformat(value.upper().replace("Z", "+00:00"))
 
 
 @FORMATS.checks("date-time", raises=ValueError)
@@ -49,9 +58,7 @@ def valid_timestamp(value):
     """An RFC 3339 timestamp that is also a real calendar value; the pattern alone admits 2026-99-99."""
     if not isinstance(value, str):
         return True  # The schema's type rule reports nonstrings.
-    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])", value):
-        return False
-    datetime.fromisoformat(value.upper().replace("Z", "+00:00"))
+    parse_timestamp(value)
     return True
 
 
@@ -204,8 +211,13 @@ def parsed_evidence_strict(lines) -> tuple[str | None, dict, list[str]]:
     return (digests[0] if len(digests) == 1 else None), values, unrecognized
 
 
-def validate_attestation(contract: dict, attestation: dict) -> None:
-    """Refuse a hardware-rung attestation that does not bind a passing hardware evidence record."""
+def validate_attestation(contract: dict, attestation: dict, attested_at: str) -> None:
+    """Refuse a hardware-rung attestation that does not bind a passing hardware evidence record.
+
+    `attested_at` is the ATTESTATION event's own timestamp: an observation cannot be attested
+    before it happened, so a declared `observed_at` later than the event that attests it is
+    refused, whether or not a hardware evidence record is ever supplied to re-verify it.
+    """
     level = contract["domain"]["validation_levels"].get(attestation["validation_id"])
     if level not in HARDWARE_LEVELS:
         return  # A machine rung has a command; the controller already refuses attesting over it.
@@ -230,6 +242,10 @@ def validate_attestation(contract: dict, attestation: dict) -> None:
         raise ValueError("A failed hardware observation is reported through the worker, never attested")
     if values["operator"].strip().casefold() != attestation["operator"].strip().casefold():
         raise ValueError("The attesting operator must be the operator who recorded the hardware evidence")
+    if parse_timestamp(values["observed_at"]) > parse_timestamp(attested_at):
+        raise ValueError(f"Hardware evidence observed_at {values['observed_at']} is after the "
+                         f"attestation recording it at {attested_at}; an observation cannot be "
+                         "attested before it happens")
 
 
 def _find_record(evidence_dir: Path, digest: str):
