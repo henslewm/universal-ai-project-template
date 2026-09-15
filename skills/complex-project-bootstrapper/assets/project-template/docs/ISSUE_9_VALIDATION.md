@@ -95,6 +95,8 @@ What the run established beyond #9: the cross-family gate did its job on the tem
 
 - **Round 11 on head `6341549`**: one P2, the deadline class a third time (rounds 2, 10, 11), so the invariant came first (R-012): ADR-042 gives the one-poll allowance to the `receive` call rather than to each `_read_within`. Round 10 had stopped a re-read after the deadline within one read; the body read began with its own allowance and could still poll late bytes with a zero timeout. The header read is now the call's only unconditional contact; a body that had not arrived by the deadline leaves a started frame that closes the port. Regression returns the header just before the deadline and the body after it.
 
+- **Round 12 on head `889903d`**: one P1, a new class the record-verification path had missed entirely: nothing tied a hardware evidence record to which contract revision it was produced under, so task_id and validation_id identity checks alone let a record from a changed, earlier revision verify a later one that kept the same validation ID and rung. ADR-043 requires `revision` on every record and checks it against the acceptance ledger's own `binding.revision`. Regression revises the SHB-04-adapter packet to revision 2 and shows a revision-1 record refused against the new binding while a matching-revision record still verifies.
+
 ## Discovery outside this issue
 
 Codex's four findings on PR #21 (two P1, two P2) were handled by reopening #8, per the maintainer's decision, not by a follow-up issue. The standing rules that resulted are in `MASTER_INSTRUCTIONS.md`.

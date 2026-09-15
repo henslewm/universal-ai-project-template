@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 12 answered (ADR-043)
+
+- P1: a hardware evidence record carried no contract revision, so record verification checked only task and validation identity; a revision that keeps the same task, validation ID and rung let hardware evidence from a changed, earlier revision verify a later one. The schema now requires `revision` on every record and `record_problems` refuses one that does not match the acceptance ledger's `binding.revision`. Regression revises the packet to revision 2 and shows a revision-1 record refused while a matching-revision record still verifies.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 11 answered (ADR-042)
 
 - P2: the one-poll allowance in `SerialAdapter.receive` belongs to the call, not to each `_read_within` — the header read is the call's first port contact and the body read is not, so a header that arrived in time whose body did not is a started frame that closes the port rather than a frame returned late (ADR-042, completing ADR-031). Regression delivers the body after the deadline and shows the port not polled again. 39 sample tests.

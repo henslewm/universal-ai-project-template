@@ -350,15 +350,17 @@ class HardwareEvidenceTests(unittest.TestCase):
 
     def test_record_shape_is_closed(self):
         for field, value in (("outcome", "passed"), ("level", "unit"), ("observed_at", "yesterday"),
-                             ("artifacts", [{"reference": "x", "sha256": "short"}]), ("extra", 1)):
+                             ("artifacts", [{"reference": "x", "sha256": "short"}]), ("extra", 1),
+                             ("revision", 0), ("revision", "1")):
             record = copy.deepcopy(EVIDENCE)
             record[field] = value
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "hardware evidence"):
                 domain.validate_hardware_evidence(record)
-        record = copy.deepcopy(EVIDENCE)
-        del record["observed_behavior"]
-        with self.assertRaises(ValueError):
-            domain.validate_hardware_evidence(record)
+        for field in ("observed_behavior", "revision"):
+            record = copy.deepcopy(EVIDENCE)
+            del record[field]
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                domain.validate_hardware_evidence(record)
 
     def test_digest_changes_with_any_field(self):
         record = copy.deepcopy(EVIDENCE)
@@ -589,9 +591,23 @@ class ExampleProjectTests(AcceptanceBase):
         self.assertTrue(entry["evidence_verified"])
         self.assertEqual(Path(entry["evidence_path"]), records / "run.json")
 
-    def attested_adapter_ledger(self, record, lines=None, operator=None):
+    def revised_adapter_packet(self):
+        """The SHB-04-adapter packet revised once (revision 2), back at REVIEW."""
+        packet = self.packet_for("SHB-04-adapter", risk="low")
+        contract = copy.deepcopy(wp.current(packet)["contract"])
+        contract["goal"] += " Revised once for the ADR-043 regression."
+        packet = wp.revise(packet, contract, "Architect", "Synthetic revision for the ADR-043 regression")
+        for target, role, actor in (
+            ("ARCHITECTED", "architect", "Architect"), ("READY", "architect", "Architect"),
+            ("IN_PROGRESS", "worker", "Worker"), ("VALIDATING", "worker", "Worker"),
+            ("REVIEW", "worker", "Worker"),
+        ):
+            packet = wp.transition(packet, target, role, actor, "Synthetic state assertion", ["synthetic-state-evidence"])
+        return packet
+
+    def attested_adapter_ledger(self, record, lines=None, operator=None, packet=None):
         """An accepted low-risk adapter ledger whose VAL-HIL attestation binds `record`'s digest."""
-        ledger, _ = self.start(packet=self.packet_for("SHB-04-adapter", risk="low"))
+        ledger, _ = self.start(packet=packet or self.packet_for("SHB-04-adapter", risk="low"))
         acceptance.run_checks(ledger, EXAMPLES)
         acceptance.append(ledger, "ATTESTATION",
                           {"attestation": {"validation_id": "VAL-HIL", "operator": operator or record["operator"],
@@ -634,6 +650,26 @@ class ExampleProjectTests(AcceptanceBase):
                 self.assertIn(f"attested {key} differs from the record's {field}", checked["reason"])
         # The consistent record still verifies on the record basis.
         ledger, records = self.attested_adapter_ledger(full)
+        checked = domain.status(ledger, records)
+        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
+
+    def test_a_record_bound_to_an_earlier_revision_does_not_verify_a_later_one(self):
+        # Codex round 12 on PR #34 (ADR-043): task_id and validation_id identity were checked, but
+        # nothing tied a record to which contract revision it was produced under. A revision that
+        # keeps the same task, validation ID and rung (as this one does) must still refuse
+        # hardware evidence recorded against the earlier, changed revision.
+        stale = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=1)
+        ledger, records = self.attested_adapter_ledger(stale, packet=self.revised_adapter_packet())
+        checked = domain.status(ledger, records)
+        self.assertEqual(checked["ledger_status"], "ACCEPTED")
+        self.assertEqual(checked["revision"], 2)
+        self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn("record revision 1 is not the ledger's 2", checked["reason"])
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertFalse(entry["evidence_verified"])
+        # A record made against the actual revision still verifies.
+        current = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=2)
+        ledger, records = self.attested_adapter_ledger(current, packet=self.revised_adapter_packet())
         checked = domain.status(ledger, records)
         self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
 

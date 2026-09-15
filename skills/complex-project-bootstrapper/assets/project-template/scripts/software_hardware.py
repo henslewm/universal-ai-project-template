@@ -264,6 +264,10 @@ def record_problems(record, binding, validation_id, level, attestation) -> list[
     problems = []
     if record["task_id"] != binding["task_id"]:
         problems.append(f"record task_id {record['task_id']} is not {binding['task_id']}")
+    if record["revision"] != binding["revision"]:
+        # A revised contract keeps the same task_id and can keep the same validation_id and rung,
+        # so nothing else here would refuse a record made against a different, changed revision.
+        problems.append(f"record revision {record['revision']} is not the ledger's {binding['revision']}")
     if record["validation_id"] != validation_id:
         problems.append(f"record validation_id {record['validation_id']} is not {validation_id}")
     if record["level"] != level:

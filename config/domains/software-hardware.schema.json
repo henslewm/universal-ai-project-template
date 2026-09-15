@@ -139,6 +139,7 @@
       "required": [
         "schema_version",
         "task_id",
+        "revision",
         "validation_id",
         "level",
         "device_identity",
@@ -158,6 +159,11 @@
         },
         "task_id": {
           "$ref": "#/$defs/identifier"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The work-packet contract revision this observation was made against; record verification refuses one that does not match the acceptance ledger's binding, so hardware evidence for a changed implementation cannot verify a later revision."
         },
         "validation_id": {
           "$ref": "#/$defs/identifier"
