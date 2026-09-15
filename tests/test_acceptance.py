@@ -91,11 +91,19 @@ def make_artifact(content="diff --git a/parser.py b/parser.py\n+synthetic change
 
 
 IMPLEMENTERS = [{"actor": "Worker", "model_family": "qwen"}]
-# Attestation lines for a hardware-rung check, as scripts/software_hardware.py hardware-evidence prints them.
-HARDWARE_LINES = ["hardware-evidence:sha256=" + "b" * 64, "level=hardware_in_loop", "device=Synthetic unit SN-0",
-                  "firmware=0.0.0-synthetic", "observed_at=2026-09-13T00:00:00Z", "outcome=pass", "operator=Operator",
-                  "dispatch_id=" + "e" * 64,  # matches make_result's default dispatch_id
-                  "artifact_sha256=6766882d92d43cc00acde5b113705a943655c2276020f2ae14458c28fa5b30b1"]  # make_artifact's default content
+
+
+def hardware_lines():
+    """Attestation lines for a hardware-rung check, as scripts/software_hardware.py
+    hardware-evidence prints them. A function, not a module-level constant, because observed_at
+    must be refreshed to now each call (ADR-052 on PR #34 round 20 refuses a stale one, and this
+    module's import happens long before any test's own ledger exists to compare it against)."""
+    return ["hardware-evidence:sha256=" + "b" * 64, "level=hardware_in_loop", "device=Synthetic unit SN-0",
+            "firmware=0.0.0-synthetic", f"observed_at={wp.now()}", "outcome=pass", "operator=Operator",
+            "dispatch_id=" + "e" * 64,  # matches make_result's default dispatch_id
+            "artifact_sha256=6766882d92d43cc00acde5b113705a943655c2276020f2ae14458c28fa5b30b1"]  # make_artifact's default content
+
+
 CONTROLLER, ARCHITECT = "Acceptance controller", "Architect"
 REVIEWER = {"actor": "Independent reviewer", "model_family": "sonnet", "tier": 3}
 
@@ -352,7 +360,7 @@ class DeterministicGateTests(AcceptanceBase):
                               previous_state=acceptance.replay(ledger))
         state = acceptance.append(ledger, "ATTESTATION",
                                   {"attestation": {"validation_id": "VAL-FRAMES", "operator": "Operator",
-                                                   "evidence": HARDWARE_LINES}},
+                                                   "evidence": hardware_lines()}},
                                   previous_state=acceptance.replay(ledger))
         self.assertTrue(acceptance.deterministic_satisfied(state))
 

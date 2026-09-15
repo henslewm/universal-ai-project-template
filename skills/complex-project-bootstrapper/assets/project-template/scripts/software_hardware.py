@@ -216,7 +216,7 @@ def parsed_evidence_strict(lines) -> tuple[str | None, dict, list[str]]:
 
 
 def validate_attestation(contract: dict, attestation: dict, attested_at: str,
-                         dispatch_id: str, artifact_sha256: str) -> None:
+                         dispatch_id: str, artifact_sha256: str, submitted_at: str) -> None:
     """Refuse a hardware-rung attestation that does not bind a passing hardware evidence record.
 
     `attested_at` is the ATTESTATION event's own timestamp: an observation cannot be attested
@@ -227,6 +227,11 @@ def validate_attestation(contract: dict, attestation: dict, attested_at: str,
     identity survives a RESUBMIT unchanged, so without checking these here an operator could
     re-attest an unchanged, rejected record and have it reported VERIFIED_ON_HARDWARE on the
     attestation basis alone, never reaching record_problems's equivalent check.
+
+    `submitted_at` is when the current result and artifact were submitted (the ledger's INIT, or
+    its latest RESUBMIT): checking dispatch_id/artifact_sha256 alone still lets a genuinely
+    matching record predate the submission it claims to observe (ADR-052), so `observed_at` must
+    fall between this lower bound and `attested_at`, the upper bound.
     """
     level = contract["domain"]["validation_levels"].get(attestation["validation_id"])
     if level not in HARDWARE_LEVELS:
@@ -252,10 +257,15 @@ def validate_attestation(contract: dict, attestation: dict, attested_at: str,
         raise ValueError("A failed hardware observation is reported through the worker, never attested")
     if values["operator"].strip().casefold() != attestation["operator"].strip().casefold():
         raise ValueError("The attesting operator must be the operator who recorded the hardware evidence")
-    if parse_timestamp(values["observed_at"]) > parse_timestamp(attested_at):
+    observed = parse_timestamp(values["observed_at"])
+    if observed > parse_timestamp(attested_at):
         raise ValueError(f"Hardware evidence observed_at {values['observed_at']} is after the "
                          f"attestation recording it at {attested_at}; an observation cannot be "
                          "attested before it happens")
+    if observed < parse_timestamp(submitted_at):
+        raise ValueError(f"Hardware evidence observed_at {values['observed_at']} is before the "
+                         f"current result and artifact were submitted at {submitted_at}; an "
+                         "observation of a resubmission cannot predate it")
     if values["dispatch_id"] != dispatch_id:
         raise ValueError(f"Hardware evidence was recorded for result {values['dispatch_id']} but "
                          f"the ledger's current result is {dispatch_id}; a resubmission clears "

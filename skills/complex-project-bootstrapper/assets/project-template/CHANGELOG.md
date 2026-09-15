@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 20 answered (ADR-052)
+
+- P2: checking dispatch_id/artifact_sha256 alone still let a record carry a stale `observed_at` copied from an earlier submission -- an operator who updated the two identifiers as instructed but left the timestamp could earn `VERIFIED_ON_HARDWARE` for an observation that predated the resubmission. The acceptance ledger now tracks `submitted_at` (the INIT event's timestamp, refreshed by RESUBMIT), and `validate_attestation` refuses a declared `observed_at` earlier than it, alongside the existing upper bound at the attestation event itself. Test fixtures across tests/test_acceptance.py and tests/test_software_hardware.py that used a fixed illustrative `observed_at` now compute one live, since a real ledger's submission always postdates a value fixed at test-file import time.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 19 answered (ADR-051)
 
 - P2: `ACCEPTANCE_PROTOCOL.md`'s normative description of the software-hardware domain rule predated ADR-049 and ADR-050 -- it omitted the now-required `dispatch_id` and artifact digest attestation lines and still said every fully attested accepted task earns `VERIFIED_ON_HARDWARE`, ignoring the `synthetic: true` cap. Updated to state both.

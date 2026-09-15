@@ -31,6 +31,19 @@ EVIDENCE = wp.read_json(EXAMPLES / "hardware-evidence.example.json")
 SCRIPT = ROOT / "scripts/software_hardware.py"
 
 
+def live(record=None, **changes):
+    """`record` (default EVIDENCE) with `observed_at` refreshed to now. Codex round 20 on PR #34
+    (ADR-052): an attested observation must fall between the ledger's current submission and the
+    attestation itself, and EVIDENCE's fixed illustrative date always predates any ledger this
+    suite builds moments later."""
+    return dict(EVIDENCE if record is None else record, observed_at=wp.now(), **changes)
+
+
+def live_lines(record=None, **changes):
+    """The attestation lines for `live(record, **changes)`."""
+    return domain.evidence_lines(live(record, **changes))
+
+
 def example():
     return wp.read_json(ROOT / "examples/work-packets/software-hardware.contract.json")
 
@@ -420,7 +433,7 @@ class AttestationRuleTests(AcceptanceBase):
         ledger = self.hardware_ledger()
         for field, other in (("dispatch_id", "f" * 64), ("artifact_sha256", "0" * 64)):
             with self.subTest(field=field):
-                record = dict(EVIDENCE, **{field: other})
+                record = live(**{field: other})
                 with self.assertRaisesRegex(ValueError, "ledger's current"):
                     self.attest(ledger, record["operator"], domain.evidence_lines(record))
 
@@ -432,7 +445,7 @@ class AttestationRuleTests(AcceptanceBase):
         del contract["domain"]["synthetic"]
         ledger, packet = self.start(packet=make_packet(contract))
         self.checked(ledger)
-        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", validation_id="VAL-FRAMES",
+        record = live(task_id="ACCEPT-SYN-001", validation_id="VAL-FRAMES",
                      contract_hash=wp.current(packet)["hash"])
         self.attest(ledger, record["operator"], domain.evidence_lines(record))
         acceptance.accept(ledger, CONTROLLER)
@@ -446,7 +459,7 @@ class AttestationRuleTests(AcceptanceBase):
 
     def test_hardware_rung_attestation_must_bind_a_passing_record(self):
         ledger = self.hardware_ledger()
-        lines = domain.evidence_lines(EVIDENCE)
+        lines = live_lines()
         operator = EVIDENCE["operator"]
         with self.assertRaisesRegex(ValueError, "must carry exactly one"):
             self.attest(ledger, operator, ["Watched it work"])
@@ -484,7 +497,7 @@ class AttestationRuleTests(AcceptanceBase):
         with self.assertRaisesRegex(ValueError, "non-empty"):  # a blank line is refused by the controller's shape first
             self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE) + [""])
         self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "NEEDS_ATTESTATION")
-        self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE))
+        self.attest(ledger, EVIDENCE["operator"], live_lines())
         self.assertEqual(domain.status(ledger)["validations"][0]["gate"], "ATTESTED")
 
     def test_attestation_element_with_a_line_break_is_refused(self):
@@ -563,7 +576,8 @@ class AttestationRuleTests(AcceptanceBase):
         before = domain.status(ledger)
         self.assertEqual(before["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         self.assertEqual(before["validations"][0]["gate"], "NEEDS_ATTESTATION")
-        self.attest(ledger, EVIDENCE["operator"], domain.evidence_lines(EVIDENCE))
+        record = live()
+        self.attest(ledger, record["operator"], domain.evidence_lines(record))
         self.assertEqual(domain.status(ledger)["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         acceptance.accept(ledger, CONTROLLER)
         earned = domain.status(ledger)
@@ -574,7 +588,7 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertEqual(earned["evidence_basis"], "attestation")
         self.assertIsNone(earned["highest_level_satisfied"])
         self.assertEqual(earned["validations"][0]["gate"], "ATTESTED")
-        self.assertEqual(earned["validations"][0]["evidence_digest"], domain.evidence_digest(EVIDENCE))
+        self.assertEqual(earned["validations"][0]["evidence_digest"], domain.evidence_digest(record))
         self.assertIsNone(earned["validations"][0]["evidence_path"])
         # The bound record must be findable and consistent when an evidence directory is supplied.
         records = self.directory / "records"
@@ -583,8 +597,8 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("UNVERIFIED_ON_HARDWARE", "record"))
         (records / "hil.json").write_text(json.dumps(EVIDENCE), encoding="utf-8")
         self.assertEqual(domain.status(ledger, records)["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE",
-                         "The example record is for SHB-04-adapter, not this task")
-        mine = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+                         "not found by digest: the example record's task_id and observed_at differ")
+        mine = dict(record, task_id="ACCEPT-SYN-001")
         (records / "hil.json").write_text(json.dumps(mine), encoding="utf-8")
         self.assertEqual(domain.status(ledger, records)["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE",
                          "A record with a different digest is not the attested one")
@@ -647,7 +661,7 @@ class ExampleProjectTests(AcceptanceBase):
         self.assertEqual(outcome["deterministic"], {"VAL-UNIT-ADAPTER": "PASSED", "VAL-HIL": "NEEDS_ATTESTATION"})
         with self.assertRaisesRegex(ValueError, "Deterministic gate unsatisfied"):
             acceptance.accept(ledger, CONTROLLER)
-        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
+        record = live(task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
         acceptance.append(ledger, "ATTESTATION",
                           {"attestation": {"validation_id": "VAL-HIL", "operator": record["operator"],
                                            "evidence": domain.evidence_lines(record)}},
@@ -682,17 +696,26 @@ class ExampleProjectTests(AcceptanceBase):
 
     def adapter_evidence(self, **changes):
         """EVIDENCE bound to a fresh, revision-1 SHB-04-adapter packet's task and contract hash --
-        the packet `attested_adapter_ledger` builds by default when its own `packet` is None."""
+        the packet `attested_adapter_ledger` builds by default when its own `packet` is None --
+        with `observed_at` refreshed to now (ADR-052)."""
         packet = self.packet_for("SHB-04-adapter", risk="low")
-        return dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"], **changes)
+        return live(task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"], **changes)
 
     def attested_adapter_ledger(self, record, lines=None, operator=None, packet=None):
-        """An accepted low-risk adapter ledger whose VAL-HIL attestation binds `record`'s digest."""
+        """An accepted low-risk adapter ledger whose VAL-HIL attestation binds `record`'s digest.
+
+        `record`'s `observed_at` is refreshed to now (ADR-052) only after this ledger's own INIT
+        exists, so the attestation is never stale relative to it. `lines`, if given, is a callable
+        receiving the refreshed record and returning the attestation lines (default:
+        `domain.evidence_lines`), so any forging built from the record sees the fresh timestamp too.
+        """
         ledger, _ = self.start(packet=packet or self.packet_for("SHB-04-adapter", risk="low"))
         acceptance.run_checks(ledger, EXAMPLES)
+        record = live(record)
+        evidence = lines(record) if lines else domain.evidence_lines(record)
         acceptance.append(ledger, "ATTESTATION",
                           {"attestation": {"validation_id": "VAL-HIL", "operator": operator or record["operator"],
-                                           "evidence": lines or domain.evidence_lines(record)}},
+                                           "evidence": evidence}},
                           previous_state=acceptance.replay(ledger))
         acceptance.accept(ledger, CONTROLLER)
         records = self.directory / f"records-{self.counter}"
@@ -707,11 +730,18 @@ class ExampleProjectTests(AcceptanceBase):
         # old comparison. Verification now validates the found record against the schema and
         # compares every attested line with it.
         full = self.adapter_evidence()
+        dispatch_id, artifact_sha256 = full["dispatch_id"], full["artifact_sha256"]
+
+        def hand_typed(record):
+            # `record` is the refreshed stub (task_id/validation_id/level/outcome/operator plus
+            # a live observed_at, ADR-052); its digest is exactly what's written to records/run.json.
+            return [domain.DIGEST_PREFIX + domain.evidence_digest(record), "level=hardware_in_loop",
+                    "device=Typed by hand", "firmware=9.9.9", f"observed_at={record['observed_at']}",
+                    "outcome=pass", f"operator={record['operator']}",
+                    f"dispatch_id={dispatch_id}", f"artifact_sha256={artifact_sha256}"]
+
         stub = {key: full[key] for key in ("task_id", "validation_id", "level", "outcome", "operator")}
-        lines = [domain.DIGEST_PREFIX + domain.evidence_digest(stub), "level=hardware_in_loop", "device=Typed by hand",
-                 "firmware=9.9.9", "observed_at=2026-09-14T00:00:00Z", "outcome=pass", f"operator={stub['operator']}",
-                 f"dispatch_id={full['dispatch_id']}", f"artifact_sha256={full['artifact_sha256']}"]
-        ledger, records = self.attested_adapter_ledger(stub, lines=lines)
+        ledger, records = self.attested_adapter_ledger(stub, lines=hand_typed)
         checked = domain.status(ledger, records)
         self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         self.assertIn("not a valid hardware evidence record", checked["reason"])
@@ -720,16 +750,27 @@ class ExampleProjectTests(AcceptanceBase):
         entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
         self.assertFalse(entry["evidence_verified"])
         self.assertEqual(Path(entry["evidence_path"]), records / "run.json", "found by digest, refused on content")
-        # A complete record whose attested lines disagree with it does not verify either, field by field.
-        for key, field in (("device", "device_identity"), ("firmware", "firmware_version"), ("observed_at", "observed_at")):
+        # A complete record whose attested lines disagree with it does not verify either, field by
+        # field. observed_at is exercised directly against record_problems below (a live, appended
+        # attestation has nowhere to put a "different but still valid" observed_at: the ADR-052
+        # window between submission and attestation is a live ledger's own elapsed time, too
+        # narrow to reliably land a distinct value inside it).
+        for key, field in (("device", "device_identity"), ("firmware", "firmware_version")):
             with self.subTest(field=field):
-                other = "2001-01-01T00:00:00Z" if key == "observed_at" else "Something else"
-                forged = [f"{key}={other}" if line.startswith(key + "=") else line
-                          for line in domain.evidence_lines(full)]
-                ledger, records = self.attested_adapter_ledger(full, lines=forged)
+                def forge(record, key=key):
+                    return [f"{key}=Something else" if line.startswith(key + "=") else line
+                            for line in domain.evidence_lines(record)]
+                ledger, records = self.attested_adapter_ledger(full, lines=forge)
                 checked = domain.status(ledger, records)
                 self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
                 self.assertIn(f"attested {key} differs from the record's {field}", checked["reason"])
+        binding = {"task_id": full["task_id"], "revision": full["revision"], "contract_hash": full["contract_hash"],
+                  "dispatch_id": full["dispatch_id"], "artifact_sha256": full["artifact_sha256"]}
+        attestation = {"operator": full["operator"], "evidence": domain.evidence_lines(full)}
+        self.assertEqual(domain.record_problems(full, binding, full["validation_id"], full["level"], attestation), [])
+        forged_at = dict(full, observed_at="2001-01-01T00:00:00Z")
+        problems = domain.record_problems(forged_at, binding, full["validation_id"], full["level"], attestation)
+        self.assertIn("attested observed_at differs from the record's observed_at", problems)
         # The consistent record still verifies on the record basis (UNVERIFIED_ON_HARDWARE only
         # because this packet declares synthetic: true, ADR-050).
         ledger, records = self.attested_adapter_ledger(full)
@@ -743,7 +784,7 @@ class ExampleProjectTests(AcceptanceBase):
         # nothing tied a record to which contract revision it was produced under. A revision that
         # keeps the same task, validation ID and rung (as this one does) must still refuse
         # hardware evidence recorded against the earlier, changed revision.
-        stale = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=1)
+        stale = live(task_id="ACCEPT-SYN-001", revision=1)
         ledger, records = self.attested_adapter_ledger(stale, packet=self.revised_adapter_packet())
         checked = domain.status(ledger, records)
         self.assertEqual(checked["ledger_status"], "ACCEPTED")
@@ -755,7 +796,7 @@ class ExampleProjectTests(AcceptanceBase):
         # A record made against the actual revision and contract record-verifies (remains
         # UNVERIFIED_ON_HARDWARE only because this packet declares synthetic: true, ADR-050).
         matching = self.revised_adapter_packet()
-        current = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=2, contract_hash=wp.current(matching)["hash"])
+        current = live(task_id="ACCEPT-SYN-001", revision=2, contract_hash=wp.current(matching)["hash"])
         ledger, records = self.attested_adapter_ledger(current, packet=matching)
         checked = domain.status(ledger, records)
         self.assertEqual(checked["evidence_basis"], "record")
@@ -771,7 +812,7 @@ class ExampleProjectTests(AcceptanceBase):
         variant_b = self.revised_adapter_packet("Revision 2, variant B.")
         self.assertEqual(wp.current(variant_a)["version"], wp.current(variant_b)["version"])
         self.assertNotEqual(wp.current(variant_a)["hash"], wp.current(variant_b)["hash"])
-        record_for_a = dict(EVIDENCE, task_id="ACCEPT-SYN-001", revision=2, contract_hash=wp.current(variant_a)["hash"])
+        record_for_a = live(task_id="ACCEPT-SYN-001", revision=2, contract_hash=wp.current(variant_a)["hash"])
         ledger, records = self.attested_adapter_ledger(record_for_a, packet=variant_b)
         checked = domain.status(ledger, records)
         self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
@@ -788,7 +829,7 @@ class ExampleProjectTests(AcceptanceBase):
         acceptance.run_checks(ledger, EXAMPLES)
         # Bound to this packet's own contract hash, at its own ("medium") risk -- not
         # adapter_evidence()'s risk="low" packet, which hashes differently.
-        original = dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
+        original = live(task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
         acceptance.append(ledger, "ATTESTATION",
                           {"attestation": {"validation_id": "VAL-HIL", "operator": original["operator"],
                                            "evidence": domain.evidence_lines(original)}},
@@ -821,8 +862,10 @@ class ExampleProjectTests(AcceptanceBase):
         # identity alone does not identify which implementation was tested. RESUBMIT clears the
         # prior attestation, and re-attesting the same unchanged evidence file -- describing the
         # rejected implementation's observation, never repeated against the resubmission -- is now
-        # refused as soon as it is attested, not only when a record is later re-verified.
-        with self.assertRaisesRegex(ValueError, "ledger's current result is"):
+        # refused as soon as it is attested, not only when a record is later re-verified. Here the
+        # observation's own timestamp predates the resubmission too (ADR-052 on round 20), so that
+        # is the bound that fires first; either bound alone would refuse this attestation.
+        with self.assertRaisesRegex(ValueError, "before the current result and artifact were submitted"):
             self.rejected_and_resubmitted_adapter(lambda original, result, artifact: original)
 
     def test_a_record_bound_to_the_resubmission_verifies(self):
@@ -830,7 +873,7 @@ class ExampleProjectTests(AcceptanceBase):
         # resubmission's result and artifact is attested and record-verifies (both remain
         # UNVERIFIED_ON_HARDWARE only because this packet declares synthetic: true, per ADR-050).
         ledger, record = self.rejected_and_resubmitted_adapter(
-            lambda original, result, artifact: dict(original, dispatch_id=result["dispatch_id"],
+            lambda original, result, artifact: live(original, dispatch_id=result["dispatch_id"],
                                                      artifact_sha256=artifact["sha256"]))
         records = self.directory / f"records-{self.counter}"
         records.mkdir()
@@ -844,16 +887,24 @@ class ExampleProjectTests(AcceptanceBase):
         # Codex round 2 on PR #34: `device=SN-ABC` must not verify against `device_identity: SN-abc`;
         # a different case is a different unit. The operator keeps the controller's actor normalization.
         full = self.adapter_evidence(device_identity="SN-ABC", operator="Bench Operator")
-        for key, other in (("device", "SN-abc"), ("firmware", full["firmware_version"].upper()),
-                           ("observed_at", full["observed_at"].lower())):
+        transforms = {"device": lambda r: "SN-abc", "firmware": lambda r: r["firmware_version"].upper(),
+                     "observed_at": lambda r: r["observed_at"].lower()}
+        for key, transform in transforms.items():
             with self.subTest(field=key):
-                lines = [f"{key}={other}" if line.startswith(key + "=") else line for line in domain.evidence_lines(full)]
-                ledger, records = self.attested_adapter_ledger(full, lines=lines)
+                def forge(record, key=key, transform=transform):
+                    other = transform(record)
+                    return [f"{key}={other}" if line.startswith(key + "=") else line
+                            for line in domain.evidence_lines(record)]
+                ledger, records = self.attested_adapter_ledger(full, lines=forge)
                 checked = domain.status(ledger, records)
                 self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
                 self.assertIn(f"attested {key} differs", checked["reason"])
-        lines = ["operator=bench operator" if line.startswith("operator=") else line for line in domain.evidence_lines(full)]
-        ledger, records = self.attested_adapter_ledger(full, lines=lines, operator="BENCH OPERATOR")
+
+        def forge_operator(record):
+            return ["operator=bench operator" if line.startswith("operator=") else line
+                    for line in domain.evidence_lines(record)]
+
+        ledger, records = self.attested_adapter_ledger(full, lines=forge_operator, operator="BENCH OPERATOR")
         checked = domain.status(ledger, records)
         self.assertIn("synthetic: true", checked["reason"])  # ADR-050; the case-folded match itself verified
         entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
@@ -864,6 +915,7 @@ class ExampleProjectTests(AcceptanceBase):
         # refused by the loader and status says so, rather than reporting no record at all.
         full = self.adapter_evidence()
         ledger, records = self.attested_adapter_ledger(full)
+        full = wp.read_json(records / "run.json")  # the refreshed record attested_adapter_ledger actually attested
         (records / "run.json").write_text(json.dumps(dict(full, outcome="fail"))[:-1] + ', "outcome": "pass"}',
                                           encoding="utf-8")
         checked = domain.status(ledger, records)
@@ -892,7 +944,7 @@ class ExampleProjectTests(AcceptanceBase):
         # record's operator to the attesting operator, so that record does not verify.
         ledger, _ = self.start(packet=self.packet_for("SHB-04-adapter", risk="low"))
         acceptance.run_checks(ledger, EXAMPLES)
-        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", operator="Someone else at the bench")
+        record = live(task_id="ACCEPT-SYN-001", operator="Someone else at the bench")
         lines = [line if not line.startswith("operator=") else "operator=Attesting operator"
                  for line in domain.evidence_lines(record)]
         acceptance.append(ledger, "ATTESTATION",
@@ -918,7 +970,7 @@ class ExampleProjectTests(AcceptanceBase):
     def test_high_risk_adapter_packet_needs_cross_family_review_as_well(self):
         ledger, packet = self.start(packet=self.packet_for("SHB-04-adapter"))
         acceptance.run_checks(ledger, EXAMPLES)
-        record = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+        record = live(task_id="ACCEPT-SYN-001")
         acceptance.append(ledger, "ATTESTATION",
                           {"attestation": {"validation_id": "VAL-HIL", "operator": record["operator"],
                                            "evidence": domain.evidence_lines(record)}},
@@ -975,7 +1027,7 @@ class CommandLineTests(unittest.TestCase):
             acceptance.initialize(ledger, wp.read_json(ROOT / "config/acceptance.example.json"), packet,
                                   make_result(packet), make_artifact(), CONTROLLER, ARCHITECT, IMPLEMENTERS, [])
             acceptance.run_checks(ledger, EXAMPLES)
-            record = dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
+            record = live(task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
             acceptance.append(ledger, "ATTESTATION",
                               {"attestation": {"validation_id": "VAL-HIL", "operator": record["operator"],
                                                "evidence": domain.evidence_lines(record)}},

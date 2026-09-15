@@ -226,7 +226,7 @@ def apply(state, event, stored=False):
                 "open_questions": copy.deepcopy(data["open_questions"]),
                 "checks": None, "attestations": {}, "reviews": [], "waiver": None,
                 "user_decision": None, "accepted": None, "resubmissions": 0,
-                "domain_shortfall": shortfall or None,
+                "domain_shortfall": shortfall or None, "submitted_at": timestamp,
                 "status": "GATES_PENDING", "reason": "INITIALIZED"}
     actors = casefolded(item["actor"] for item in state["implementers"])
     if event["kind"] not in {"REVIEW_RESULT", "REVIEW_ABANDONED"}:
@@ -280,7 +280,8 @@ def apply(state, event, stored=False):
         if domain is not None and not state.get("domain_shortfall"):
             try:
                 domain.validate_attestation(state["contract"], attestation, timestamp,
-                                            state["result"]["dispatch_id"], state["artifact"]["sha256"])
+                                            state["result"]["dispatch_id"], state["artifact"]["sha256"],
+                                            state["submitted_at"])
             except ValueError as exc:
                 # A stored attestation the profile rule would now refuse replays marked (ADR-032);
                 # the profile's status derivation reports it unverified. A new one is refused.
@@ -392,6 +393,7 @@ def apply(state, event, stored=False):
         state.update(result=copy.deepcopy(data["result"]), artifact=copy.deepcopy(data["artifact"]),
                      implementers=copy.deepcopy(data["implementers"]), checks=None, attestations={},
                      waiver=None, user_decision=None, resubmissions=state["resubmissions"] + 1,
+                     submitted_at=timestamp,
                      status="GATES_PENDING", reason="RESUBMITTED")
     elif event["kind"] == "ACCEPT":
         feedback.exact(data, {"actor"})
