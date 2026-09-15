@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import copy
 import importlib.util
+import io
 import json
 import re
 import shutil
@@ -241,6 +243,22 @@ class ContractRuleTests(unittest.TestCase):
         repaired = wp.revise(stored, example(), "Architect", "Brought under the domain rules")
         self.assertEqual(wp.domain_shortfall(repaired), {1: wp.domain_shortfall(stored)[1]})
         self.assertEqual(wp.validate(repaired), [])
+        # Every reporting path qualifies its verdict with the shortfall; none calls it clean.
+        self.assertIn("DOMAIN SHORTFALL", wp.render(stored))
+        self.assertIn("'component' is a required property", wp.render(stored))
+        self.assertEqual(wp.shortfall_note(make_packet(make_contract())), "")
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "legacy.json"
+            path.write_text(json.dumps(stored), encoding="utf-8")
+            for command in (["validate", str(path)], ["graph", str(path)]):
+                with self.subTest(command=command[0]):
+                    out = io.StringIO()
+                    with contextlib.redirect_stdout(out):
+                        code = wp.main(command)
+                    self.assertEqual(code, 0)
+                    self.assertIn("VALID", out.getvalue())
+                    self.assertIn("DOMAIN SHORTFALL", out.getvalue())
+                    self.assertIn("revision 1", out.getvalue())
 
     def test_example_packets_form_a_dag_with_component_scoped_context(self):
         packets = [wp.create(path.name.split(".")[0], PROFILE, wp.read_json(path), "Architect", "Synthetic", "2026-09-13T00:00:00Z")

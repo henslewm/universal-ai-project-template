@@ -278,6 +278,15 @@ def domain_shortfall(packet) -> dict[int, list[str]]:
             if (errors := domain_errors(snapshot["contract"], packet["domain_profile"]))}
 
 
+def shortfall_note(packet) -> str:
+    """One line naming the stored revisions that fail the profile's rules, or empty when none do."""
+    shortfall = domain_shortfall(packet)
+    if not shortfall:
+        return ""
+    return "DOMAIN SHORTFALL (stored revisions replay; a new revision must comply): " + "; ".join(
+        f"revision {version}: {', '.join(errors)}" for version, errors in sorted(shortfall.items()))
+
+
 def require_domain_rules(contract, profile) -> None:
     """A contract being authored now must satisfy its profile's domain rules."""
     errors = domain_errors(contract, profile)
@@ -396,6 +405,8 @@ def render(packet) -> str:
         f"Contract SHA-256: `{latest['hash']}`", "",
         "> Generated from the canonical JSON packet. State and evidence references are recorded assertions;",
         "> they do not authorize execution or independently prove tests, review, or merge.", ""]
+    if shortfall_note(packet):
+        lines += [f"> **{markdown_text(shortfall_note(packet))}**", ""]
 
     def bullets(value, indent=0):
         prefix = "  " * indent
@@ -500,12 +511,18 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == "graph":
-            print("GRAPH VALID — recorded dependency order: " + " -> ".join(graph_order([read_json(p) for p in args.packets])))
+            packets = [read_json(p) for p in args.packets]
+            print("GRAPH VALID — recorded dependency order: " + " -> ".join(graph_order(packets)))
+            for packet in packets:
+                if shortfall_note(packet):
+                    print(f"{packet['task_id']}: {shortfall_note(packet)}")
             return 0
         data = read_json(args.packet if args.command in {"validate", "render"} else args.input)
         if args.command == "validate":
             require_valid(data)
             print("PACKET VALID — structure/history only; no execution authorization or independent evidence verification")
+            if shortfall_note(data):
+                print(shortfall_note(data))
             return 0
         if args.command == "render":
             output = render(data)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 6 answered
+
+- P2: the packet layer's stored-revision shortfall is never silent: `validate` and `graph` print a `DOMAIN SHORTFALL` line naming the failing revisions after their verdict, `render` carries it in the issue view, and `WORK_PACKET_PROTOCOL.md` describes the split (ADR-037 completed). Regression covers `render`, `validate` and `graph`.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 5 answered (ADR-036, ADR-037)
 
 - P1: the work-packet layer gets the ADR-032 boundary: `validate` checks stored revisions against the common contract only, `domain_shortfall` names revisions that fail the profile's rules, and `create`/`revise` refuse a new contract that fails them, so a packet authored before the rules can be transitioned and revised into compliance instead of being stranded (ADR-037).

@@ -81,6 +81,8 @@ What the run established beyond #9: the cross-family gate did its job on the tem
 
 - **Round 5 on head `65d5230`**: one P1 and two P2. The P1 is the ADR-032 class on the other path: `validate` re-ran the domain rules over every stored packet revision, so a pre-#9 packet could not append the correcting revision; ADR-037 gives the packet layer the same three-way split (stored replays, `domain_shortfall` reports, `create`/`revise` refuse a new non-compliant contract), with a regression that transitions and revises a legacy packet into compliance. The adapter class a fifth time — a driver whose `close()` raised during failure handling left the adapter open — is ADR-036: `close` forgets the port first and `_wire` chains a failing close under the original failure. The loader now refuses `NaN`/`Infinity`/overflow and owns the digest, so a bad file is named and the scan continues.
 
+- **Round 6 on head `83e4cdf`**: one P2 — `validate`, `graph` and `render` reported a legacy packet as clean although `domain_shortfall` knew otherwise. Each now qualifies its verdict with a `DOMAIN SHORTFALL` line naming the failing revisions, and the protocol describes the split; regression across the three paths.
+
 ## Discovery outside this issue
 
 Codex's four findings on PR #21 (two P1, two P2) were handled by reopening #8, per the maintainer's decision, not by a follow-up issue. The standing rules that resulted are in `MASTER_INSTRUCTIONS.md`.
