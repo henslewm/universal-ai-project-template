@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 19 answered (ADR-051)
+
+- P2: `ACCEPTANCE_PROTOCOL.md`'s normative description of the software-hardware domain rule predated ADR-049 and ADR-050 -- it omitted the now-required `dispatch_id` and artifact digest attestation lines and still said every fully attested accepted task earns `VERIFIED_ON_HARDWARE`, ignoring the `synthetic: true` cap. Updated to state both.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 18 answered (ADR-049, ADR-050)
 
 - P1: ADR-047 closed the record-basis gap for a resubmitted result and artifact, but the attestation-basis path (no `--evidence-dir`) still trusted an operator's re-attested, unchanged record after a resubmission and reported it VERIFIED_ON_HARDWARE without the ADR-047 comparison ever running. A hardware-rung attestation now also carries `dispatch_id` and `artifact_sha256` (extending ADR-038's line count from six to eight recognized lines), and `validate_attestation` refuses one that does not match the ledger's current result and artifact at append time, on either basis (ADR-049).
