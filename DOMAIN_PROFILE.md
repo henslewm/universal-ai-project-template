@@ -57,8 +57,12 @@ an attestation by a non-implementer operator, and that attestation must bind a s
 evidence record by digest. A hardware rung with a command is refused as a simulator masquerading
 as hardware; a machine rung without one is refused as attestation substituting for a runnable
 check. `software_hardware.py status` derives the earned status from the ledger:
-`VERIFIED_ON_HARDWARE` only for an accepted task whose hardware rungs were all attested. A compile
-or simulation pass never upgrades it. The output names its `evidence_basis`: without
+`VERIFIED_ON_HARDWARE` only for an accepted task whose hardware rungs were all attested and whose
+contract does not declare `domain.synthetic: true` — a synthetic contract's inputs are fictional
+by that declaration, so its hardware rungs can be attested and their bound records re-verified,
+but the derived status stays `UNVERIFIED_ON_HARDWARE` regardless; every worked example in this
+template declares it. A compile or simulation pass never upgrades it. The output names its
+`evidence_basis`: without
 `--evidence-dir` the status rests on the ledger's attestations and their declared digests, and
 says it is attested, not record-verified; with `--evidence-dir` every bound record is found by
 digest, validated as a hardware evidence record, and re-verified for task, validation, rung, a

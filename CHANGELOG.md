@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 23 answered (ADR-055)
+
+- P2: `templates/software-hardware/PROFILE.md` and its identical `DOMAIN_PROFILE.md` copy still said acceptance plus full attestation earns `VERIFIED_ON_HARDWARE` unconditionally, contradicting `status()`'s actual behavior (ADR-050) for every worked example packet, all six of which declare `synthetic: true`. Both now state the ceiling explicitly.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 22 answered (ADR-054)
 
 - P1: `checked_artifact` permits empty content for a reference-kind artifact, so its sha256 is then the fixed empty-content digest regardless of what `reference` names -- a resubmission could change the referenced commit while sha256 (and dispatch_id) both stay the same, and an old hardware evidence record would still verify against the new reference on either basis. `acceptance.artifact_identity(artifact)` combines `reference` and `sha256` into one digest; every place a hardware record binds to the current artifact now uses this identity instead of `sha256` alone. Regression: two reference-kind artifacts sharing one empty-content digest still produce two different identities.
