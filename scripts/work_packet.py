@@ -6,6 +6,7 @@ import argparse
 import copy
 import hashlib
 import html
+import importlib
 import json
 import re
 import sys
@@ -18,7 +19,13 @@ except ImportError:
     raise SystemExit("Work-packet tools require: python -m pip install -r requirements-work-packets.txt")
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 SCHEMA = json.loads((ROOT / "config/work-packet.schema.json").read_text(encoding="utf-8"))
+PROFILES = tuple(SCHEMA["properties"]["domain_profile"]["enum"])
+# Profile-specific rules over the `domain` extension. A registered module adds structure and
+# refusals for its profile; it can never relax the common contract, which is enforced first.
+DOMAIN_MODULES = {"software-hardware": "software_hardware"}
 Draft202012Validator.check_schema(SCHEMA)
 FORMATS = FormatChecker()
 
@@ -106,7 +113,32 @@ def effective_gates(contract) -> set[str]:
     return set(floor)
 
 
-def validate_contract(contract) -> list[str]:
+def domain_module(profile):
+    """The registered domain-rule module for a profile, or None when the profile adds no rules."""
+    name = DOMAIN_MODULES.get(profile)
+    return importlib.import_module(name) if name else None
+
+
+def domain_errors(contract, profile) -> list[str]:
+    """The registered domain rules for `profile` over a schema-valid contract; empty when none apply."""
+    if not isinstance(profile, str) or profile not in PROFILES:
+        raise ValueError(f"domain rules require a registered domain profile, not {profile!r}")
+    module = domain_module(profile)
+    if module is None:
+        return []
+    return [f"domain: {problem}" for problem in module.validate_contract_domain(contract)]
+
+
+def validate_contract(contract, profile, domain_rules=True) -> list[str]:
+    """Common contract rules, then the registered domain rules for `profile`.
+
+    The profile is mandatory: a caller that does not know which profile it validates for would
+    otherwise skip that profile's domain rules silently, and `None` is refused for the same reason.
+    `domain_rules=False` is for replaying a contract stored before its profile's rules existed
+    (ADR-032); the caller records the shortfall it gets from `domain_errors` instead of refusing.
+    """
+    if not isinstance(profile, str) or profile not in PROFILES:
+        raise ValueError(f"validate_contract requires a registered domain profile, not {profile!r}")
     errors = schema_errors(CONTRACT_VALIDATOR, contract)
     if errors:
         return errors
@@ -150,7 +182,10 @@ def validate_contract(contract) -> list[str]:
                 errors.append(f"validation/{check['id']}: unknown criterion {criterion}")
     if set(criteria) - covered:
         errors.append("acceptance_criteria: every criterion needs a specified validation")
-    # Legal/domain extension content is data, not proof of authority or safety.
+    # Extension content is data, not proof of authority or safety. A profile with registered
+    # domain rules is checked here too, so every path that validates a contract applies them.
+    if domain_rules:
+        errors.extend(domain_errors(contract, profile))
     return errors
 
 
@@ -190,7 +225,11 @@ def validate(packet) -> list[str]:
     for number, snapshot in enumerate(snapshots, 1):
         if snapshot["version"] != number:
             errors.append("revision_history: versions must be consecutive starting at 1")
-        errors.extend(f"revision {number}: {e}" for e in validate_contract(snapshot["contract"]))
+        # Stored revisions are checked against the common contract; a profile's domain rules bind
+        # the revision being authored (create/revise) and are reported for stored ones by
+        # domain_shortfall, so a packet authored before the rules can still be revised (ADR-037).
+        errors.extend(f"revision {number}: {e}" for e in
+                      validate_contract(snapshot["contract"], packet["domain_profile"], domain_rules=False))
         if packet["task_id"] in snapshot["contract"]["dependencies"]:
             errors.append(f"revision {number}: task cannot depend on itself")
         expected = fingerprint(packet["task_id"], packet["domain_profile"], number, snapshot["contract"])
@@ -230,6 +269,29 @@ def validate(packet) -> list[str]:
     if state != packet["state"] or revision != len(snapshots):
         errors.append("packet state/current revision does not match replayed events")
     return errors
+
+
+def domain_shortfall(packet) -> dict[int, list[str]]:
+    """Revisions whose stored contract fails the profile's current domain rules, by version.
+    Informational: such a packet replays and may be revised into compliance (ADR-037)."""
+    return {snapshot["version"]: errors for snapshot in packet["revision_history"]
+            if (errors := domain_errors(snapshot["contract"], packet["domain_profile"]))}
+
+
+def shortfall_note(packet) -> str:
+    """One line naming the stored revisions that fail the profile's rules, or empty when none do."""
+    shortfall = domain_shortfall(packet)
+    if not shortfall:
+        return ""
+    return "DOMAIN SHORTFALL (stored revisions replay; a new revision must comply): " + "; ".join(
+        f"revision {version}: {', '.join(errors)}" for version, errors in sorted(shortfall.items()))
+
+
+def require_domain_rules(contract, profile) -> None:
+    """A contract being authored now must satisfy its profile's domain rules."""
+    errors = domain_errors(contract, profile)
+    if errors:
+        raise ValueError("; ".join(errors))
 
 
 def require_valid(packet) -> None:
@@ -294,10 +356,13 @@ def create(task_id, profile, contract, actor, reason, timestamp=None):
               "events": []}
     append_event(packet, "create", "PROPOSED", "architect", actor, reason, [], stamp)
     require_valid(packet)
+    require_domain_rules(contract, profile)
     return packet
 
 
-def revise(packet, contract, actor, reason, timestamp=None):
+def revise(packet, contract, actor, reason, timestamp=None, domain_rules=True):
+    """A new revision. `domain_rules=False` is for replaying a revision a ledger already stored
+    before its profile's rules existed (ADR-041); the caller records the shortfall instead."""
     require_valid(packet)
     if contract == current(packet)["contract"]:
         raise ValueError("revision does not change the contract")
@@ -307,6 +372,8 @@ def revise(packet, contract, actor, reason, timestamp=None):
         len(packet["revision_history"]) + 1, contract, actor, reason, stamp))
     append_event(result, "revision", "PROPOSED", "architect", actor, reason, [], stamp)
     require_valid(result)
+    if domain_rules:
+        require_domain_rules(contract, packet["domain_profile"])
     return result
 
 
@@ -341,6 +408,8 @@ def render(packet) -> str:
         f"Contract SHA-256: `{latest['hash']}`", "",
         "> Generated from the canonical JSON packet. State and evidence references are recorded assertions;",
         "> they do not authorize execution or independently prove tests, review, or merge.", ""]
+    if shortfall_note(packet):
+        lines += [f"> **{markdown_text(shortfall_note(packet))}**", ""]
 
     def bullets(value, indent=0):
         prefix = "  " * indent
@@ -445,12 +514,18 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == "graph":
-            print("GRAPH VALID — recorded dependency order: " + " -> ".join(graph_order([read_json(p) for p in args.packets])))
+            packets = [read_json(p) for p in args.packets]
+            print("GRAPH VALID — recorded dependency order: " + " -> ".join(graph_order(packets)))
+            for packet in packets:
+                if shortfall_note(packet):
+                    print(f"{packet['task_id']}: {shortfall_note(packet)}")
             return 0
         data = read_json(args.packet if args.command in {"validate", "render"} else args.input)
         if args.command == "validate":
             require_valid(data)
             print("PACKET VALID — structure/history only; no execution authorization or independent evidence verification")
+            if shortfall_note(data):
+                print(shortfall_note(data))
             return 0
         if args.command == "render":
             output = render(data)

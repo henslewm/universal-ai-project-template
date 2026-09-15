@@ -351,9 +351,15 @@ def apply(state, event, stored=False):
             if state["repairs"] >= state["policy"]["max_contract_repairs"] or len(state["attempts"]) >= state["total_cap"]:
                 raise ValueError("Contract repair/task attempt budget exhausted")
             revised = diagnosis["revised_contract"]
-            errors = wp.validate_contract(revised)
+            profile = state["packet"]["domain_profile"]
+            errors = wp.validate_contract(revised, profile, domain_rules=False)
             if errors:
                 raise ValueError("\n".join(errors))
+            # A stored repair predating the profile's domain rules replays marked (ADR-041); a new
+            # repair that fails them is refused.
+            shortfall = wp.domain_errors(revised, profile)
+            if shortfall and not stored:
+                raise ValueError("\n".join(shortfall))
             old = wp.current(state["packet"])["contract"]
             if any(old[field] != revised[field] for field in PROTECTED):
                 raise ValueError("Contract repair changes a protected scope/interface/architecture field")
@@ -363,11 +369,15 @@ def apply(state, event, stored=False):
                 raise ValueError("Contract repair cannot change the assigned acceptance gates")
             if revised["retry_budget"] != old["retry_budget"]:
                 raise ValueError("Contract repair cannot change or reset retry limits")
-            packet = wp.revise(state["packet"], revised, data["actor"], diagnosis["reason"], timestamp)
+            packet = wp.revise(state["packet"], revised, data["actor"], diagnosis["reason"], timestamp,
+                               domain_rules=not stored)
             for target in ("ARCHITECTED", "READY"):
                 graph = current_graph(state, packet)
                 packet = wp.transition(packet, target, "architect", data["actor"], diagnosis["reason"], diagnosis["evidence"], graph, timestamp)
             state.update(packet=packet, status="READY", reason="CONTRACT_REPAIRED", repairs=state["repairs"] + 1)
+            if shortfall:
+                state.setdefault("domain_shortfall", []).append(
+                    {"revision": wp.current(packet)["version"], "errors": shortfall})
         if classification != "ARCHITECTURE_CHANGE":
             state["diagnoses"] += 1
         state["latest_diagnosis"] = {"event_sequence": event["sequence"], "classification": classification,
@@ -564,6 +574,7 @@ def summary(state):
             "contract_repairs": state["repairs"], "blocker_resumptions": state["resumptions"], "failure_groups": failure_groups(state),
             "architect_diagnoses": state["diagnoses"], "remaining_architect_diagnoses": state["policy"]["max_architect_diagnoses"] - state["diagnoses"],
             "latest_diagnosis": state["latest_diagnosis"], "review_rejections": state["review_rejections"],
+            "domain_shortfall": state.get("domain_shortfall"),
             "attempts": state["attempts"], "issue_proposals": state["discoveries"]}
 
 

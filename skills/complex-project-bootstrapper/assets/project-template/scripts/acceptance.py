@@ -87,6 +87,16 @@ def checked_artifact(artifact, policy):
     return artifact
 
 
+def artifact_identity(artifact) -> str:
+    """What actually identifies this artifact, not just `sha256` alone (Codex round 22 on PR #34):
+    a `reference`-kind artifact may carry empty `content` (checked_artifact permits it), so its
+    `sha256` is then the fixed empty-string digest regardless of what `reference` names -- a
+    resubmission could change the referenced commit while `sha256` (and `dispatch_id`) stay the
+    same. Binding on `reference` and `sha256` together means either changing identifies a
+    different artifact to a domain rule that checks it."""
+    return hashlib.sha256(f"{artifact['reference']}\n{artifact['sha256']}".encode("utf-8")).hexdigest()
+
+
 def pending_review(state):
     reviews = state["reviews"]
     if reviews and reviews[-1]["report"] is None and reviews[-1]["abandoned"] is None:
@@ -198,9 +208,14 @@ def apply(state, event, stored=False):
                               "implementers", "result", "artifact", "open_questions"})
         binding, contract = data["binding"], data["contract"]
         feedback.exact(binding, {"task_id", "domain_profile", "revision", "contract_hash"})
-        errors = wp.validate_contract(contract)
+        errors = wp.validate_contract(contract, binding["domain_profile"], domain_rules=False)
         if errors:
             raise ValueError("; ".join(errors))
+        # A profile's domain rules may postdate a stored ledger (ADR-032): a stored contract that
+        # fails them replays marked with the shortfall; a new INIT is refused.
+        shortfall = wp.domain_errors(contract, binding["domain_profile"])
+        if shortfall and not stored:
+            raise ValueError("; ".join(shortfall))
         expected = wp.fingerprint(binding["task_id"], binding["domain_profile"],
                                   binding["revision"], contract)
         require(binding["contract_hash"] == expected, "Binding hash does not match its contract")
@@ -221,6 +236,7 @@ def apply(state, event, stored=False):
                 "open_questions": copy.deepcopy(data["open_questions"]),
                 "checks": None, "attestations": {}, "reviews": [], "waiver": None,
                 "user_decision": None, "accepted": None, "resubmissions": 0,
+                "domain_shortfall": shortfall or None, "submitted_at": timestamp,
                 "status": "GATES_PENDING", "reason": "INITIALIZED"}
     actors = casefolded(item["actor"] for item in state["implementers"])
     if event["kind"] not in {"REVIEW_RESULT", "REVIEW_ABANDONED"}:
@@ -269,7 +285,19 @@ def apply(state, event, stored=False):
                 "A machine-runnable check is executed, never attested over")
         require(attestation["operator"].strip().casefold() not in actors,
                 "An implementation actor cannot attest its own validation")
-        state["attestations"][attestation["validation_id"]] = copy.deepcopy(attestation)
+        recorded = copy.deepcopy(attestation)
+        domain = wp.domain_module(state["binding"]["domain_profile"])
+        if domain is not None and not state.get("domain_shortfall"):
+            try:
+                domain.validate_attestation(state["contract"], attestation, timestamp,
+                                            state["result"]["dispatch_id"], artifact_identity(state["artifact"]),
+                                            state["submitted_at"])
+            except ValueError as exc:
+                # A stored attestation the profile rule would now refuse replays marked (ADR-032);
+                # the profile's status derivation reports it unverified. A new one is refused.
+                require(stored, str(exc))
+                recorded["domain_shortfall"] = str(exc)
+        state["attestations"][attestation["validation_id"]] = recorded
         state["reason"] = "ATTESTATION_RECORDED"
     elif event["kind"] == "REVIEW_OPEN":
         feedback.exact(data, {"review"})
@@ -375,6 +403,7 @@ def apply(state, event, stored=False):
         state.update(result=copy.deepcopy(data["result"]), artifact=copy.deepcopy(data["artifact"]),
                      implementers=copy.deepcopy(data["implementers"]), checks=None, attestations={},
                      waiver=None, user_decision=None, resubmissions=state["resubmissions"] + 1,
+                     submitted_at=timestamp,
                      status="GATES_PENDING", reason="RESUBMITTED")
     elif event["kind"] == "ACCEPT":
         feedback.exact(data, {"actor"})
@@ -410,6 +439,15 @@ def acceptable(state, actor, stored=False):
     require(state["status"] == "GATES_PENDING", f"Acceptance refused at {state['status']}")
     require(deterministic_satisfied(state),
             "Deterministic gate unsatisfied: " + wp.canonical(deterministic_status(state)))
+    if not stored:
+        # A stored attestation the domain rules would now refuse (ADR-032) still counts as
+        # ATTESTED above so a ledger already accepted on it keeps replaying as accepted; a new
+        # acceptance must not rest on it (Codex round 21 on PR #34, ADR-053) and needs a
+        # replacement attestation the current rules accept instead.
+        shortfall = sorted(vid for vid, attestation in state["attestations"].items()
+                           if attestation.get("domain_shortfall"))
+        require(not shortfall, "A new acceptance cannot rest on a stored attestation the domain "
+                "rules would now refuse; attest again to satisfy them: " + ", ".join(shortfall))
     approver = None
     if "model_review" in state["gates"]:
         approver = approving(state, "model_review", stored)
@@ -1042,7 +1080,8 @@ def review_packet(state, paths):
         "binding": state["binding"],
         "gates": {"risk": state["risk"], "required": state["gates"],
                   "reviews_used": reviews_used(state),
-                  "max_review_attempts": state["policy"]["max_review_attempts"]},
+                  "max_review_attempts": state["policy"]["max_review_attempts"],
+                  "domain_shortfall": state.get("domain_shortfall")},
         "contract": state["contract"],
         "result_supplied_by_worker": state["result"],
         "artifact": state["artifact"],
@@ -1214,6 +1253,9 @@ def summary(state):
             "reviews_used": reviews_used(state),
             "max_review_attempts": state["policy"]["max_review_attempts"],
             "attested": sorted(state["attestations"]), "waiver": state["waiver"],
+            "domain_shortfall": state.get("domain_shortfall"),
+            "attestation_shortfall": {k: v["domain_shortfall"] for k, v in state["attestations"].items()
+                                      if "domain_shortfall" in v} or None,
             "user_decision": state["user_decision"], "resubmissions": state["resubmissions"],
             "accepted": state["accepted"]}
 

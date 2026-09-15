@@ -17,11 +17,11 @@ Choose `--profile` explicitly or recover `domain_profile` from supplied intake/t
 
 | Profile | Orientation fields under `bootstrap.domain` | Content |
 |---|---|---|
-| `software-hardware` | `baseline`, `interfaces`, `validation_resources` | Hardware/firmware/software baseline with sources; protocols/interfaces and specifications; simulator/HIL resources, known paths, physical-access limits |
+| `software-hardware` | `baseline`, `hardware_identity`, `interfaces`, `specifications`, `environment`, `known_paths`, `validation_resources`, `physical_access`, `architecture_boundaries` | Repository/software baseline with sources; exact hardware models, revisions and firmware; protocols and interfaces with versions; authoritative manuals and datasheets; host, toolchain and deployment environment; known-good and known-failing paths; fixtures, simulators, loopback and HIL resources; physical-access and safety limits; architecture boundaries whose change needs approval (the nine required by `scripts/validate_bootstrap.py`) |
 | `family-law` | `posture`, `objectives_and_deadlines`, `evidence` | Court/case posture and orders with sources; ranked objectives, disputed issues and deadlines; evidence/discovery and preservation |
 | `civil-rights-nc` | `posture`, `defendants_and_theories`, `evidence_and_remedies` | Forum/procedural history with sources; defendants, roles/capacities and alleged rights; evidence, limitations/accrual posture and remedies |
 
-These are initial orientation requirements. Detailed domain schemas and workflows remain assigned to #9/#10/#11; templates carry snapshots of the existing domain documents.
+These are the orientation requirements `validate_bootstrap.DOMAIN_FIELDS` enforces; a placeholder such as `TBD` is refused before review. The software-hardware set was completed in #9; the legal profiles remain assigned to #10/#11.
 
 Run new setup with `python scripts/bootstrap_project.py --interactive --answers verified-intake.json --profile software-hardware --destination ../my-project --no-git`, substituting the selected profile and destination. Omit `--answers` and its filename if absent. A destination must be new/empty or an uninitialized template repository; initialized projects require preservation-oriented retrofit/review instead of rebootstrap.
 

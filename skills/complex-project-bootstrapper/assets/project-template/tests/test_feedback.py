@@ -562,6 +562,38 @@ class FeedbackTests(unittest.TestCase):
                     feedback.diagnose(directory, diagnosis(revised=revised), "Architect", self.directory, self.tick())
                 self.assertEqual(feedback.replay(directory)[1], 3)
 
+    def test_stored_repair_predating_the_domain_rules_replays_marked_and_a_new_one_is_refused(self):
+        # Codex round 10 on PR #34 (ADR-041): a pre-#9 feedback ledger whose stored repair used the
+        # formerly valid free-form domain block must replay, marked; the same repair as a new
+        # event is refused by the profile's rules.
+        # The task itself predates the rules: its stored revision carries the free-form block
+        # (`domain` is a protected field, so a repair never changes it).
+        packet = packet_with_caps(retries=4, caps={"1": 1})
+        first = packet["revision_history"][0]
+        first["contract"]["domain"] = {"synthetic": True, "note": "Pre-#9 free-form extension data"}
+        first["hash"] = wp.fingerprint(packet["task_id"], packet["domain_profile"], 1, first["contract"])
+        for event in packet["events"]:
+            event["contract_hash"] = first["hash"]
+        directory = self.start(packet, policy(max_contract_repairs=2))
+        self.hold(directory)
+        state, sequence, previous = feedback.replay(directory)
+        legacy = copy.deepcopy(wp.current(state["packet"])["contract"])
+        legacy["goal"] += " Clarified synthetic objective."
+        with self.assertRaisesRegex(ValueError, "domain:"):
+            feedback.diagnose(directory, diagnosis(revised=legacy), "Architect", self.directory, self.tick())
+        self.assertEqual(feedback.replay(directory)[1], sequence, "the refused repair recorded nothing")
+        event = {"sequence": sequence + 1, "previous": previous, "kind": "DIAGNOSIS", "timestamp": self.tick(),
+                 "data": {"actor": "Architect", "diagnosis": diagnosis(revised=legacy), "verified_anchor": state["anchor"]}}
+        event["hash"] = feedback.router.digest(event)
+        (directory / f"{sequence + 1:08d}.json").write_text(json.dumps(event, indent=2) + "\n", encoding="utf-8")
+        replayed = feedback.replay(directory)[0]
+        self.assertEqual((replayed["status"], replayed["reason"], replayed["repairs"]), ("READY", "CONTRACT_REPAIRED", 1))
+        self.assertEqual(wp.current(replayed["packet"])["contract"]["domain"], legacy["domain"])
+        self.assertEqual(replayed["domain_shortfall"][0]["revision"], wp.current(replayed["packet"])["version"])
+        self.assertTrue(any("'component' is a required property" in e for e in replayed["domain_shortfall"][0]["errors"]))
+        self.assertEqual(feedback.summary(replayed)["domain_shortfall"], replayed["domain_shortfall"])
+        self.assertIn(wp.current(replayed["packet"])["version"], wp.domain_shortfall(replayed["packet"]))
+
     def test_repair_preserves_global_tier_budgets_and_has_finite_allowance(self):
         directory = self.start(packet_with_caps(retries=4, caps={"1": 1}), policy(max_contract_repairs=1))
         self.hold(directory)

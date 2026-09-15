@@ -12,7 +12,7 @@ Build a private intake table with four statuses: VERIFIED, PROPOSED DEFAULT, UNR
 
 Ask only unresolved questions whose answers materially affect objective, definition of done, architecture boundaries, dependencies, authoritative sources/evidence, risk, cost/routing posture, or human intervention conditions. Prefer a few related questions at a time. Explain a proposed default when it avoids an unnecessary interruption.
 
-Save recovered common fields in an optional `verified-intake.json`; put profile orientation and any existing architecture proposal under its `bootstrap` object. The interactive collector reuses supplied fields and asks only missing common intake and profile orientation fields. The domain profile may add questions under the common `domain` extension, but detailed domain work remains assigned to #9/#10/#11 and cannot weaken the common gate.
+Save recovered common fields in an optional `verified-intake.json`; put profile orientation and any existing architecture proposal under its `bootstrap` object. The interactive collector reuses supplied fields and asks only missing common intake and profile orientation fields. The domain profile adds required questions under the common `domain` extension (the software-hardware set is complete; family-law and civil-rights remain #10/#11) and cannot weaken the common gate.
 
 ## 3. Generate inactive setup, then architect
 

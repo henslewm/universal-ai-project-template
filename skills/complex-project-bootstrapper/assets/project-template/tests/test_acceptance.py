@@ -18,6 +18,7 @@ from test_model_router import resource
 
 
 ROOT = Path(__file__).resolve().parent.parent
+PROFILE = "software-hardware"
 sys.path.insert(0, str(ROOT / "scripts"))
 SPEC = importlib.util.spec_from_file_location("acceptance_under_test", ROOT / "scripts/acceptance.py")
 acceptance = importlib.util.module_from_spec(SPEC)
@@ -44,6 +45,10 @@ def make_contract(risk="low", argv=PASS_ARGV, review=None, cwd=None, timeout=Non
         if timeout is not None:
             command["timeout_seconds"] = timeout
         value["validation"][0]["command"] = command
+    else:
+        # A software-hardware check without a command is only valid at a hardware rung.
+        del value["validation"][0]["command"]
+        value["domain"]["validation_levels"]["VAL-FRAMES"] = "hardware_in_loop"
     if review is not None:
         value["review"] = review
     return value
@@ -86,6 +91,20 @@ def make_artifact(content="diff --git a/parser.py b/parser.py\n+synthetic change
 
 
 IMPLEMENTERS = [{"actor": "Worker", "model_family": "qwen"}]
+
+
+def hardware_lines():
+    """Attestation lines for a hardware-rung check, as scripts/software_hardware.py
+    hardware-evidence prints them. A function, not a module-level constant, because observed_at
+    must be refreshed to now each call (ADR-052 on PR #34 round 20 refuses a stale one, and this
+    module's import happens long before any test's own ledger exists to compare it against)."""
+    return ["hardware-evidence:sha256=" + "b" * 64, "level=hardware_in_loop", "device=Synthetic unit SN-0",
+            "firmware=0.0.0-synthetic", f"observed_at={wp.now()}", "outcome=pass", "operator=Operator",
+            "dispatch_id=" + "e" * 64,  # matches make_result's default dispatch_id
+            # acceptance.artifact_identity of make_artifact()'s default reference and content combined (ADR-054)
+            "artifact_sha256=ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff"]
+
+
 CONTROLLER, ARCHITECT = "Acceptance controller", "Architect"
 REVIEWER = {"actor": "Independent reviewer", "model_family": "sonnet", "tier": 3}
 
@@ -217,28 +236,28 @@ class ConfigAndFloorTests(AcceptanceBase):
 
     def test_review_block_cannot_loosen_below_the_risk_floor(self):
         below = make_contract(risk="high", review={"required_gates": ["deterministic", "model_review"]})
-        errors = wp.validate_contract(below)
+        errors = wp.validate_contract(below, PROFILE)
         self.assertTrue(any("loosens below" in error for error in errors), errors)
         exact = make_contract(risk="high", review={"required_gates":
                               ["deterministic", "model_review", "cross_family_review"]})
-        self.assertEqual(wp.validate_contract(exact), [])
+        self.assertEqual(wp.validate_contract(exact, PROFILE), [])
         tightened = make_contract(risk="low", review={"required_gates": ["deterministic", "model_review"]})
-        self.assertEqual(wp.validate_contract(tightened), [])
+        self.assertEqual(wp.validate_contract(tightened, PROFILE), [])
         self.assertEqual(wp.effective_gates(tightened), {"deterministic", "model_review"})
 
     def test_review_block_gate_dependencies_and_unknown_gates_are_refused(self):
         orphan = make_contract(risk="low", review={"required_gates": ["deterministic", "cross_family_review"]})
         self.assertTrue(any("cross_family_review requires model_review" in e
-                            for e in wp.validate_contract(orphan)))
+                            for e in wp.validate_contract(orphan, PROFILE)))
         unknown = make_contract(risk="low", review={"required_gates": ["deterministic", "vibes"]})
-        self.assertTrue(wp.validate_contract(unknown))
+        self.assertTrue(wp.validate_contract(unknown, PROFILE))
 
     def test_command_cwd_escapes_are_refused_statically(self):
         for cwd in ("../outside", "/absolute", "C:/absolute", "a/../../b"):
             with self.subTest(cwd=cwd):
                 contract = make_contract(cwd=cwd)
-                self.assertTrue(any("cwd must stay inside" in e for e in wp.validate_contract(contract)))
-        self.assertEqual(wp.validate_contract(make_contract(cwd="subdir")), [])
+                self.assertTrue(any("cwd must stay inside" in e for e in wp.validate_contract(contract, PROFILE)))
+        self.assertEqual(wp.validate_contract(make_contract(cwd="subdir"), PROFILE), [])
 
     def test_policy_additional_gates_extend_the_contract_floor(self):
         config = self.config()
@@ -278,6 +297,17 @@ class InitTests(AcceptanceBase):
             acceptance.initialize(self.directory / "big", self.config(artifact_max_chars=200), packet,
                                   make_result(packet), make_artifact("x" * 300 + "\n"),
                                   CONTROLLER, ARCHITECT, IMPLEMENTERS, [])
+
+    def test_artifact_identity_binds_reference_not_only_sha256(self):
+        # Codex round 22 on PR #34 (ADR-054): checked_artifact permits empty content for a
+        # reference-kind artifact, so its sha256 alone is then the fixed empty-content digest
+        # regardless of what reference names -- a resubmission could change the referenced commit
+        # while sha256 (and dispatch_id) stay the same. artifact_identity binds both together.
+        empty_a = dict(make_artifact(""), kind="reference", reference="branch A at commit 1111")
+        empty_b = dict(make_artifact(""), kind="reference", reference="branch A at commit 2222")
+        self.assertEqual(empty_a["sha256"], empty_b["sha256"])
+        self.assertNotEqual(acceptance.artifact_identity(empty_a), acceptance.artifact_identity(empty_b))
+        self.assertEqual(acceptance.artifact_identity(empty_a), acceptance.artifact_identity(dict(empty_a)))
 
     def test_ledger_tampering_is_detected_on_replay(self):
         ledger, _ = self.start()
@@ -342,7 +372,7 @@ class DeterministicGateTests(AcceptanceBase):
                               previous_state=acceptance.replay(ledger))
         state = acceptance.append(ledger, "ATTESTATION",
                                   {"attestation": {"validation_id": "VAL-FRAMES", "operator": "Operator",
-                                                   "evidence": ["Observed the manual check pass"]}},
+                                                   "evidence": hardware_lines()}},
                                   previous_state=acceptance.replay(ledger))
         self.assertTrue(acceptance.deterministic_satisfied(state))
 
@@ -548,6 +578,7 @@ class DeterministicGateTests(AcceptanceBase):
                                        "criterion_ids": ["AC-INVALID"], "evidence_required": ["Recorded outcome."],
                                        "command": {"argv": [sys.executable, "-c",
                                                             "import os; os.rmdir('linked'); open('second-ran', 'w').close()"]}})
+        contract["domain"]["validation_levels"]["VAL-SECOND"] = "unit"  # every validation maps to one rung (#9)
         ledger, _ = self.start(packet=make_packet(contract))
         space = self.workspace()
         with self.assertRaisesRegex(ValueError, "symlink"):
@@ -614,6 +645,7 @@ class DeterministicGateTests(AcceptanceBase):
         second["id"] = "VC-LINKED-CWD"
         second["command"] = {"argv": [sys.executable, "-c", "open('marker', 'w').write('ran')"], "cwd": "linked"}
         contract["validation"].append(second)
+        contract["domain"]["validation_levels"]["VC-LINKED-CWD"] = "unit"  # every validation maps to one rung (#9)
         ledger, _ = self.start(packet=make_packet(contract))
         space = self.workspace()
         (space / "real").mkdir()

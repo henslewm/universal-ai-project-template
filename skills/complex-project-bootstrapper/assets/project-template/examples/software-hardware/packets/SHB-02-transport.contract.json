@@ -1,0 +1,133 @@
+{
+  "title": "Transport contract and loopback transport",
+  "parent": {
+    "objective": "Bring up a host-side bridge for the fictional SYNTH-SENSOR-1 so that every component is verified independently and no hardware behavior is claimed before it is observed.",
+    "milestone": "Transport boundary verified by loopback"
+  },
+  "goal": "Define the Transport protocol and a loopback implementation that preserves order and times out instead of blocking.",
+  "non_goals": [
+    "Communicate with, or claim behavior of, any physical device.",
+    "Open a serial port.",
+    "Interpret frame contents."
+  ],
+  "scope": {
+    "allowed": [
+      "Implement sample/synth_bridge/transport.py and sample/tests/test_transport.py."
+    ],
+    "prohibited": [
+      "Edit codec, device, adapter or telemetry modules.",
+      "Add a real serial dependency."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Transport contract",
+      "description": "send(bytes) and receive(timeout_s) -> bytes; receive raises TransportTimeout when nothing is available."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Transport module",
+      "description": "Transport protocol, TransportTimeout and LoopbackTransport."
+    },
+    {
+      "name": "Verification record",
+      "description": "Automated loopback test outcome."
+    }
+  ],
+  "interface": {
+    "name": "synth_bridge.transport",
+    "version": "1.0",
+    "description": "Byte-frame transport contract; loopback echoes sent frames in order."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "Loopback behavior is a simulation of an ordered link, not evidence of one."
+  ],
+  "sources": [
+    {
+      "id": "SRC-SYNTH-SPEC",
+      "reference": "examples/software-hardware/README.md — SYNTH-FRAME-1 fixture specification",
+      "authority": "Synthetic specification invented for this example; not a manufacturer document."
+    },
+    {
+      "id": "SRC-SAMPLE",
+      "reference": "examples/software-hardware/sample — the synthetic bridge package and its tests",
+      "authority": "Reference implementation for this example only; establishes no real device behavior."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-ORDER",
+      "description": "Frames are received in the order they were sent, as copies."
+    },
+    {
+      "id": "AC-TIMEOUT",
+      "description": "An empty receive raises TransportTimeout; a negative timeout is refused."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-LOOPBACK",
+      "description": "Run the loopback simulation tests.",
+      "criterion_ids": [
+        "AC-ORDER",
+        "AC-TIMEOUT"
+      ],
+      "evidence_required": [
+        "Recorded automated test outcome."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "tests.test_transport"
+        ],
+        "timeout_seconds": 120,
+        "cwd": "sample"
+      }
+    }
+  ],
+  "complexity": "low",
+  "risk": "low",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 3
+  },
+  "escalation_path": [
+    2,
+    3
+  ],
+  "context_scope": [
+    "This contract.",
+    "sample/synth_bridge/transport.py",
+    "sample/tests/test_transport.py"
+  ],
+  "architecture_boundaries": [
+    "Do not change the Transport contract signatures.",
+    "No physical port access outside the adapter packet."
+  ],
+  "domain": {
+    "synthetic": true,
+    "component": "transport",
+    "hardware_status": "UNVERIFIED_ON_HARDWARE",
+    "hardware_assumptions": [
+      {
+        "assumption": "A physical serial link delivers whole frames in order without duplication within the read timeout.",
+        "source_id": "SRC-SYNTH-SPEC"
+      }
+    ],
+    "protocol_references": [
+      "SRC-SYNTH-SPEC"
+    ],
+    "validation_levels": {
+      "VAL-LOOPBACK": "simulation"
+    }
+  }
+}

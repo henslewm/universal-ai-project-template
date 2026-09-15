@@ -45,9 +45,15 @@
     "Consequential external action"
   ],
   "domain": {
-    "baseline": "Fictional serial test adapter; no physical device. Source: synthetic fixture specification.",
-    "interfaces": "Line-based loopback interface, v1 synthetic specification.",
-    "validation_resources": "Local simulator only; physical hardware claims remain unverified."
+    "baseline": "Fictional serial test adapter repository at its synthetic known-good tag; no physical device. Source: synthetic fixture specification.",
+    "hardware_identity": "Fictional SYNTH-SENSOR-1 board revision A, firmware 0.0.0-synthetic; establishes no real hardware behavior.",
+    "interfaces": "Line-based loopback interface, SYNTH-FRAME-1 synthetic wire format, version 1.",
+    "specifications": "The synthetic fixture specification embedded in examples/software-hardware; no manufacturer document exists.",
+    "environment": "Python 3.12 host tests only; no deployment target.",
+    "known_paths": "Known-good: fake device round trip in the sample tests. Known-failing: none observed, because no hardware has been observed.",
+    "validation_resources": "Local fake device and loopback transport only; physical hardware claims remain unverified.",
+    "physical_access": "No physical unit exists; hardware-in-loop checks in the sample can only be attested by an operator who has one.",
+    "architecture_boundaries": "Frame format, transport contract and the device abstraction boundary require user approval to change."
   },
   "approval": {
     "approved": false,

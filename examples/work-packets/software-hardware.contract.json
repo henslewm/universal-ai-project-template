@@ -91,7 +91,20 @@
       "evidence_required": [
         "Sample-by-sample expected and observed results.",
         "Recorded automated test outcome."
-      ]
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_parse_synthetic_frame*.py"
+        ],
+        "timeout_seconds": 120
+      }
     }
   ],
   "context_scope": [
@@ -104,7 +117,19 @@
   ],
   "domain": {
     "synthetic": true,
+    "component": "protocol_codec",
     "hardware_status": "UNVERIFIED_ON_HARDWARE",
-    "fixture_protocol": "SYNTH-FRAME-1"
+    "hardware_assumptions": [
+      {
+        "assumption": "A physical device would emit tag 0xA1 followed by one payload byte. The fixture asserts this; no device has been observed.",
+        "source_id": "SRC-SYNTH-FRAMES"
+      }
+    ],
+    "protocol_references": [
+      "SRC-SYNTH-FRAMES"
+    ],
+    "validation_levels": {
+      "VAL-FRAMES": "unit"
+    }
   }
 }

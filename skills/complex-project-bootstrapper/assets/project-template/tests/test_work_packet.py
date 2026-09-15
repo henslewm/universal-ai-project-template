@@ -18,6 +18,7 @@ work_packet = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(work_packet)
 
 PROFILES = ("software-hardware", "family-law", "civil-rights-nc")
+PROFILE = PROFILES[0]
 STAMP = "2026-09-12T12:00:00Z"
 EVIDENCE = ["synthetic-check-record-001"]
 STEPS = (
@@ -68,19 +69,19 @@ class ContractTests(unittest.TestCase):
     def test_optional_per_tier_caps_remain_inside_the_authorized_total_budget(self):
         contract = fixture()
         contract["retry_budget"]["max_attempts_by_tier"] = {"1": 2, "3": 1}
-        self.assertEqual(work_packet.validate_contract(contract), [])
+        self.assertEqual(work_packet.validate_contract(contract, PROFILE), [])
         original = copy.deepcopy(contract)
         for caps in ({}, {"0": 1}, {"1": 3}, {"1": 0}, {"5": 1}, {"1\n": 1}, {"1": True}):
             with self.subTest(caps=caps):
                 candidate = copy.deepcopy(original)
                 candidate["retry_budget"]["max_attempts_by_tier"] = caps
-                self.assertTrue(work_packet.validate_contract(candidate))
+                self.assertTrue(work_packet.validate_contract(candidate, PROFILE))
 
     def test_all_profile_examples_create_independent_valid_snapshots(self):
         for profile in PROFILES:
             with self.subTest(profile=profile):
                 contract = fixture(profile)
-                self.assertEqual(work_packet.validate_contract(contract), [])
+                self.assertEqual(work_packet.validate_contract(contract, profile), [])
                 value = work_packet.create("WP-SYN-001", profile, contract, "Architect", "Synthetic example", STAMP)
                 self.assertEqual(work_packet.validate(value), [])
                 self.assertEqual(value["state"], "PROPOSED")
@@ -100,7 +101,7 @@ class ContractTests(unittest.TestCase):
             with self.subTest(field=field):
                 contract = fixture()
                 del contract[field]
-                self.assertTrue(work_packet.validate_contract(contract))
+                self.assertTrue(work_packet.validate_contract(contract, PROFILE))
 
     def test_malformed_contract_fields_are_rejected_without_crashing(self):
         changes = (
@@ -119,10 +120,10 @@ class ContractTests(unittest.TestCase):
             with self.subTest(field=field, value=value):
                 contract = fixture()
                 contract[field] = value
-                self.assertTrue(work_packet.validate_contract(contract))
+                self.assertTrue(work_packet.validate_contract(contract, PROFILE))
         for value in (None, [], "contract", 3):
             with self.subTest(root=value):
-                self.assertTrue(work_packet.validate_contract(value))
+                self.assertTrue(work_packet.validate_contract(value, PROFILE))
 
     def test_only_domain_allows_extension_properties(self):
         for path in ((), ("parent",), ("scope",), ("interface",), ("routing",), ("retry_budget",), ("inputs", 0), ("sources", 0), ("acceptance_criteria", 0), ("validation", 0)):
@@ -132,25 +133,41 @@ class ContractTests(unittest.TestCase):
                 for key in path:
                     target = target[key]
                 target["unexpected"] = "Not in the contract"
-                self.assertTrue(work_packet.validate_contract(contract))
-        contract = fixture()
+                self.assertTrue(work_packet.validate_contract(contract, PROFILE))
+        # The common schema leaves `domain` open for profiles without registered rules ...
+        contract = fixture("family-law")
         contract["domain"]["custom"] = {"nested": ["Synthetic extension", 7, None]}
-        self.assertEqual(work_packet.validate_contract(contract), [])
+        self.assertEqual(work_packet.validate_contract(contract, "family-law"), [])
         contract["version"] = 2
-        self.assertTrue(work_packet.validate_contract(contract))
+        self.assertTrue(work_packet.validate_contract(contract, "family-law"))
+        # ... and a registered profile's module decides what its block admits (software-hardware closes it).
+        contract = fixture()
+        contract["domain"]["custom"] = "Not in the contract"
+        self.assertTrue(any("Additional properties" in e for e in work_packet.validate_contract(contract, PROFILE)))
+
+    def test_validate_contract_requires_an_explicit_registered_profile(self):
+        # A caller that does not say which profile it validates for would skip that profile's
+        # domain rules silently; there is no default and None is refused.
+        contract = fixture()
+        with self.assertRaises(TypeError):
+            work_packet.validate_contract(contract)  # the missing argument is the point
+        for profile in (None, "", "generic", 3):
+            with self.subTest(profile=profile):
+                with self.assertRaisesRegex(ValueError, "registered domain profile"):
+                    work_packet.validate_contract(contract, profile)
 
     def test_criteria_require_known_references_and_complete_coverage(self):
         contract = fixture()
         contract["validation"][0]["criterion_ids"].append("UNKNOWN")
-        self.assertIn("unknown criterion", "; ".join(work_packet.validate_contract(contract)))
+        self.assertIn("unknown criterion", "; ".join(work_packet.validate_contract(contract, PROFILE)))
         contract = fixture()
         contract["validation"][0]["criterion_ids"] = [contract["acceptance_criteria"][0]["id"]]
-        self.assertIn("every criterion", "; ".join(work_packet.validate_contract(contract)))
+        self.assertIn("every criterion", "; ".join(work_packet.validate_contract(contract, PROFILE)))
         for field in ("acceptance_criteria", "validation", "sources"):
             with self.subTest(field=field):
                 contract = fixture()
                 contract[field].append(copy.deepcopy(contract[field][0]))
-                self.assertIn("duplicate IDs", "; ".join(work_packet.validate_contract(contract)))
+                self.assertIn("duplicate IDs", "; ".join(work_packet.validate_contract(contract, PROFILE)))
 
     def test_tier_ordering_bounds_and_attempt_budget(self):
         for minimum, maximum, escalation in ((3, 1, []), (1, 3, [3, 2]), (1, 3, [1, 2]), (1, 2, [3]), (1, 3, [2, 2])):
@@ -158,17 +175,17 @@ class ContractTests(unittest.TestCase):
                 contract = fixture()
                 contract["routing"].update(min_tier=minimum, max_tier=maximum)
                 contract["escalation_path"] = escalation
-                self.assertTrue(work_packet.validate_contract(contract))
+                self.assertTrue(work_packet.validate_contract(contract, PROFILE))
         for key, invalid in (("min_tier", -1), ("max_tier", 5), ("reviewer_tier", 5), ("min_tier", True), ("reasoning_effort", "automatic")):
             with self.subTest(key=key):
                 contract = fixture()
                 contract["routing"][key] = invalid
-                self.assertTrue(work_packet.validate_contract(contract))
+                self.assertTrue(work_packet.validate_contract(contract, PROFILE))
         contract = fixture()
         contract["routing"].update(min_tier=0, max_tier=4, reviewer_tier=4)
         contract["escalation_path"] = [1, 2, 3, 4]
         contract["retry_budget"]["max_attempts"] = 20
-        self.assertEqual(work_packet.validate_contract(contract), [])
+        self.assertEqual(work_packet.validate_contract(contract, PROFILE), [])
 
     def test_packet_envelope_rejects_missing_and_malformed_fields(self):
         for field in ("schema_version", "task_id", "domain_profile", "state", "revision_history", "events"):
@@ -207,10 +224,10 @@ class ContractTests(unittest.TestCase):
             with self.subTest(field=field):
                 contract = fixture()
                 contract[field][0]["id"] += "\n"
-                self.assertTrue(work_packet.validate_contract(contract))
+                self.assertTrue(work_packet.validate_contract(contract, PROFILE))
         contract = fixture()
         contract["dependencies"] = ["UPSTREAM\n"]
-        self.assertTrue(work_packet.validate_contract(contract))
+        self.assertTrue(work_packet.validate_contract(contract, PROFILE))
 
     def test_invalid_dates_return_errors_for_both_event_and_revision_metadata(self):
         for invalid in ("not-a-date", "2026-02-30T12:00:00Z", "2026-09-12T25:00:00Z", "2026-09-12T12:00:00", "2026-09-12T12:00:00+25:00", "2026-09-12T12:00:00+00:99", "2026-09-12T12:00:00-01:60"):
@@ -453,8 +470,8 @@ class DependencyGraphTests(unittest.TestCase):
 
 class RendererTests(unittest.TestCase):
     def test_renderer_is_identical_after_all_json_object_keys_are_reordered(self):
-        value = packet()
-        contract = fixture()
+        value = packet(profile="family-law")
+        contract = fixture("family-law")
         contract["domain"]["nested"] = {"zebra": {"beta": "Second", "alpha": "First"}, "alpha": [1, 2]}
         value = work_packet.revise(value, contract, "Architect", "Synthetic nested extension", STAMP)
         equivalent = json.loads(json.dumps(reordered(value)))
@@ -481,10 +498,10 @@ class RendererTests(unittest.TestCase):
                 self.assertIn("independently prove", rendered)
 
     def test_domain_render_preserves_json_types_keys_and_nested_arrays(self):
-        contract = fixture()
+        contract = fixture("family-law")
         contract["domain"] = {"Exact_Key": [None, "None", True, "True", 1, "1", [], {},
             [False, "false", {"CaseSensitive": "```\n## embedded fence"}]], "exact_key": None}
-        value = work_packet.create("WP-TYPES", "software-hardware", contract, "Architect", "Typed data", STAMP)
+        value = work_packet.create("WP-TYPES", "family-law", contract, "Architect", "Typed data", STAMP)
         rendered = work_packet.render(value)
         block = rendered.split("## Domain\n\n", 1)[1].split("\n\n## Revision provenance", 1)[0]
         lines = block.splitlines()
@@ -496,8 +513,8 @@ class RendererTests(unittest.TestCase):
                          [type(None), str, bool, str, int, str])
 
     def test_renderer_uses_latest_revision_and_escapes_embedded_markup(self):
-        value = packet()
-        contract = fixture()
+        value = packet(profile="family-law")
+        contract = fixture("family-law")
         contract["title"] = "Latest synthetic title"
         contract["goal"] = "<script>alert(1)</script>\n# Injected heading"
         contract["domain"]["nested"] = {"message": "DEEPVALUE"}

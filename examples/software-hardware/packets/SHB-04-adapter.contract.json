@@ -1,0 +1,169 @@
+{
+  "title": "Serial hardware adapter",
+  "parent": {
+    "objective": "Bring up a host-side bridge for the fictional SYNTH-SENSOR-1 so that every component is verified independently and no hardware behavior is claimed before it is observed.",
+    "milestone": "Adapter host rules verified; physical read attested"
+  },
+  "goal": "Bind the Transport contract to a serial port through an injected opener, enforcing framing, timeout and close-on-error rules.",
+  "non_goals": [
+    "Claim physical compatibility from fake-port tests.",
+    "Change the Transport contract."
+  ],
+  "scope": {
+    "allowed": [
+      "Implement sample/synth_bridge/adapter.py and sample/tests/test_adapter.py.",
+      "Record the operator-run hardware-in-loop observation as a hardware evidence record."
+    ],
+    "prohibited": [
+      "Edit codec, transport, device or telemetry modules.",
+      "Attest the hardware-in-loop check as the implementer."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Port contract",
+      "description": "write(bytes) -> int, read(size, timeout_s) -> bytes returning what arrived within timeout_s, close()."
+    },
+    {
+      "name": "Host rules",
+      "description": "Read one whole frame by declared length within the caller's timeout, handing each port read the time remaining; any failure on the wire — a frame left incomplete at the deadline, a short write, an oversized frame, a port call that raises — closes the port before it propagates; only a timeout that consumed nothing leaves it open; closed adapter refuses I/O."
+    },
+    {
+      "name": "Hardware-in-loop procedure",
+      "description": "SRC-HIL-PROCEDURE: operator connects a physical SYNTH-SENSOR-1 and runs one read through SensorDevice(SerialAdapter)."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Adapter module",
+      "description": "SerialAdapter implementing Transport over an injected Port."
+    },
+    {
+      "name": "Verification record",
+      "description": "Automated fake-port test outcome."
+    },
+    {
+      "name": "Hardware evidence record",
+      "description": "Bound record of the physical read: device identity, firmware, setup, expected and observed behavior."
+    }
+  ],
+  "interface": {
+    "name": "synth_bridge.adapter",
+    "version": "1.0",
+    "description": "SerialAdapter(port_name, opener).open/close/send/receive; satisfies Transport."
+  },
+  "dependencies": [
+    "SHB-02-transport"
+  ],
+  "assumptions": [
+    "Fake-port tests establish host-side rules only; the physical rung is an operator observation."
+  ],
+  "sources": [
+    {
+      "id": "SRC-SYNTH-SPEC",
+      "reference": "examples/software-hardware/README.md — SYNTH-FRAME-1 fixture specification",
+      "authority": "Synthetic specification invented for this example; not a manufacturer document."
+    },
+    {
+      "id": "SRC-SAMPLE",
+      "reference": "examples/software-hardware/sample — the synthetic bridge package and its tests",
+      "authority": "Reference implementation for this example only; establishes no real device behavior."
+    },
+    {
+      "id": "SRC-HIL-PROCEDURE",
+      "reference": "examples/software-hardware/README.md — operator procedure for hardware-rung attestation",
+      "authority": "Operator procedure; each run's observations are recorded in a bound hardware evidence record."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-HOST-RULES",
+      "description": "Every host-side rule holds against the fake port."
+    },
+    {
+      "id": "AC-HIL-READ",
+      "description": "One read through the adapter against a physical SYNTH-SENSOR-1 returns a decodable reading, as observed and recorded by a non-implementer operator."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-UNIT-ADAPTER",
+      "description": "Run the adapter tests with the fake port.",
+      "criterion_ids": [
+        "AC-HOST-RULES"
+      ],
+      "evidence_required": [
+        "Recorded automated test outcome."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-m",
+          "unittest",
+          "tests.test_adapter"
+        ],
+        "timeout_seconds": 120,
+        "cwd": "sample"
+      }
+    },
+    {
+      "id": "VAL-HIL",
+      "description": "Operator performs one physical read per SRC-HIL-PROCEDURE and records a hardware evidence record.",
+      "criterion_ids": [
+        "AC-HIL-READ"
+      ],
+      "evidence_required": [
+        "Hardware evidence record digest bound in the attestation.",
+        "Device identity and firmware version as observed.",
+        "Observed reply frame and decoded reading."
+      ]
+    }
+  ],
+  "complexity": "medium",
+  "risk": "high",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 3
+  },
+  "escalation_path": [
+    2,
+    3
+  ],
+  "context_scope": [
+    "This contract.",
+    "sample/synth_bridge/adapter.py",
+    "sample/tests/test_adapter.py",
+    "Interface of synth_bridge.transport only."
+  ],
+  "architecture_boundaries": [
+    "Serial port access exists only in adapter.py.",
+    "The Transport contract is not changed."
+  ],
+  "domain": {
+    "synthetic": true,
+    "component": "hardware_adapter",
+    "hardware_status": "UNVERIFIED_ON_HARDWARE",
+    "hardware_assumptions": [
+      {
+        "assumption": "The host serial driver delivers bytes in order and read(size, timeout_s) returns what has arrived within timeout_s, never blocking past it.",
+        "source_id": "SRC-SYNTH-SPEC"
+      },
+      {
+        "assumption": "A physical SYNTH-SENSOR-1 replies within the adapter timeout.",
+        "source_id": "SRC-SYNTH-SPEC"
+      }
+    ],
+    "protocol_references": [
+      "SRC-SYNTH-SPEC"
+    ],
+    "validation_levels": {
+      "VAL-UNIT-ADAPTER": "unit",
+      "VAL-HIL": "hardware_in_loop"
+    }
+  }
+}
