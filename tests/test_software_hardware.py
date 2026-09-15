@@ -293,6 +293,15 @@ class ContractRuleTests(unittest.TestCase):
 
 
 class HardwareEvidenceTests(unittest.TestCase):
+    def test_example_record_is_bound_to_the_packet_file_it_documents(self):
+        # Codex round 14 on PR #34: the example illustrates SHB-04-adapter revision 1's VAL-HIL
+        # walkthrough (README's operator procedure); its revision and contract_hash must actually
+        # match that packet file so `status --evidence-dir` accepts it as the doc describes,
+        # not merely pass the standalone `hardware-evidence` command in isolation.
+        contract = wp.read_json(EXAMPLES / "packets/SHB-04-adapter.contract.json")
+        self.assertEqual(EVIDENCE["revision"], 1)
+        self.assertEqual(EVIDENCE["contract_hash"], wp.fingerprint("SHB-04-adapter", PROFILE, 1, contract))
+
     def test_example_record_validates_and_its_lines_bind_the_digest(self):
         lines = domain.evidence_lines(EVIDENCE)
         self.assertEqual(lines[0], domain.DIGEST_PREFIX + domain.evidence_digest(EVIDENCE))

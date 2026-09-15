@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 14 answered (ADR-045)
+
+- P2: the example hardware evidence record's `contract_hash` was fictional-but-valid, not the actual fingerprint of the SHB-04-adapter packet it documents, so the standalone `hardware-evidence` command passed while `status --evidence-dir` would refuse it against a real ledger -- the canonical example could not demonstrate the flow the README describes. The record now carries revision 1's real `work_packet.fingerprint`; a regression checks it directly against the packet file.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 13 answered (ADR-044)
 
 - P1: revision numbers are lineage-local -- two independently revised variants of the same task can both be "revision 2" with different content, so binding a hardware evidence record by revision number alone let a record from one variant verify a ledger bound to the other. The schema now also requires `contract_hash` (sha256), and `record_problems` checks it against the acceptance ledger's binding alongside `revision`. Regression revises the same base packet twice with different content, both landing on revision 2, and shows a record bound to one variant refused against the other's ledger.
