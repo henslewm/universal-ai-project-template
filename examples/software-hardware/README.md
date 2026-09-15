@@ -17,7 +17,7 @@ invented. No frame, timing, device response or evidence record describes real ha
 
 ## Decomposition
 
-`sample/` holds the reference implementation and its 32 `unittest` checks. `packets/` holds one
+`sample/` holds the reference implementation and its 33 `unittest` checks. `packets/` holds one
 contract per component; each packet's `context_scope` names only its own files and the
 interfaces it consumes, so no worker needs the whole repository.
 

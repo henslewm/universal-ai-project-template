@@ -67,18 +67,21 @@ class SerialAdapter:
         header = self._read_within(2, deadline)
         if not header:
             raise TransportTimeout("no frame header")
-        if len(header) < 2:
+        # From here a frame has been started. One guard owns the closure for every way out
+        # (ADR-033): a timeout, an oversized declaration, or a port read that raises.
+        try:
+            if len(header) < 2:
+                raise TransportTimeout("frame incomplete at timeout; port closed")
+            length = header[1]
+            if 2 + length + 1 > self._frame_max:
+                raise RuntimeError("oversized frame; port closed")
+            body = self._read_within(length + 1, deadline)
+            if len(body) < length + 1:
+                raise TransportTimeout("frame incomplete at timeout; port closed")
+            return header + body
+        except BaseException:
             self.close()
-            raise TransportTimeout("frame incomplete at timeout; port closed")
-        length = header[1]
-        if 2 + length + 1 > self._frame_max:
-            self.close()
-            raise RuntimeError("oversized frame; port closed")
-        body = self._read_within(length + 1, deadline)
-        if len(body) < length + 1:
-            self.close()
-            raise TransportTimeout("frame incomplete at timeout; port closed")
-        return header + body
+            raise
 
     def _read_within(self, size: int, deadline: float) -> bytes:
         """Up to `size` bytes, each read bounded by the time left; stops short when time runs out."""

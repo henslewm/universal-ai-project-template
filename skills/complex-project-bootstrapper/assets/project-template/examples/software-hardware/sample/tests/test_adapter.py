@@ -129,6 +129,27 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertTrue(all(0 <= t <= 0.051 for t in port.timeouts), port.timeouts)
         self.assertFalse(port.closed, "nothing was consumed, so the port stays open")
 
+    def test_port_failure_after_a_started_frame_closes_the_port(self):
+        # ADR-033: the closure has one owner, so a read that raises (a disconnect) after the
+        # header is consumed closes the port too; before any byte is consumed it does not.
+        class FailingPort(FakePort):
+            def read(self, size, timeout_s):
+                if self.buffer:
+                    return super().read(size, timeout_s)
+                raise OSError("device disconnected")
+
+        port = FailingPort([WHOLE_FRAME[:2]])
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(OSError, "disconnected"):
+            adapter.receive(0.1)
+        self.assertTrue(port.closed)
+        self.assertFalse(adapter.is_open)
+        port = FailingPort()
+        adapter = self.adapter(port)
+        with self.assertRaises(OSError):
+            adapter.receive(0.1)
+        self.assertFalse(port.closed, "nothing was consumed")
+
     def test_partial_frame_at_timeout_closes_the_port(self):
         # ADR-031: a frame this call started but could not finish never lingers to be read as
         # the next frame's header; the port is closed before the timeout is raised.

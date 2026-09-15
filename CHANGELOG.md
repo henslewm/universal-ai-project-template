@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 3 answered after a second stop-for-diagnosis (ADR-033, ADR-034)
+
+- The adapter class recurred a third time (a body read that raises left the port open with a started frame), so the ADR-031 invariant now has one owner: everything after the first consumed byte runs under a single guard that closes the port on any exception (ADR-033). Regression: a port that raises after the header closes the adapter; before any byte, it stays open (33 sample tests).
+- P1: hardware evidence records enter through one loader, `load_record`, which refuses a duplicate key at any depth; `_find_record` names a refused file in `status --evidence-dir`'s reason instead of skipping it; the `hardware-evidence` command uses the same loader (ADR-034).
+- P2: `observed_at` is a `date-time` format validated by a format checker on the domain validator, so `2026-99-99T99:99:99Z` and `2026-02-30` are refused, not only malformed shapes (ADR-034).
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 2 answered after stop-for-diagnosis (ADR-031, ADR-032)
 
 - R-012 applied: the sample adapter's framing/timeout class recurred across rounds 1 and 2, so the invariant was written first. `Port.read(size, timeout_s)` carries the deadline and `SerialAdapter.receive` hands each read the time remaining; a frame started but not finished closes the port before `TransportTimeout`; a timeout that consumed nothing leaves it open (ADR-031). SHB-04's port contract, host rules and hardware assumption say so; sample tests add a blocking port bounded by the remaining time and a partial-frame closure (32 sample tests).

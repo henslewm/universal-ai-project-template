@@ -13,10 +13,11 @@ import hashlib
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 try:
-    from jsonschema import Draft202012Validator
+    from jsonschema import Draft202012Validator, FormatChecker
 except ImportError:
     raise SystemExit("Domain tools require: python -m pip install -r requirements-work-packets.txt")
 
@@ -40,8 +41,41 @@ def canonical(value) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
+FORMATS = FormatChecker()
+
+
+@FORMATS.checks("date-time", raises=ValueError)
+def valid_timestamp(value):
+    """An RFC 3339 timestamp that is also a real calendar value; the pattern alone admits 2026-99-99."""
+    if not isinstance(value, str):
+        return True  # The schema's type rule reports nonstrings.
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])", value):
+        return False
+    datetime.fromisoformat(value.upper().replace("Z", "+00:00"))
+    return True
+
+
 def _validator(name):
-    return Draft202012Validator({"$defs": SCHEMA["$defs"], "$ref": f"#/$defs/{name}"})
+    return Draft202012Validator({"$defs": SCHEMA["$defs"], "$ref": f"#/$defs/{name}"}, format_checker=FORMATS)
+
+
+def _no_duplicate_keys(pairs):
+    seen = set()
+    for key, _ in pairs:
+        if key in seen:
+            raise ValueError(f"duplicate key {key!r}; a record cannot carry two values for one field")
+        seen.add(key)
+    return dict(pairs)
+
+
+def load_record(text: str) -> dict:
+    """The one way a hardware evidence record is read from text: a JSON object with no duplicate
+    key at any depth. `json.loads` would keep the last of duplicates, resolving a contradiction
+    by position instead of refusing it (ADR-034)."""
+    value = json.loads(text, object_pairs_hook=_no_duplicate_keys)
+    if not isinstance(value, dict):
+        raise ValueError("a hardware evidence record is a JSON object")
+    return value
 
 
 def _schema_errors(name, value) -> list[str]:
@@ -178,15 +212,19 @@ def validate_attestation(contract: dict, attestation: dict) -> None:
 
 
 def _find_record(evidence_dir: Path, digest: str):
-    """The file whose canonical digest the attestation bound, whatever it contains; verification is separate."""
+    """The file whose canonical digest the attestation bound, whatever it contains; verification is
+    separate. A file the loader refuses is named rather than skipped, so a contradictory record
+    cannot hide behind "no matching record"."""
+    refused = []
     for path in sorted(evidence_dir.glob("*.json")):
         try:
-            record = json.loads(path.read_text(encoding="utf-8-sig"))
-        except (OSError, ValueError):
+            record = load_record(path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError) as exc:
+            refused.append(f"{path.name}: {exc}")
             continue
-        if isinstance(record, dict) and evidence_digest(record) == digest:
-            return path, record
-    return None, None
+        if evidence_digest(record) == digest:
+            return path, record, refused
+    return None, None, refused
 
 
 # What a found record must agree with: the ledger binding, the contract, and every line the
@@ -252,13 +290,14 @@ def status(ledger, evidence_dir=None) -> dict:
                 continue
             entry["evidence_digest"] = parsed_evidence(attestation["evidence"])[0]
             if evidence_dir is not None and levels[identifier] in HARDWARE_LEVELS:
-                path, record = _find_record(Path(evidence_dir), entry["evidence_digest"] or "")
+                path, record, refused = _find_record(Path(evidence_dir), entry["evidence_digest"] or "")
                 # The digest proves which bytes were bound. Verification then requires those bytes to
                 # be a valid hardware evidence record for this task, validation and rung, a passing
                 # observation, recorded by the attesting operator, and saying exactly what the
                 # attestation's lines say — a matching digest over anything else is not verification.
                 if record is None:
-                    found = [f"{identifier}: no hardware evidence record with the attested digest"]
+                    found = [f"{identifier}: no hardware evidence record with the attested digest"
+                             + (f" (refused: {'; '.join(refused)})" if refused else "")]
                 else:
                     found = [f"{identifier}: {problem}" for problem in
                              record_problems(record, binding, identifier, levels[identifier], attestation)]
@@ -324,7 +363,7 @@ def main(argv=None):
                       "validation_levels": domain["validation_levels"],
                       "note": "Structure only; no check was executed and no hardware behavior is established."}
         elif args.command == "hardware-evidence":
-            record = json.loads(args.record.read_text(encoding="utf-8-sig"))
+            record = load_record(args.record.read_text(encoding="utf-8-sig"))
             validate_hardware_evidence(record)
             if args.validation_id and record["validation_id"] != args.validation_id:
                 raise ValueError(f"Record is for {record['validation_id']}, not {args.validation_id}")

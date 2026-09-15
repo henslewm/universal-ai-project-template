@@ -259,6 +259,24 @@ class HardwareEvidenceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "more than one"):
                     domain.parsed_evidence(lines + [extra])
 
+    def test_record_loader_refuses_duplicate_keys_and_impossible_timestamps(self):
+        # Codex round 3 on PR #34 (ADR-034): json.loads keeps the last of duplicate keys, so a
+        # file saying outcome fail then pass hashed as passing; and the timestamp pattern admitted
+        # 2026-99-99. One loader refuses the former; a format checker refuses the latter.
+        text = json.dumps(EVIDENCE)[:-1] + ', "outcome": "pass"}'
+        with self.assertRaisesRegex(ValueError, "duplicate key 'outcome'"):
+            domain.load_record(text)
+        nested = json.dumps(dict(EVIDENCE, artifacts=[{"reference": "b"}]))
+        with self.assertRaisesRegex(ValueError, "duplicate key 'reference'"):
+            domain.load_record(nested.replace('{"reference": "b"}', '{"reference": "a", "reference": "b"}'))
+        with self.assertRaisesRegex(ValueError, "JSON object"):
+            domain.load_record("[]")
+        for stamp in ("2026-99-99T99:99:99Z", "2026-02-30T00:00:00Z", "2026-09-13T24:00:00Z"):
+            with self.subTest(stamp=stamp):
+                with self.assertRaises(ValueError):
+                    domain.validate_hardware_evidence(dict(EVIDENCE, observed_at=stamp))
+        domain.validate_hardware_evidence(dict(EVIDENCE, observed_at="2026-09-13T23:59:59+00:00"))
+
     def test_record_shape_is_closed(self):
         for field, value in (("outcome", "passed"), ("level", "unit"), ("observed_at", "yesterday"),
                              ("artifacts", [{"reference": "x", "sha256": "short"}]), ("extra", 1)):
@@ -443,7 +461,7 @@ class ExampleProjectTests(AcceptanceBase):
         completed = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
                                    cwd=EXAMPLES / "sample", capture_output=True, text=True)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("Ran 32 tests", completed.stderr)
+        self.assertIn("Ran 33 tests", completed.stderr)
 
     def test_deterministic_gate_reexecutes_the_codec_packet_commands(self):
         ledger, _ = self.start(packet=self.packet_for("SHB-01-codec"))
@@ -539,6 +557,24 @@ class ExampleProjectTests(AcceptanceBase):
         lines = ["operator=bench operator" if line.startswith("operator=") else line for line in domain.evidence_lines(full)]
         ledger, records = self.attested_adapter_ledger(full, lines=lines, operator="BENCH OPERATOR")
         self.assertEqual(domain.status(ledger, records)["earned_hardware_status"], "VERIFIED_ON_HARDWARE")
+
+    def test_record_file_with_a_duplicate_key_is_named_as_refused_not_missing(self):
+        # ADR-034: the file the attestation would bind carries outcome fail then pass. It is
+        # refused by the loader and status says so, rather than reporting no record at all.
+        full = dict(EVIDENCE, task_id="ACCEPT-SYN-001")
+        ledger, records = self.attested_adapter_ledger(full)
+        (records / "run.json").write_text(json.dumps(dict(full, outcome="fail"))[:-1] + ', "outcome": "pass"}',
+                                          encoding="utf-8")
+        checked = domain.status(ledger, records)
+        self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn("refused: run.json: duplicate key 'outcome'", checked["reason"])
+        with tempfile.TemporaryDirectory() as temporary:
+            broken = Path(temporary) / "dup.json"
+            broken.write_text(json.dumps(EVIDENCE)[:-1] + ', "outcome": "pass"}', encoding="utf-8")
+            completed = subprocess.run([sys.executable, str(SCRIPT), "hardware-evidence", str(broken)],
+                                       capture_output=True, text=True, cwd=ROOT, encoding="utf-8")
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn("duplicate key 'outcome'", completed.stderr)
 
     def test_record_recorded_by_another_operator_does_not_verify_the_attestation(self):
         # The attestation's operator= line is checked at append time against the attesting operator,
