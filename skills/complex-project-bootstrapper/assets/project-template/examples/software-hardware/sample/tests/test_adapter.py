@@ -206,6 +206,28 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertFalse(port.closed, "nothing was consumed")
         self.assertEqual(adapter.receive(0.03), WHOLE_FRAME, "the next call, in its own time, may have it")
 
+    def test_a_body_arriving_after_the_deadline_is_not_a_frame_received_in_time(self):
+        # Codex round 11 on PR #34 (ADR-042): the one-poll allowance is the receive call's, not
+        # each read's. The header returns just before the deadline, processing resumes after it,
+        # and the body arrives late: the body read must not poll with a zero timeout and return
+        # the frame late. The started frame closes the port (ADR-031).
+        class LateBodyPort(FakePort):
+            def read(self, size, timeout_s):
+                self.timeouts.append(timeout_s)
+                if len(self.timeouts) == 1:
+                    time.sleep(timeout_s + 0.02)     # the header used up the time ...
+                    self.buffer[:] = WHOLE_FRAME[2:]  # ... and the body arrives after the deadline
+                    return WHOLE_FRAME[:2]
+                return super().read(size, timeout_s)
+
+        port = LateBodyPort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "frame incomplete at timeout; port closed"):
+            adapter.receive(0.03)
+        self.assertEqual(len(port.timeouts), 1, "the body was not polled after the deadline")
+        self.assertTrue(port.closed, "a started frame closes the port")
+        self.assertFalse(adapter.is_open)
+
     def test_partial_frame_at_timeout_closes_the_port(self):
         # ADR-031: a frame this call started but could not finish never lingers to be read as
         # the next frame's header; the port is closed before the timeout is raised.

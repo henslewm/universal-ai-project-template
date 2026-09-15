@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 11 answered (ADR-042)
+
+- P2: the one-poll allowance in `SerialAdapter.receive` belongs to the call, not to each `_read_within` — the header read is the call's first port contact and the body read is not, so a header that arrived in time whose body did not is a started frame that closes the port rather than a frame returned late (ADR-042, completing ADR-031). Regression delivers the body after the deadline and shows the port not polled again. 39 sample tests.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 10 and the independent review answered (ADR-041)
 
 - P1 (Codex round 10 and the independent review): the feedback ledger's stored `REPAIR_CONTRACT` diagnosis replays with its shortfall recorded in `domain_shortfall` (in `summary`), `work_packet.revise` takes `domain_rules` so a stored repair's revision is not re-judged, and a new repair that fails the rules is refused; every contract-validating path now threads `stored` to the domain rules (ADR-041). Regression writes a legacy repair on the chain by hand.

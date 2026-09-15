@@ -83,7 +83,7 @@ class SerialAdapter:
             raise ValueError("timeout must be non-negative")
         deadline = time.monotonic() + timeout_s
         with self._wire():
-            header = self._read_within(2, deadline)
+            header = self._read_within(2, deadline, first_contact=True)
             if not header:
                 quiet = True
             else:
@@ -93,22 +93,24 @@ class SerialAdapter:
                 length = header[1]
                 if 2 + length + 1 > self._frame_max:
                     raise RuntimeError("oversized frame; port closed")
-                body = self._read_within(length + 1, deadline)
+                body = self._read_within(length + 1, deadline, first_contact=False)
                 if len(body) < length + 1:
                     raise TransportTimeout("frame incomplete at timeout; port closed")
                 return header + body
         if quiet:
             raise TransportTimeout("no frame header")
 
-    def _read_within(self, size: int, deadline: float) -> bytes:
+    def _read_within(self, size: int, deadline: float, first_contact: bool) -> bytes:
         """Up to `size` bytes, each read bounded by the time left; stops short when time runs out.
 
-        The first read is always made (a zero timeout is a poll of what has arrived); after that
-        the port is not asked again once the deadline has passed, so bytes that arrive late are
-        never returned as a frame received in time.
+        The allowance is the receive call's, not this read's (ADR-042): only the call's first
+        port contact is made unconditionally (a zero timeout is a poll of what has arrived).
+        After it, the port is not asked again once the deadline has passed — whether the read is
+        the header's or the body's — so bytes that arrive late are never returned as a frame
+        received in time.
         """
         buffer = b""
-        asked = False
+        asked = not first_contact
         while len(buffer) < size:
             remaining = deadline - time.monotonic()
             if asked and remaining <= 0:
