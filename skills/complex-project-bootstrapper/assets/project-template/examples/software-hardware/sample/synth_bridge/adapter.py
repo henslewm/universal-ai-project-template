@@ -40,9 +40,11 @@ class SerialAdapter:
             self._port = self._opener(self._port_name)
 
     def close(self) -> None:
-        if self._port is not None:
-            self._port.close()
-            self._port = None
+        """Unconditional (ADR-036): the adapter forgets the port before asking the driver to close
+        it, so a driver whose close() raises cannot leave the adapter open."""
+        port, self._port = self._port, None
+        if port is not None:
+            port.close()
 
     @contextlib.contextmanager
     def _wire(self):
@@ -51,8 +53,11 @@ class SerialAdapter:
         the port before it propagates, so a desynchronized port is never reused."""
         try:
             yield
-        except BaseException:
-            self.close()
+        except BaseException as failure:
+            try:
+                self.close()
+            except Exception as cleanup:  # the wire failure is the finding; a failing close rides along
+                raise failure from cleanup
             raise
 
     def send(self, data: bytes) -> None:

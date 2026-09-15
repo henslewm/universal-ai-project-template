@@ -72,9 +72,13 @@ def load_record(text: str) -> dict:
     """The one way a hardware evidence record is read from text: a JSON object with no duplicate
     key at any depth. `json.loads` would keep the last of duplicates, resolving a contradiction
     by position instead of refusing it (ADR-034)."""
-    value = json.loads(text, object_pairs_hook=_no_duplicate_keys)
+    def no_constants(name):
+        raise ValueError(f"{name} is not a JSON value a record may carry")
+
+    value = json.loads(text, object_pairs_hook=_no_duplicate_keys, parse_constant=no_constants)
     if not isinstance(value, dict):
         raise ValueError("a hardware evidence record is a JSON object")
+    canonical(value)  # an overflowing literal parses to infinity, which no canonical form admits
     return value
 
 
@@ -219,10 +223,11 @@ def _find_record(evidence_dir: Path, digest: str):
     for path in sorted(evidence_dir.glob("*.json")):
         try:
             record = load_record(path.read_text(encoding="utf-8-sig"))
+            matched = evidence_digest(record) == digest
         except (OSError, ValueError) as exc:
             refused.append(f"{path.name}: {exc}")
             continue
-        if evidence_digest(record) == digest:
+        if matched:
             return path, record, refused
     return None, None, refused
 

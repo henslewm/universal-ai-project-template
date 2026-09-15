@@ -206,11 +206,41 @@ class ContractRuleTests(unittest.TestCase):
         latest["hash"] = wp.fingerprint(broken["task_id"], PROFILE, latest["version"], latest["contract"])
         for event in broken["events"]:
             event["contract_hash"] = latest["hash"]
-        self.assertTrue(any("domain:" in e for e in wp.validate(broken)))
+        # A stored revision replays and is reported (ADR-037); authoring it is refused.
+        self.assertEqual(wp.validate(broken), [])
+        self.assertTrue(any("domain:" in e for e in wp.domain_shortfall(broken)[1]))
+        with self.assertRaisesRegex(ValueError, "domain:"):
+            wp.create("WP-NEW", PROFILE, latest["contract"], "Architect", "Synthetic")
+        with self.assertRaisesRegex(ValueError, "domain:"):
+            wp.revise(make_packet(make_contract()), latest["contract"], "Architect", "Synthetic")
         with self.assertRaisesRegex(ValueError, "domain:"):
             acceptance.initialize(Path(self.enterContext(tempfile.TemporaryDirectory())) / "ledger",
                                   wp.read_json(ROOT / "config/acceptance.example.json"), broken, make_result(broken),
                                   make_artifact(), CONTROLLER, ARCHITECT, IMPLEMENTERS, [])
+
+    def test_packet_authored_before_the_domain_rules_can_still_be_transitioned_and_revised(self):
+        # Codex round 5 on PR #34 (ADR-037): a packet whose stored revision carries the formerly
+        # valid free-form domain block must not be stranded; it replays, its shortfall is named,
+        # it can be transitioned, and it can be revised into compliance — but not into another
+        # non-compliant revision.
+        legacy = example()
+        legacy["domain"] = {"synthetic": True, "note": "Pre-#9 free-form extension data"}
+        packet = make_packet(make_contract())
+        stored = copy.deepcopy(packet)
+        stored["revision_history"][0]["contract"] = legacy
+        stored["revision_history"][0]["hash"] = wp.fingerprint(stored["task_id"], PROFILE, 1, legacy)
+        for event in stored["events"]:
+            event["contract_hash"] = stored["revision_history"][0]["hash"]
+        self.assertEqual(wp.validate(stored), [])
+        self.assertIn(1, wp.domain_shortfall(stored))
+        self.assertTrue(any("'component' is a required property" in e for e in wp.domain_shortfall(stored)[1]))
+        moved = wp.transition(stored, "ACCEPTED", "reviewer", "Reviewer", "Synthetic", ["synthetic-state-evidence"])
+        self.assertEqual(moved["state"], "ACCEPTED")
+        with self.assertRaisesRegex(ValueError, "domain:"):
+            wp.revise(stored, dict(legacy, title="Still non-compliant"), "Architect", "Synthetic")
+        repaired = wp.revise(stored, example(), "Architect", "Brought under the domain rules")
+        self.assertEqual(wp.domain_shortfall(repaired), {1: wp.domain_shortfall(stored)[1]})
+        self.assertEqual(wp.validate(repaired), [])
 
     def test_example_packets_form_a_dag_with_component_scoped_context(self):
         packets = [wp.create(path.name.split(".")[0], PROFILE, wp.read_json(path), "Architect", "Synthetic", "2026-09-13T00:00:00Z")
@@ -271,6 +301,12 @@ class HardwareEvidenceTests(unittest.TestCase):
             domain.load_record(nested.replace('{"reference": "b"}', '{"reference": "a", "reference": "b"}'))
         with self.assertRaisesRegex(ValueError, "JSON object"):
             domain.load_record("[]")
+        for text in (json.dumps(dict(EVIDENCE, extra=1)).replace('"extra": 1', '"extra": NaN'),
+                     json.dumps(dict(EVIDENCE, extra=1)).replace('"extra": 1', '"extra": Infinity'),
+                     json.dumps(dict(EVIDENCE, extra=1)).replace('"extra": 1', '"extra": 1e999')):
+            with self.subTest(text=text[-40:]):
+                with self.assertRaises(ValueError):
+                    domain.load_record(text)
         for stamp in ("2026-99-99T99:99:99Z", "2026-02-30T00:00:00Z", "2026-09-13T24:00:00Z"):
             with self.subTest(stamp=stamp):
                 with self.assertRaises(ValueError):
@@ -461,7 +497,7 @@ class ExampleProjectTests(AcceptanceBase):
         completed = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
                                    cwd=EXAMPLES / "sample", capture_output=True, text=True)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("Ran 33 tests", completed.stderr)
+        self.assertIn("Ran 34 tests", completed.stderr)
 
     def test_deterministic_gate_reexecutes_the_codec_packet_commands(self):
         ledger, _ = self.start(packet=self.packet_for("SHB-01-codec"))
@@ -570,6 +606,12 @@ class ExampleProjectTests(AcceptanceBase):
         checked = domain.status(ledger, records)
         self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
         self.assertIn("refused: run.json: duplicate key 'outcome'", checked["reason"])
+        # A file the loader refuses earlier in the scan is named and the scan continues to the record.
+        (records / "run.json").write_text(json.dumps(full), encoding="utf-8")
+        (records / "a-bad.json").write_text(json.dumps(dict(full, extra=1)).replace('"extra": 1', '"extra": NaN'), encoding="utf-8")
+        (records / "b-bad.json").write_text(json.dumps(dict(full, extra=1)).replace('"extra": 1', '"extra": 1e999'), encoding="utf-8")
+        checked = domain.status(ledger, records)
+        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
         with tempfile.TemporaryDirectory() as temporary:
             broken = Path(temporary) / "dup.json"
             broken.write_text(json.dumps(EVIDENCE)[:-1] + ', "outcome": "pass"}', encoding="utf-8")

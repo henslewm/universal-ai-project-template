@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 5 answered (ADR-036, ADR-037)
+
+- P1: the work-packet layer gets the ADR-032 boundary: `validate` checks stored revisions against the common contract only, `domain_shortfall` names revisions that fail the profile's rules, and `create`/`revise` refuse a new contract that fails them, so a packet authored before the rules can be transitioned and revised into compliance instead of being stranded (ADR-037).
+- P2: `close` forgets the port before asking the driver to close it, and `_wire` propagates the original wire failure with a failing close attached as its cause, so a driver whose `close()` raises cannot leave the adapter open (ADR-036; 34 sample tests).
+- P2: `load_record` refuses `NaN`/`Infinity` and overflowing literals, and `_find_record` treats a digest failure as a refused file, so one bad file never aborts `status --evidence-dir` (ADR-037).
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 4 answered (ADR-035)
 
 - The adapter class recurred a fourth time (a write that raised after a partial transmission left the port open), so the ADR-033 owner is widened from `receive` to every port call: `_wire` closes the port on any exception leaving contact with the port; only a receive that timed out having consumed nothing leaves it open (ADR-035). Regression: a raising read before or after the header, and a raising write, each close the port.

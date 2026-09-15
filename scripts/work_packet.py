@@ -225,7 +225,11 @@ def validate(packet) -> list[str]:
     for number, snapshot in enumerate(snapshots, 1):
         if snapshot["version"] != number:
             errors.append("revision_history: versions must be consecutive starting at 1")
-        errors.extend(f"revision {number}: {e}" for e in validate_contract(snapshot["contract"], packet["domain_profile"]))
+        # Stored revisions are checked against the common contract; a profile's domain rules bind
+        # the revision being authored (create/revise) and are reported for stored ones by
+        # domain_shortfall, so a packet authored before the rules can still be revised (ADR-037).
+        errors.extend(f"revision {number}: {e}" for e in
+                      validate_contract(snapshot["contract"], packet["domain_profile"], domain_rules=False))
         if packet["task_id"] in snapshot["contract"]["dependencies"]:
             errors.append(f"revision {number}: task cannot depend on itself")
         expected = fingerprint(packet["task_id"], packet["domain_profile"], number, snapshot["contract"])
@@ -265,6 +269,20 @@ def validate(packet) -> list[str]:
     if state != packet["state"] or revision != len(snapshots):
         errors.append("packet state/current revision does not match replayed events")
     return errors
+
+
+def domain_shortfall(packet) -> dict[int, list[str]]:
+    """Revisions whose stored contract fails the profile's current domain rules, by version.
+    Informational: such a packet replays and may be revised into compliance (ADR-037)."""
+    return {snapshot["version"]: errors for snapshot in packet["revision_history"]
+            if (errors := domain_errors(snapshot["contract"], packet["domain_profile"]))}
+
+
+def require_domain_rules(contract, profile) -> None:
+    """A contract being authored now must satisfy its profile's domain rules."""
+    errors = domain_errors(contract, profile)
+    if errors:
+        raise ValueError("; ".join(errors))
 
 
 def require_valid(packet) -> None:
@@ -329,6 +347,7 @@ def create(task_id, profile, contract, actor, reason, timestamp=None):
               "events": []}
     append_event(packet, "create", "PROPOSED", "architect", actor, reason, [], stamp)
     require_valid(packet)
+    require_domain_rules(contract, profile)
     return packet
 
 
@@ -342,6 +361,7 @@ def revise(packet, contract, actor, reason, timestamp=None):
         len(packet["revision_history"]) + 1, contract, actor, reason, stamp))
     append_event(result, "revision", "PROPOSED", "architect", actor, reason, [], stamp)
     require_valid(result)
+    require_domain_rules(contract, packet["domain_profile"])
     return result
 
 

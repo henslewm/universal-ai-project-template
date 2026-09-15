@@ -162,6 +162,30 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertTrue(port.closed)
         self.assertFalse(adapter.is_open)
 
+    def test_a_driver_that_fails_to_close_still_leaves_the_adapter_closed(self):
+        # ADR-036: closing is unconditional. The wire failure is what propagates; the failing
+        # close is attached as its cause, and the adapter no longer holds the port.
+        class StuckPort(FakePort):
+            def read(self, size, timeout_s):
+                raise OSError("device disconnected")
+
+            def close(self):
+                raise OSError("close failed")
+
+        port = StuckPort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(OSError, "disconnected") as caught:
+            adapter.receive(0.1)
+        self.assertIsInstance(caught.exception.__cause__, OSError)
+        self.assertIn("close failed", str(caught.exception.__cause__))
+        self.assertFalse(adapter.is_open)
+        with self.assertRaisesRegex(RuntimeError, "adapter is closed"):
+            adapter.send(b"\x01")
+        adapter = self.adapter(StuckPort())
+        with self.assertRaisesRegex(OSError, "close failed"):
+            adapter.close()  # an explicit close still reports the driver's failure ...
+        self.assertFalse(adapter.is_open)  # ... and the adapter is closed regardless
+
     def test_partial_frame_at_timeout_closes_the_port(self):
         # ADR-031: a frame this call started but could not finish never lingers to be read as
         # the next frame's header; the port is closed before the timeout is raised.
