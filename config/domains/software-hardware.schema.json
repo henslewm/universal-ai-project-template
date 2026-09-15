@@ -141,6 +141,8 @@
         "task_id",
         "revision",
         "contract_hash",
+        "dispatch_id",
+        "artifact_sha256",
         "validation_id",
         "level",
         "device_identity",
@@ -169,6 +171,14 @@
         "contract_hash": {
           "$ref": "#/$defs/sha256",
           "description": "The exact contract's hash at that revision. Revision numbers are lineage-local: two independently revised variants of the same task can both be \"revision 2\" with different content, so record verification checks this against the acceptance ledger's binding as well, binding the observation to the contract actually reviewed rather than merely its revision number."
+        },
+        "dispatch_id": {
+          "$ref": "#/$defs/sha256",
+          "description": "The submitted result's dispatch_id at the time this observation was made. Contract identity does not identify which implementation was tested: a rejected submission can be resubmitted under the same contract and revision, clearing prior attestations, and an unchanged evidence file must not silently re-verify a different, later submission. Record verification checks this against the acceptance ledger's current result."
+        },
+        "artifact_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "The submitted artifact's sha256 at the time this observation was made, checked against the acceptance ledger's current artifact for the same reason as dispatch_id: a resubmission can replace the artifact together with the result while leaving the contract and revision untouched."
         },
         "validation_id": {
           "$ref": "#/$defs/identifier"

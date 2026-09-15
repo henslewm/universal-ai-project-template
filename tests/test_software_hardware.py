@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 from test_acceptance import (ARCHITECT, CONTROLLER, IMPLEMENTERS, AcceptanceBase, acceptance,
-                             make_artifact, make_contract, make_packet, make_report, make_result)
+                             make_artifact, make_contract, make_failure, make_packet, make_report, make_result)
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -361,12 +361,13 @@ class HardwareEvidenceTests(unittest.TestCase):
         for field, value in (("outcome", "passed"), ("level", "unit"), ("observed_at", "yesterday"),
                              ("artifacts", [{"reference": "x", "sha256": "short"}]), ("extra", 1),
                              ("revision", 0), ("revision", "1"), ("contract_hash", "short"),
-                             ("contract_hash", "g" * 64)):
+                             ("contract_hash", "g" * 64), ("dispatch_id", "short"),
+                             ("artifact_sha256", "g" * 64)):
             record = copy.deepcopy(EVIDENCE)
             record[field] = value
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "hardware evidence"):
                 domain.validate_hardware_evidence(record)
-        for field in ("observed_behavior", "revision", "contract_hash"):
+        for field in ("observed_behavior", "revision", "contract_hash", "dispatch_id", "artifact_sha256"):
             record = copy.deepcopy(EVIDENCE)
             del record[field]
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -714,6 +715,70 @@ class ExampleProjectTests(AcceptanceBase):
                       f"{wp.current(variant_b)['hash']}", checked["reason"])
         entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
         self.assertFalse(entry["evidence_verified"])
+
+    def rejected_and_resubmitted_adapter(self, attest_with):
+        """A medium-risk SHB-04-adapter ledger accepted after a rejection and a resubmission that
+        replaced the result and artifact. `attest_with(original, result, artifact)` chooses the
+        record VAL-HIL's post-resubmission attestation binds; returns the ledger and that record."""
+        ledger, packet = self.start(packet=self.packet_for("SHB-04-adapter", risk="medium"))
+        acceptance.run_checks(ledger, EXAMPLES)
+        # Bound to this packet's own contract hash, at its own ("medium") risk -- not
+        # adapter_evidence()'s risk="low" packet, which hashes differently.
+        original = dict(EVIDENCE, task_id="ACCEPT-SYN-001", contract_hash=wp.current(packet)["hash"])
+        acceptance.append(ledger, "ATTESTATION",
+                          {"attestation": {"validation_id": "VAL-HIL", "operator": original["operator"],
+                                           "evidence": domain.evidence_lines(original)}},
+                          previous_state=acceptance.replay(ledger))
+        contract = wp.current(packet)["contract"]
+        rejection = make_report(self.open_review(ledger), contract, verdict="REJECT_BOUNDED",
+                                criteria=[{"criterion_id": "AC-HOST-RULES", "status": "not_met",
+                                           "evidence": ["Packet evidence contradicts the claim"]},
+                                          {"criterion_id": "AC-HIL-READ", "status": "met",
+                                           "evidence": ["Cited from the review packet"]}],
+                                contract_failures=[make_failure(ref="AC-HOST-RULES")])
+        self.ingest(ledger, rejection)
+        self.assertEqual(self.state(ledger)["status"], "REJECTED")
+        result = make_result(packet, dispatch_id="f" * 64)
+        artifact = make_artifact("a materially different resubmission\n")
+        acceptance.append(ledger, "RESUBMIT", {"result": result, "artifact": artifact, "implementers": IMPLEMENTERS},
+                          previous_state=acceptance.replay(ledger))
+        acceptance.run_checks(ledger, EXAMPLES)
+        record = attest_with(original, result, artifact)
+        acceptance.append(ledger, "ATTESTATION",
+                          {"attestation": {"validation_id": "VAL-HIL", "operator": record["operator"],
+                                           "evidence": domain.evidence_lines(record)}},
+                          previous_state=acceptance.replay(ledger))
+        self.ingest(ledger, make_report(self.open_review(ledger), contract))
+        acceptance.accept(ledger, "Independent reviewer")
+        return ledger, record
+
+    def test_a_record_bound_to_a_rejected_submission_does_not_verify_the_resubmission(self):
+        # Codex round 16 on PR #34 (ADR-047): contract identity alone does not identify which
+        # implementation was tested. RESUBMIT clears the prior attestation, but re-attesting the
+        # same unchanged evidence file -- describing the rejected implementation's observation,
+        # never repeated against the resubmission -- must not verify the new submission.
+        ledger, record = self.rejected_and_resubmitted_adapter(lambda original, result, artifact: original)
+        records = self.directory / f"records-{self.counter}"
+        records.mkdir()
+        (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
+        checked = domain.status(ledger, records)
+        self.assertEqual(checked["earned_hardware_status"], "UNVERIFIED_ON_HARDWARE")
+        self.assertIn("record dispatch_id", checked["reason"])
+        self.assertIn("record artifact_sha256", checked["reason"])
+        entry = next(v for v in checked["validations"] if v["validation_id"] == "VAL-HIL")
+        self.assertFalse(entry["evidence_verified"])
+
+    def test_a_record_bound_to_the_resubmission_verifies(self):
+        # The other half of the round-16 regression: a record actually made against the
+        # resubmission's result and artifact still verifies.
+        ledger, record = self.rejected_and_resubmitted_adapter(
+            lambda original, result, artifact: dict(original, dispatch_id=result["dispatch_id"],
+                                                     artifact_sha256=artifact["sha256"]))
+        records = self.directory / f"records-{self.counter}"
+        records.mkdir()
+        (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
+        checked = domain.status(ledger, records)
+        self.assertEqual((checked["earned_hardware_status"], checked["evidence_basis"]), ("VERIFIED_ON_HARDWARE", "record"))
 
     def test_evidence_fields_are_compared_exactly_and_only_the_operator_is_case_folded(self):
         # Codex round 2 on PR #34: `device=SN-ABC` must not verify against `device_identity: SN-abc`;

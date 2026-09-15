@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 16 answered (ADR-047)
+
+- P1: contract identity does not identify which implementation was tested. `RESUBMIT` replaces the result and artifact under the same contract and revision and clears prior attestations, but nothing stopped an operator from re-attesting the same unchanged evidence file after a rejection, silently verifying the resubmission it was never observed against. The schema now also requires `dispatch_id` and `artifact_sha256` on every record, and `record_problems` checks both against the acceptance ledger's current result and artifact. Regression rejects an attested submission, resubmits with a different result and artifact, and shows the unchanged evidence refused against the resubmission while a record made against the new submission verifies.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 15 answered (ADR-046)
 
 - P2: nothing compared a hardware evidence record's declared `observed_at` to when it was attested, so an observation dated after its own attestation (or arbitrarily in the future) passed both the attestation-basis and record-basis checks, letting an accepted ledger report `VERIFIED_ON_HARDWARE` for an observation that had not yet occurred. `validate_attestation` now takes the ATTESTATION event's own timestamp and refuses a declared `observed_at` later than it, using a `parse_timestamp` helper factored out of the existing date-time format checker. Regression appends an attestation dated after the event and shows it refused.

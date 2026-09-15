@@ -289,6 +289,14 @@ def record_problems(record, binding, validation_id, level, attestation) -> list[
         # of the same task can both be "revision 2" with different content, so the exact contract
         # is checked too, not merely its revision number.
         problems.append(f"record contract_hash {record['contract_hash']} is not the ledger's {binding['contract_hash']}")
+    if record["dispatch_id"] != binding["dispatch_id"]:
+        # Contract identity does not identify which implementation was tested (Codex round 16): a
+        # rejected result can be resubmitted under the same contract and revision, clearing prior
+        # attestations, and an unchanged evidence file must not silently re-verify the new one.
+        problems.append(f"record dispatch_id {record['dispatch_id']} is not the ledger's {binding['dispatch_id']}")
+    if record["artifact_sha256"] != binding["artifact_sha256"]:
+        problems.append(f"record artifact_sha256 {record['artifact_sha256']} is not the ledger's "
+                         f"{binding['artifact_sha256']}")
     if record["validation_id"] != validation_id:
         problems.append(f"record validation_id {record['validation_id']} is not {validation_id}")
     if record["level"] != level:
@@ -313,6 +321,10 @@ def status(ledger, evidence_dir=None) -> dict:
     import acceptance  # noqa: E402 — lazily, so the domain module never imports the controllers eagerly.
     state = acceptance.replay(ledger)[0]
     binding = state["binding"]
+    # Contract identity alone does not identify which implementation was tested: a rejected
+    # result can be resubmitted under the same contract and revision (ADR-047), so record
+    # verification also binds the observation to the submission the ledger currently holds.
+    submission = {**binding, "dispatch_id": state["result"]["dispatch_id"], "artifact_sha256": state["artifact"]["sha256"]}
     if binding["domain_profile"] != PROFILE:
         raise ValueError(f"Ledger profile is {binding['domain_profile']}, not {PROFILE}")
     if state.get("domain_shortfall"):
@@ -347,7 +359,7 @@ def status(ledger, evidence_dir=None) -> dict:
                              + (f" (refused: {'; '.join(refused)})" if refused else "")]
                 else:
                     found = [f"{identifier}: {problem}" for problem in
-                             record_problems(record, binding, identifier, levels[identifier], attestation)]
+                             record_problems(record, submission, identifier, levels[identifier], attestation)]
                 entry["evidence_verified"] = not found
                 entry["evidence_path"] = str(path) if path else None
                 problems.extend(found)

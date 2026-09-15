@@ -68,7 +68,10 @@ python scripts/software_hardware.py status LEDGER --evidence-dir RECORDS
 The packets declare `python` as the interpreter and `sample` as the working directory; the
 `tests/test_software_hardware.py` suite runs the same commands through the deterministic gate
 with the test interpreter substituted. `hardware-evidence.example.json` shows the record shape for
-`SHB-04-adapter`'s `VAL-HIL`; it is explicitly fictional.
+`SHB-04-adapter`'s `VAL-HIL`; it is explicitly fictional. Its `revision` and `contract_hash` are
+this repository's real revision-1 fingerprint of that packet file; `dispatch_id` and
+`artifact_sha256` are illustrative placeholders an operator replaces with the actual result and
+artifact identity from the acceptance ledger they are attesting against.
 
 ## Operator procedure for hardware-rung attestation (SRC-HIL-PROCEDURE)
 
