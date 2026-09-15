@@ -66,6 +66,45 @@ class BridgeIntegrationTests(unittest.TestCase):
         adapter.open()
         self.assertEqual(SensorDevice(adapter).read().value, 42)
 
+    def test_port_failures_reach_the_workflow_as_device_errors_and_close_the_adapter(self):
+        # Independent review on PR #34: a disconnect on write or read, or a short write, used to
+        # escape the device as OSError or RuntimeError and abort the workflow's
+        # `except DeviceError` path with an empty log. Through the real adapter each one now logs
+        # an ERROR, the adapter is closed (ADR-035), and the next read reports the closed adapter.
+        class BrokenPort(FakeSensorPort):
+            def __init__(self, readings, fail):
+                super().__init__(readings)
+                self._fail = fail
+
+            def write(self, data):
+                if self._fail == "write-raises":
+                    raise OSError("device disconnected")
+                written = super().write(data)
+                return written - 1 if self._fail == "short-write" else written
+
+            def read(self, size, timeout_s):
+                if self._fail == "read-raises":
+                    raise OSError("device disconnected")
+                return super().read(size, timeout_s)
+
+        for fail, message in (("write-raises", "device disconnected"),
+                              ("read-raises", "device disconnected"),
+                              ("short-write", "short write; port closed")):
+            with self.subTest(fail=fail):
+                port = BrokenPort([5], fail)
+                adapter = SerialAdapter("SYNTH0", lambda name: port)
+                adapter.open()
+                device = SensorDevice(adapter)
+                log = []
+                for _ in range(2):
+                    try:
+                        log.append(f"READING {device.read().value}")
+                    except DeviceError as exc:
+                        log.append(f"ERROR {str(exc).split(': ', 1)[-1]}")
+                self.assertEqual(log, [f"ERROR {message}", "ERROR adapter is closed"])
+                self.assertTrue(port.closed)
+                self.assertFalse(adapter.is_open)
+
 
 if __name__ == "__main__":
     unittest.main()

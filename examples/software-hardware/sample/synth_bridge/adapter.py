@@ -101,14 +101,22 @@ class SerialAdapter:
             raise TransportTimeout("no frame header")
 
     def _read_within(self, size: int, deadline: float) -> bytes:
-        """Up to `size` bytes, each read bounded by the time left; stops short when time runs out."""
+        """Up to `size` bytes, each read bounded by the time left; stops short when time runs out.
+
+        The first read is always made (a zero timeout is a poll of what has arrived); after that
+        the port is not asked again once the deadline has passed, so bytes that arrive late are
+        never returned as a frame received in time.
+        """
         buffer = b""
+        asked = False
         while len(buffer) < size:
             remaining = deadline - time.monotonic()
+            if asked and remaining <= 0:
+                break
             chunk = self._port.read(size - len(buffer), max(remaining, 0.0))
-            if not chunk:
-                if remaining <= 0:
-                    break
-                continue
-            buffer += chunk
+            asked = True
+            if chunk:
+                buffer += chunk
+            elif remaining <= 0:
+                break
         return buffer

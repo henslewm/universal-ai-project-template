@@ -89,6 +89,10 @@ What the run established beyond #9: the cross-family gate did its job on the tem
 
 - **Round 9 on head `8a217fc`**: one P2 — the ADR-039 pattern's `$` anchor matched before a trailing newline, so a record ending in a line break validated and then could not be attested. The prohibition is now explicit (`not` a CR/LF pattern) with a regression for leading and trailing breaks.
 
+- **Round 10 on head `917f759`**: one P1 and one P2. The boundary class on its third path — a stored feedback repair replayed against today's rules and `revise` enforced them again; ADR-041 threads `stored` through the repair branch and `revise`, records the shortfall in the feedback state and `summary`, and states the invariant as a property of every contract-validating path. The adapter's post-deadline re-read (an empty read used the time, then a zero-timeout read returned late bytes as a frame) is closed in `_read_within`: the first read is a poll, no read follows a passed deadline.
+
+- **Independent review on head `2360672`** (posted through the maintainer's account beside Codex's rounds): one P1 and one P2. The P1 is round 10's feedback-replay finding, answered by ADR-041 above. The P2 is the device boundary, a class no earlier round touched: SHB-03 promises `read()` returns a Reading or raises `DeviceError`, but `send` sat outside the handler and `receive` caught only `TransportTimeout`, so a disconnect (`OSError`) or short write (`RuntimeError`) escaped past the workflow's `except DeviceError` with an empty log. Both calls now sit inside one handler that translates those two classes as `transport failure` with the cause chained; programming errors are not translated. Regressions at the device and through the real adapter into the workflow. The adapter itself already closed correctly (ADR-035), so this is a translation defect, not the adapter class again.
+
 ## Discovery outside this issue
 
 Codex's four findings on PR #21 (two P1, two P2) were handled by reopening #8, per the maintainer's decision, not by a follow-up issue. The standing rules that resulted are in `MASTER_INSTRUCTIONS.md`.

@@ -38,6 +38,37 @@ class SensorDeviceTests(unittest.TestCase):
             pass
         self.assertEqual(transport.sent, [codec.encode_read_request()])
 
+    def test_transport_failures_on_send_and_receive_become_device_errors(self):
+        # Independent review on PR #34: the contract promises read() returns a Reading or raises
+        # DeviceError, so a port that raises (disconnect, short write) is translated at this
+        # boundary with its cause chained rather than escaping as OSError or RuntimeError.
+        class FailingTransport:
+            def __init__(self, on_send=None, on_receive=None):
+                self._on_send, self._on_receive = on_send, on_receive
+
+            def send(self, data):
+                if self._on_send:
+                    raise self._on_send
+
+            def receive(self, timeout_s):
+                if self._on_receive:
+                    raise self._on_receive
+                return b""
+
+        for transport, cause in ((FailingTransport(on_send=OSError("device disconnected")), OSError),
+                                 (FailingTransport(on_receive=OSError("device disconnected")), OSError),
+                                 (FailingTransport(on_send=RuntimeError("short write; port closed")), RuntimeError),
+                                 (FailingTransport(on_receive=RuntimeError("adapter is closed")), RuntimeError)):
+            with self.subTest(cause=cause.__name__, on="send" if transport._on_send else "receive"):
+                with self.assertRaisesRegex(DeviceError, "transport failure: ") as raised:
+                    SensorDevice(transport).read()
+                self.assertIsInstance(raised.exception.__cause__, cause)
+
+    def test_programming_errors_are_not_translated(self):
+        # A negative timeout is the caller's mistake, not a wire failure; it stays a ValueError.
+        with self.assertRaises(ValueError):
+            SensorDevice(LoopbackTransport(), timeout_s=-1).read()
+
 
 if __name__ == "__main__":
     unittest.main()

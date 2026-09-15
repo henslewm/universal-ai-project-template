@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 PR #34: Codex round 10 and the independent review answered (ADR-041)
+
+- P1 (Codex round 10 and the independent review): the feedback ledger's stored `REPAIR_CONTRACT` diagnosis replays with its shortfall recorded in `domain_shortfall` (in `summary`), `work_packet.revise` takes `domain_rules` so a stored repair's revision is not re-judged, and a new repair that fails the rules is refused; every contract-validating path now threads `stored` to the domain rules (ADR-041). Regression writes a legacy repair on the chain by hand.
+- P2 (Codex round 10): `SerialAdapter._read_within` makes the first read unconditionally (a zero timeout polls what has arrived) and never asks the port again once the deadline has passed, so bytes arriving late are not returned as a frame received in time (ADR-031 completed).
+- P2 (independent review): `SensorDevice.read()` keeps the SHB-03 promise that it returns a Reading or raises `DeviceError` — a port that raises on send or receive (a disconnect) or a short write is translated at the device boundary as `transport failure` with the cause chained, instead of escaping as `OSError` or `RuntimeError` past the workflow's `except DeviceError`. Regressions at the device (each cause, on send and on receive; a negative timeout stays a `ValueError`) and through the real adapter into the workflow (each failure logs an ERROR, closes the adapter, and the next read reports the closed adapter). 38 sample tests.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 9 answered
 
 - P2: `single_line` states its prohibition as `not: {pattern: "[\r\n]"}` instead of an anchored pattern, because `$` matches before a trailing newline; a record whose `device_identity`, `firmware_version` or `operator` ends in a line break is now refused at the record rather than accepted there and refused at attestation (ADR-039 completed). Regression for trailing and leading CR, LF and CRLF.

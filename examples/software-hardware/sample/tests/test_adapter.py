@@ -186,6 +186,26 @@ class SerialAdapterTests(unittest.TestCase):
             adapter.close()  # an explicit close still reports the driver's failure ...
         self.assertFalse(adapter.is_open)  # ... and the adapter is closed regardless
 
+    def test_bytes_arriving_after_the_deadline_are_not_a_frame_received_in_time(self):
+        # Codex round 10 on PR #34: after an empty read that used up the time, the loop must not
+        # ask the port again with a zero timeout and return late bytes as if they arrived in time.
+        class LatePort(FakePort):
+            def read(self, size, timeout_s):
+                self.timeouts.append(timeout_s)
+                if len(self.timeouts) == 1:
+                    time.sleep(timeout_s + 0.02)  # the time is used up ...
+                    self.buffer[:] = WHOLE_FRAME     # ... and then the frame arrives
+                    return b""
+                return super().read(size, timeout_s)
+
+        port = LatePort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "no frame header"):
+            adapter.receive(0.03)
+        self.assertEqual(len(port.timeouts), 1, "the port was not asked again after the deadline")
+        self.assertFalse(port.closed, "nothing was consumed")
+        self.assertEqual(adapter.receive(0.03), WHOLE_FRAME, "the next call, in its own time, may have it")
+
     def test_partial_frame_at_timeout_closes_the_port(self):
         # ADR-031: a frame this call started but could not finish never lingers to be read as
         # the next frame's header; the port is closed before the timeout is raised.

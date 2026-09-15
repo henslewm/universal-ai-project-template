@@ -360,7 +360,9 @@ def create(task_id, profile, contract, actor, reason, timestamp=None):
     return packet
 
 
-def revise(packet, contract, actor, reason, timestamp=None):
+def revise(packet, contract, actor, reason, timestamp=None, domain_rules=True):
+    """A new revision. `domain_rules=False` is for replaying a revision a ledger already stored
+    before its profile's rules existed (ADR-041); the caller records the shortfall instead."""
     require_valid(packet)
     if contract == current(packet)["contract"]:
         raise ValueError("revision does not change the contract")
@@ -370,7 +372,8 @@ def revise(packet, contract, actor, reason, timestamp=None):
         len(packet["revision_history"]) + 1, contract, actor, reason, stamp))
     append_event(result, "revision", "PROPOSED", "architect", actor, reason, [], stamp)
     require_valid(result)
-    require_domain_rules(contract, packet["domain_profile"])
+    if domain_rules:
+        require_domain_rules(contract, packet["domain_profile"])
     return result
 
 
