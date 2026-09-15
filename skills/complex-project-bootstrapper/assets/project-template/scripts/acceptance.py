@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import copy
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -181,7 +184,12 @@ def report_valid(report, contract, opened, policy):
     return report
 
 
-def apply(state, event):
+def apply(state, event, stored=False):
+    """Advance the state by one event; `stored` marks replay of an event already on the chain.
+
+    Hash-chained history cannot be amended, so a rule added after an event was stored may not
+    refuse that event on replay; it marks the record instead and refuses only what is new.
+    """
     data, timestamp = event["data"], event["timestamp"]
     if state is None:
         if event["kind"] != "INIT":
@@ -271,21 +279,33 @@ def apply(state, event):
         require(state["status"] == "GATES_PENDING", f"Review refused at {state['status']}")
         require(deterministic_satisfied(state),
                 "The deterministic gate must pass before a reviewer is engaged")
-        require(len(state["reviews"]) < state["policy"]["max_review_attempts"],
+        # A stored opening below the tier (ADR-023) can no longer satisfy the gate, so it does
+        # not consume the budget either: a ledger that spent every attempt before the tier was
+        # enforced must keep a slot for the compliant replacement, or it is stranded for good.
+        require(reviews_used(state) < state["policy"]["max_review_attempts"],
                 "Review attempt budget exhausted; escalate to the architect")
         require(opened["gate"] in state["gates"], "This packet does not require that review gate")
         reviewer = opened["reviewer"]
         require(reviewer["actor"].strip().casefold() not in actors,
                 "An implementation actor cannot review its own revision")
+        required_tier = state["contract"]["routing"]["reviewer_tier"]
+        # A stored opening below the tier was permitted when it was written and cannot be
+        # amended: it replays marked with the shortfall and can no longer satisfy a gate for a
+        # new acceptance. A new opening below the tier is refused.
+        require(stored or reviewer["tier"] >= required_tier,
+                f"Reviewer tier {reviewer['tier']} is below the contract's reviewer_tier {required_tier}")
         if opened["gate"] == "architect_review":
             require(reviewer["actor"] == state["architect"],
                     "Architect review must be performed by the recorded architect")
         expected = router.digest({"binding": state["binding"], "review_number": len(state["reviews"]) + 1,
                                   "gate": opened["gate"], "reviewer": reviewer})
         require(opened["review_id"] == expected, "Review id does not reproduce from its opening record")
-        state["reviews"].append({"review_id": opened["review_id"], "gate": opened["gate"],
-                                 "reviewer": copy.deepcopy(reviewer), "report": None, "abandoned": None,
-                                 "submission": state["resubmissions"]})
+        record = {"review_id": opened["review_id"], "gate": opened["gate"],
+                  "reviewer": copy.deepcopy(reviewer), "report": None, "abandoned": None,
+                  "submission": state["resubmissions"]}
+        if reviewer["tier"] < required_tier:
+            record["tier_shortfall"] = required_tier
+        state["reviews"].append(record)
         state.update(status="REVIEW_OPEN", reason="REVIEW_DISPATCHED")
     elif event["kind"] == "REVIEW_RESULT":
         feedback.exact(data, {"report"})
@@ -358,7 +378,7 @@ def apply(state, event):
                      status="GATES_PENDING", reason="RESUBMITTED")
     elif event["kind"] == "ACCEPT":
         feedback.exact(data, {"actor"})
-        acceptable(state, data["actor"])
+        acceptable(state, data["actor"], stored)
         state["accepted"] = {"actor": data["actor"], "gates": gate_summary(state)}
         state.update(status="ACCEPTED", reason="ALL_GATES_PASSED")
     else:
@@ -366,23 +386,33 @@ def apply(state, event):
     return state
 
 
-def approving(state, gate):
+def reviews_used(state):
+    """Reviews counted against the attempt budget: every opening except a legacy tier shortfall."""
+    return sum(1 for review in state["reviews"] if "tier_shortfall" not in review)
+
+
+def approving(state, gate, stored=False):
     """The review that currently satisfies a review gate, or the stated refusal."""
     finished = current_completed(state, gate)
     require(bool(finished), f"The {gate} gate has no completed review for the current submission")
     latest = finished[-1]
     require(latest["report"]["verdict"] == "APPROVE",
             f"The latest {gate} review did not approve: {latest['report']['verdict']}")
+    # An acceptance already stored on the chain stands as recorded; a new one cannot rest on a
+    # review opened below the contract's reviewer tier before the tier was enforced.
+    require(stored or "tier_shortfall" not in latest,
+            f"The latest {gate} review was opened at tier {latest['reviewer']['tier']}, below the "
+            f"contract's reviewer_tier {latest.get('tier_shortfall')}; open a review at the required tier")
     return latest
 
 
-def acceptable(state, actor):
+def acceptable(state, actor, stored=False):
     require(state["status"] == "GATES_PENDING", f"Acceptance refused at {state['status']}")
     require(deterministic_satisfied(state),
             "Deterministic gate unsatisfied: " + wp.canonical(deterministic_status(state)))
     approver = None
     if "model_review" in state["gates"]:
-        approver = approving(state, "model_review")
+        approver = approving(state, "model_review", stored)
     if "cross_family_review" in state["gates"]:
         families = casefolded(item["model_family"] for item in state["implementers"])
         family = approver["reviewer"]["model_family"].strip().casefold()
@@ -390,7 +420,7 @@ def acceptable(state, actor):
                 f"Cross-family gate: reviewer family {approver['reviewer']['model_family']} matches an "
                 "implementation actor and no waiver is recorded")
     if "architect_review" in state["gates"]:
-        approving(state, "architect_review")
+        approving(state, "architect_review", stored)
     if "user_decision" in state["gates"]:
         require(state["user_decision"] is not None and state["user_decision"]["decision"] == "approve",
                 "User-decision gate: no recorded approval")
@@ -434,7 +464,7 @@ def replay(directory):
         current_time = feedback.instant(event["timestamp"])
         if previous_time and current_time < previous_time:
             raise ValueError("Acceptance ledger timestamps descend")
-        state = apply(state, event)
+        state = apply(state, event, stored=True)
         previous, previous_time = claimed, current_time
     return state, sequence, previous
 
@@ -476,6 +506,453 @@ def initialize(directory, config, packet, result, artifact, controller, architec
     return append(directory, "INIT", data, timestamp)
 
 
+def stream_digest(stdout_hex, stderr_hex):
+    """One digest over both complete streams; each stream is hashed while it is read."""
+    return hashlib.sha256(f"stdout:{stdout_hex}\nstderr:{stderr_hex}".encode("ascii")).hexdigest()
+
+
+# After a check ends or is terminated, its pipes are drained for at most this long; a
+# descendant that still holds them after that is killed with the whole tree, not waited on.
+DRAIN_GRACE_SECONDS = 5
+PROC_ROOT = Path("/proc")
+
+
+def runnable_group_members(pgid, proc_root=None):
+    """Non-zombie processes in a POSIX process group, read from /proc where it exists.
+
+    A killed descendant that nobody reaps — a container whose PID 1 does not reap orphans —
+    stays in the group as a zombie, so group existence alone would never report stopped.
+    Returns None where /proc is unavailable, and the caller falls back to the group probe.
+
+    A record that cannot be read is unknown and counts as alive, unless the kernel itself
+    rules membership out: `getpgid` needs no /proc permission, so a process a `hidepid` mount
+    hides is skipped when it belongs to another group and still counts when it is ours.
+    Ownership cannot stand in for that answer — a setuid helper changes owner without
+    leaving the group — so a same-group record that cannot be read fails closed as alive.
+    """
+    root = PROC_ROOT if proc_root is None else Path(proc_root)
+    if not root.is_dir():
+        return None
+    members = 0
+    for entry in root.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text(encoding="ascii", errors="replace")
+        except FileNotFoundError:
+            continue  # The only error that proves the process is gone: it exited after listing.
+        except OSError:
+            if not in_another_group(int(entry.name), pgid):
+                members += 1  # Unreadable and not provably elsewhere: unknown fails closed as alive.
+            continue
+        _, _, rest = stat.rpartition(")")  # The command name may contain spaces or parentheses.
+        fields = rest.split()
+        if len(fields) < 3:
+            members += 1  # An unparseable record is unknown too.
+            continue
+        state, group = fields[0], fields[2]
+        if group == str(pgid) and state not in ("Z", "X", "x"):
+            members += 1
+    return members
+
+
+def in_another_group(pid, pgid):
+    """Whether the kernel says a pid provably belongs to a process group other than `pgid`.
+
+    Only a definite answer excludes a record: a platform without `getpgid`, a pid that has
+    vanished, or a call that fails for any other reason keeps the record in the
+    unknown-therefore-alive class; a vanished pid is harmless there, since it cannot write.
+    """
+    getpgid = getattr(os, "getpgid", None)
+    if getpgid is None:
+        return False
+    try:
+        return getpgid(pid) != pgid
+    except ProcessLookupError:
+        return True  # Gone: it cannot be a live member.
+    except OSError:
+        return False
+
+
+class ProcessTree:
+    """The check and every descendant, killable as one unit even after the check itself exits.
+
+    POSIX: the check runs in its own session, so its process group is the tree. Windows: the
+    check is assigned to a job object, which descendants inherit and which terminates them all;
+    `taskkill /T` is the fallback when a job cannot be created or assigned.
+    """
+
+    CREATE_SUSPENDED = 0x4
+
+    def __init__(self, process):
+        self.process = process
+        self.job = None
+        # Saved now: once the leader is reaped, getpgid() on it raises and the group would be lost.
+        self.pgid = None if os.name == "nt" else process.pid  # start_new_session makes pid == pgid.
+        if os.name == "nt":
+            # The check was created suspended, so it is assigned to the job before its first
+            # instruction runs. Without a job there is no enforceable tree cleanup on Windows,
+            # so the suspended check is killed and the run refuses rather than proceeding unisolated.
+            self.job = self._windows_job()
+            if self.job is None:
+                self._refuse_suspended(process, "Windows job object could not be created or assigned; the check is not run unisolated")
+            if self._windows_resume() == 0:
+                # Still suspended: refuse now rather than let it sit until the check timeout and
+                # be recorded as an ordinary validation failure.
+                self._refuse_suspended(process, "Windows check could not be resumed after job assignment; refusing the run")
+
+    @staticmethod
+    def _refuse_suspended(process, reason):
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, shell=False)
+        try:
+            process.kill()
+        except OSError:
+            pass
+        process.wait()
+        raise ValueError(reason)
+
+    @classmethod
+    def creation_flags(cls):
+        return cls.CREATE_SUSPENDED if os.name == "nt" else 0
+
+    @classmethod
+    def launch(cls, argv, cwd):
+        """Start a check. This is the only step whose OSError means "the check could not run"."""
+        return subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+                                start_new_session=os.name != "nt", creationflags=cls.creation_flags())
+
+    @classmethod
+    @contextlib.contextmanager
+    def own(cls, process):
+        """Own a launched check until confirmed-stopped; the tree is ended on every exit (ADR-024).
+
+        Timeout, normal exit with a descendant still alive, refusal, and any exception raised
+        inside the block all leave through the same `finally`, so nothing spawned by the check
+        can outlive it, and the caller learns whether the tree was confirmed stopped. An error
+        raised by the teardown itself propagates: it is never converted into a check result,
+        because a tree that could not be confirmed stopped must refuse the run, not fail the check.
+        """
+        tree = cls(process)  # Refuses, with the suspended check killed, if it cannot be isolated.
+        tree.stopped = None
+        try:
+            yield tree
+        finally:
+            if process.poll() is None:
+                tree.kill()
+            tree.stopped = tree.close()
+
+    def _windows_resume(self):
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        # ResumeThread returns a DWORD; without the restype ctypes would read its (DWORD)-1
+        # failure as a signed -1 and a failed resume would be counted as resumed.
+        kernel32.ResumeThread.restype = wintypes.DWORD
+
+        class ThreadEntry(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ThreadID", wintypes.DWORD),
+                        ("th32OwnerProcessID", wintypes.DWORD), ("tpBasePri", wintypes.LONG),
+                        ("tpDeltaPri", wintypes.LONG), ("dwFlags", wintypes.DWORD)]
+
+        resumed = 0
+        snapshot = kernel32.CreateToolhelp32Snapshot(0x4, 0)  # TH32CS_SNAPTHREAD
+        if snapshot == wintypes.HANDLE(-1).value:
+            return resumed
+        entry = ThreadEntry()
+        entry.dwSize = ctypes.sizeof(entry)
+        found = kernel32.Thread32First(snapshot, ctypes.byref(entry))
+        while found:
+            if entry.th32OwnerProcessID == self.process.pid:
+                thread = kernel32.OpenThread(0x2, False, entry.th32ThreadID)  # THREAD_SUSPEND_RESUME
+                if thread:
+                    previous = kernel32.ResumeThread(thread)
+                    while 1 < previous < 0xFFFFFFFF:
+                        previous = kernel32.ResumeThread(thread)
+                    if previous != 0xFFFFFFFF:  # (DWORD)-1 signals failure.
+                        resumed += 1
+                    kernel32.CloseHandle(thread)
+            found = kernel32.Thread32Next(snapshot, ctypes.byref(entry))
+        kernel32.CloseHandle(snapshot)
+        return resumed
+
+    def _windows_job(self):
+        try:
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+            class IoCounters(ctypes.Structure):
+                _fields_ = [(name, ctypes.c_ulonglong) for name in
+                            ("ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                             "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+            class BasicLimit(ctypes.Structure):
+                _fields_ = [("PerProcessUserTimeLimit", ctypes.c_longlong), ("PerJobUserTimeLimit", ctypes.c_longlong),
+                            ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                            ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                            ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                            ("SchedulingClass", wintypes.DWORD)]
+
+            class ExtendedLimit(ctypes.Structure):
+                _fields_ = [("BasicLimitInformation", BasicLimit), ("IoInfo", IoCounters),
+                            ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                            ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+            job = kernel32.CreateJobObjectW(None, None)
+            if not job:
+                return None
+            limits = ExtendedLimit()
+            limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if not kernel32.SetInformationJobObject(job, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+                kernel32.CloseHandle(job)
+                return None
+            if not kernel32.AssignProcessToJobObject(job, wintypes.HANDLE(int(self.process._handle))):
+                kernel32.CloseHandle(job)
+                return None
+            return (kernel32, job)
+        except (OSError, AttributeError, ValueError):
+            return None
+
+    def kill(self):
+        if os.name == "nt":
+            if self.job is not None:
+                kernel32, job = self.job
+                kernel32.TerminateJobObject(job, 1)
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(self.process.pid)], capture_output=True, shell=False)
+        else:
+            self._kill_group()
+        try:
+            self.process.kill()
+        except OSError:
+            pass
+        self.process.wait()
+
+    def _kill_group(self):
+        try:
+            os.killpg(self.pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+
+    def members_alive(self):
+        """Whether any process in the tree still exists; the leader itself is already reaped."""
+        if os.name == "nt":
+            if self.job is None:
+                return False
+            import ctypes
+            from ctypes import wintypes
+            kernel32, job = self.job
+
+            class Accounting(ctypes.Structure):
+                _fields_ = [("TotalUserTime", ctypes.c_longlong), ("TotalKernelTime", ctypes.c_longlong),
+                            ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+                            ("ThisPeriodTotalKernelTime", ctypes.c_longlong), ("TotalPageFaultCount", wintypes.DWORD),
+                            ("TotalProcesses", wintypes.DWORD), ("ActiveProcesses", wintypes.DWORD),
+                            ("TotalTerminatedProcesses", wintypes.DWORD)]
+
+            info = Accounting()
+            if not kernel32.QueryInformationJobObject(job, 1, ctypes.byref(info), ctypes.sizeof(info), None):
+                return True  # Unknown counts as alive; the caller then refuses rather than digests.
+            return info.ActiveProcesses > 0
+        # The kernel is asked first: a group with no member at all, zombie or otherwise, is
+        # stopped whatever /proc shows, so an unreadable record of some unrelated process (a
+        # hidepid mount) cannot keep a cleanly ended tree looking alive and refuse every run.
+        try:
+            os.killpg(self.pgid, 0)
+        except ProcessLookupError:
+            return False
+        except (PermissionError, OSError):
+            return True
+        # The group remains: only /proc can tell a zombie-only group from a runnable member, and
+        # a record that cannot be read or parsed still fails closed as alive.
+        runnable = runnable_group_members(self.pgid)
+        return True if runnable is None else runnable > 0
+
+    def close(self):
+        """End anything still alive in the tree once the check is over, and confirm it stopped.
+
+        A descendant that redirected or closed its pipes lets the readers finish normally; it
+        must still not outlive the validation it was spawned by, and the digest must not be
+        taken while it is still dying. Returns False if the tree cannot be confirmed stopped.
+        """
+        if os.name == "nt":
+            if self.job is not None:
+                kernel32, job = self.job
+                kernel32.TerminateJobObject(job, 1)
+        else:
+            self._kill_group()
+        deadline = time.monotonic() + DRAIN_GRACE_SECONDS
+        while self.members_alive() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        stopped = not self.members_alive()
+        if self.job is not None:
+            kernel32, job = self.job
+            kernel32.CloseHandle(job)  # KILL_ON_JOB_CLOSE ends anything still in the job.
+            self.job = None
+        return stopped
+
+
+def bounded_capture(argv, cwd, timeout, bound):
+    """Run argv, retaining at most `bound` characters of each stream while hashing all of it.
+
+    The output bound is enforced while the process runs: each reader keeps only a bounded
+    prefix in memory and feeds the complete stream to its hasher, so a noisy or runaway
+    check cannot exhaust the controller before the bound applies.
+    """
+    keep = bound * 4 + 4  # A UTF-8 character is at most four bytes; decode, then cut to `bound`.
+    lock = threading.Lock()
+
+    def drain(stream, sink):
+        # The sink is updated under the lock per chunk, so a reader that never finishes —
+        # a descendant still holding the pipe — can be abandoned with an honest partial record.
+        # os.read returns what is available; a buffered read(n) would wait for n bytes or EOF.
+        for chunk in iter(lambda: os.read(stream.fileno(), 65536), b""):
+            with lock:
+                sink["hasher"].update(chunk)
+                sink["total"] += len(chunk)
+                if len(sink["kept"]) < keep:
+                    sink["kept"].extend(chunk[:keep - len(sink["kept"])])
+        stream.close()
+
+    def finish(sink, abandoned):
+        with lock:
+            text = bytes(sink["kept"]).decode("utf-8", errors="replace")
+            cut = abandoned or sink["total"] > len(sink["kept"]) or len(text) > bound
+            return text[:bound], cut, sink["hasher"].hexdigest()
+
+    sinks = tuple({"hasher": hashlib.sha256(), "kept": bytearray(), "total": 0} for _ in range(2))
+    timed_out = False
+    # Only a launch failure is a check result. Once the check exists, an OSError from owning or
+    # tearing it down propagates and refuses the run (Codex P1, round 16): converting it into a
+    # failed-check record would let the digest run over a tree never confirmed stopped.
+    try:
+        process = ProcessTree.launch(argv, cwd)
+    except OSError as exc:
+        message = str(exc).encode("utf-8")
+        text = message.decode("utf-8")
+        return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
+                "output_truncated": len(text) > bound,
+                "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
+    with ProcessTree.own(process) as tree:
+        readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
+                   threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
+        for reader in readers:
+            reader.start()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            tree.kill()
+        # A descendant that inherited the pipes — whether the check timed out or exited normally
+        # and left it behind — would hold the readers open forever. The drain is bounded; a reader
+        # still alive after the grace period means the tree is killed and the check is recorded
+        # as not completing within its bound, with the digest of what was actually observed.
+        abandoned = any(not reader.join(timeout=DRAIN_GRACE_SECONDS) and reader.is_alive() for reader in readers)
+        if abandoned:
+            tree.kill()
+            for reader in readers:
+                reader.join(timeout=DRAIN_GRACE_SECONDS)
+    # Nothing from the tree may still be running when the workspace is scanned and digested.
+    require(tree.stopped, "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
+    out, out_cut, out_hex = finish(sinks[0], abandoned)
+    err, err_cut, err_hex = finish(sinks[1], abandoned)
+    return {"exit_code": None if timed_out or abandoned else process.returncode,
+            "timed_out": timed_out or abandoned,
+            "stdout": out, "stderr": err, "output_truncated": out_cut or err_cut,
+            "output_sha256": stream_digest(out_hex, err_hex)}
+
+
+# Directories and other non-file entries count against this multiple of the file bound.
+ENTRY_MULTIPLIER = 4
+
+
+FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def is_link(entry):
+    """Whether a path or directory entry is a symlink or, on Windows, any reparse point.
+
+    An NTFS junction is not a symlink to `is_symlink()`, yet `resolve()` follows it and a scan
+    descends into it as an ordinary directory; the reparse-point attribute identifies junctions,
+    mount points and every other redirection alike, so all of them are refused as links.
+    """
+    if entry.is_symlink():
+        return True
+    if os.name != "nt":
+        return False
+    stat = entry.stat(follow_symlinks=False) if isinstance(entry, os.DirEntry) else os.lstat(entry)
+    return bool(getattr(stat, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def scan_workspace(workspace, policy):
+    """Every entry under the workspace, refused on any symlink and bounded; returns the files.
+
+    Every entry is inspected before filtering to files: a symlinked directory is not a file,
+    and rglob does not descend into it, so it would otherwise never be seen at all.
+    """
+    require(not is_link(workspace), "Workspace contains a symlink; refuse to digest it")
+    # Walked with os.scandir, one entry at a time, with both bounds checked as entries arrive:
+    # Path.rglob and Path.walk build each directory's full listing first, so a wide directory
+    # would be buffered before any bound applied.
+    limit = policy["workspace_digest_max_files"]
+    files, entries, pending = [], 0, [workspace]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as listing:
+            for entry in listing:
+                entries += 1
+                require(entries <= ENTRY_MULTIPLIER * limit,
+                        "Workspace exceeds the entry bound; decompose the artifact")
+                require(not is_link(entry), "Workspace contains a symlink; refuse to digest it")
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    files.append(Path(entry.path))
+                    require(len(files) <= limit, "Workspace exceeds the digest bound; decompose the artifact")
+    return sorted(files)
+
+
+def linked_component(path):
+    """The first existing component of an unresolved path that is a link, or None (ADR-024).
+
+    Every component is inspected before anything follows it: `resolve()` would replace a
+    symlinked (or, on Windows, junctioned) component with its target and every later check
+    would see an ordinary directory. `..` is refused first because lexical normalization would
+    collapse link/../x to x while the filesystem follows the link.
+    """
+    require(".." not in Path(path).parts, f"Path contains '..'; supply it without parent references: {path}")
+    absolute = Path(os.path.abspath(path))
+    for component in (absolute, *absolute.parents):
+        if component.exists() and is_link(component):
+            return component
+    return None
+
+
+def trusted_workspace(path, policy):
+    """Establish the workspace as trusted before any check runs, and return its resolved root.
+
+    Trust means: no link in any component of the supplied path, the root exists, and the
+    whole tree has been scanned (refused on any link, bounded). Every check's cwd is then
+    derived from this root through the same component inspection, and the scan is repeated
+    before each command and before the digest.
+    """
+    linked = linked_component(path)
+    require(linked is None, f"Workspace path is or lies under a link at {linked}; refuse to digest it")
+    workspace = Path(os.path.abspath(path)).resolve()
+    require(workspace.is_dir(), f"No workspace directory at {workspace}")
+    scan_workspace(workspace, policy)
+    return workspace
+
+
+def check_cwd(workspace, relative):
+    """A check's working directory, inspected component by component before it is resolved."""
+    linked = linked_component(workspace / relative)
+    require(linked is None, f"Check cwd is or lies under a link at {linked}; refuse to run it")
+    cwd = (workspace / relative).resolve()
+    require(cwd == workspace or workspace in cwd.parents, "Check cwd escapes the workspace")
+    require(cwd.is_dir(), f"Check cwd does not exist: {cwd}")
+    return cwd
+
+
 def run_checks(directory, workspace, timestamp=None):
     """Execute the contract's declared validation commands and record what was observed.
 
@@ -487,46 +964,33 @@ def run_checks(directory, workspace, timestamp=None):
     prior = replay(directory)
     state = prior[0]
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
-    workspace = Path(workspace).resolve()
-    require(workspace.is_dir(), f"No workspace directory at {workspace}")
     policy = state["policy"]
+    # Trust is established once, before any command runs (ADR-024); it is re-checked, never
+    # first checked, at each cwd, before each command and before the digest.
+    workspace = trusted_workspace(workspace, policy)
     results = []
     for check in state["contract"]["validation"]:
         command = check.get("command")
         if command is None:
+            empty = hashlib.sha256(b"").hexdigest()
             results.append({"validation_id": check["id"], "machine_runnable": False, "passed": False,
                             "argv": [], "exit_code": None, "duration_seconds": None, "timed_out": False,
                             "stdout": "", "stderr": "", "output_truncated": False,
-                            "output_sha256": router.digest({"stdout": "", "stderr": ""})})
+                            "output_sha256": stream_digest(empty, empty)})
             continue
-        cwd = (workspace / command.get("cwd", ".")).resolve()
-        require(cwd == workspace or workspace in cwd.parents, "Check cwd escapes the workspace")
-        require(cwd.is_dir(), f"Check cwd does not exist: {cwd}")
+        cwd = check_cwd(workspace, command.get("cwd", "."))
+        # Scanned before every command: an earlier check could create a link, a later one read
+        # through it and remove it, and a single pre-loop or final scan would see a clean tree.
+        scan_workspace(workspace, policy)
         timeout = command.get("timeout_seconds", policy["check_timeout_seconds"])
         started = time.monotonic()
-        timed_out = False
-        try:
-            completed_run = subprocess.run(command["argv"], cwd=cwd, capture_output=True,
-                                           timeout=timeout, shell=False)
-            exit_code, raw_out, raw_err = completed_run.returncode, completed_run.stdout, completed_run.stderr
-        except subprocess.TimeoutExpired as exc:
-            exit_code, raw_out, raw_err, timed_out = None, exc.stdout or b"", exc.stderr or b"", True
-        except OSError as exc:
-            exit_code, raw_out, raw_err = None, b"", str(exc).encode("utf-8")
+        observed = bounded_capture(command["argv"], cwd, timeout, policy["check_output_max_chars"])
         duration = time.monotonic() - started
-        out = raw_out.decode("utf-8", errors="replace") if isinstance(raw_out, bytes) else raw_out
-        err = raw_err.decode("utf-8", errors="replace") if isinstance(raw_err, bytes) else raw_err
-        bound = policy["check_output_max_chars"]
         results.append({"validation_id": check["id"], "machine_runnable": True,
-                        "passed": exit_code == 0 and not timed_out, "argv": list(command["argv"]),
-                        "exit_code": exit_code, "duration_seconds": round(duration, 3),
-                        "timed_out": timed_out, "stdout": out[:bound], "stderr": err[:bound],
-                        "output_truncated": len(out) > bound or len(err) > bound,
-                        "output_sha256": router.digest({"stdout": out, "stderr": err})})
-    files = sorted(path for path in workspace.rglob("*") if path.is_file())
-    require(not any(path.is_symlink() for path in files), "Workspace contains a symlink; refuse to digest it")
-    require(len(files) <= policy["workspace_digest_max_files"],
-            "Workspace exceeds the digest bound; decompose the artifact")
+                        "passed": observed["exit_code"] == 0 and not observed["timed_out"],
+                        "argv": list(command["argv"]), "duration_seconds": round(duration, 3), **observed})
+    # Scanned again after the commands, so a link created during execution is caught too.
+    files = scan_workspace(workspace, policy)
     listing = [{"path": path.relative_to(workspace).as_posix(),
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in files]
     checks = {"workspace": str(workspace), "workspace_digest": router.digest(listing),
@@ -537,7 +1001,7 @@ def run_checks(directory, workspace, timestamp=None):
             "satisfied": deterministic_satisfied(recorded)}
 
 
-def review_contract(paths, policy, reviews_used):
+def review_contract(paths, policy, used):
     report_def = SCHEMA["$defs"]["report"]
     return {
         "write_to": str(paths["report"]),
@@ -577,7 +1041,7 @@ def review_packet(state, paths):
         "reviewer": opened["reviewer"],
         "binding": state["binding"],
         "gates": {"risk": state["risk"], "required": state["gates"],
-                  "reviews_used": len(state["reviews"]),
+                  "reviews_used": reviews_used(state),
                   "max_review_attempts": state["policy"]["max_review_attempts"]},
         "contract": state["contract"],
         "result_supplied_by_worker": state["result"],
@@ -592,7 +1056,7 @@ def review_packet(state, paths):
         "open_questions": state["open_questions"],
         "paths": {"packet": str(paths["packet"]), "report": str(paths["report"]),
                   "rules": str(paths["rules"])},
-        "review_contract": review_contract(paths, state["policy"], len(state["reviews"])),
+        "review_contract": review_contract(paths, state["policy"], reviews_used(state)),
     }
     rendered = wp.canonical(document)
     readable = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
@@ -618,7 +1082,7 @@ def write_review_files(state, destination):
     return {"status": state["status"], "review_id": document["review_id"], "gate": document["gate"],
             "reviewer": document["reviewer"], "destination": str(paths["rundir"]),
             "packet": str(paths["packet"]), "expect_report_at": str(paths["report"]),
-            "packet_chars": len(readable), "reviews_used": len(state["reviews"]),
+            "packet_chars": len(readable), "reviews_used": reviews_used(state),
             "max_review_attempts": state["policy"]["max_review_attempts"]}
 
 
@@ -656,7 +1120,7 @@ def ingest_review(directory, report_path, timestamp=None):
     return {"status": recorded["status"], "reason": recorded["reason"], "verdict": report["verdict"],
             "review_id": latest["review_id"], "gate": latest["gate"],
             "contract_failures": len(report["contract_failures"]),
-            "reviews_used": len(recorded["reviews"]),
+            "reviews_used": reviews_used(recorded),
             "max_review_attempts": recorded["policy"]["max_review_attempts"],
             "acceptance_granted": False}
 
@@ -664,6 +1128,8 @@ def ingest_review(directory, report_path, timestamp=None):
 def decision_for(state, head):
     """The condensed cross-ledger decision this ledger currently supports."""
     reference = f"acceptance-ledger:{head}"
+    bound = {"binding": {key: state["binding"][key] for key in ("task_id", "revision", "contract_hash")},
+             "result_dispatch_id": state["result"]["dispatch_id"]}
     if state["accepted"] is not None:
         finished = current_completed(state, "model_review")
         if finished:
@@ -676,13 +1142,13 @@ def decision_for(state, head):
         evidence += [f"review:{r['review_id']}" for r in state["reviews"] if r["report"]][:17]
         return {"review_id": review_id, "verdict": "APPROVE", "reviewer": reviewer,
                 "summary": "All required acceptance gates passed; recorded in the acceptance ledger.",
-                "evidence": evidence, "contract_failures": [], "acceptance_reference": reference}
+                "evidence": evidence, "contract_failures": [], "acceptance_reference": reference, **bound}
     if state["user_decision"] is not None and state["user_decision"]["decision"] == "reject":
         return {"review_id": router.digest({"binding": state["binding"], "user_rejection": True}),
                 "verdict": "NEEDS_ESCALATION",
                 "reviewer": {"actor": state["user_decision"]["decider"], "model_family": "human", "tier": 4},
                 "summary": "User decision rejected acceptance: " + state["user_decision"]["reason"],
-                "evidence": [reference], "contract_failures": [], "acceptance_reference": reference}
+                "evidence": [reference], "contract_failures": [], "acceptance_reference": reference, **bound}
     finished = [r for r in state["reviews"] if r["report"] is not None]
     require(bool(finished), "No acceptance decision has been recorded yet")
     latest = finished[-1]
@@ -694,7 +1160,7 @@ def decision_for(state, head):
     return {"review_id": latest["review_id"], "verdict": report["verdict"],
             "reviewer": latest["reviewer"], "summary": report["summary"],
             "evidence": [reference, f"review:{latest['review_id']}"],
-            "contract_failures": failures, "acceptance_reference": reference}
+            "contract_failures": failures, "acceptance_reference": reference, **bound}
 
 
 def accept(directory, actor, timestamp=None):
@@ -708,6 +1174,10 @@ def accept(directory, actor, timestamp=None):
 def sync_feedback(directory, feedback_ledger, timestamp=None):
     state, _, head = replay(directory)
     decision = decision_for(state, head)
+    task = feedback.replay(feedback_ledger)[0]
+    expected = feedback.binding(task["packet"])
+    require(all(decision["binding"][key] == expected[key] for key in ("task_id", "revision", "contract_hash")),
+            "Acceptance ledger and feedback ledger are bound to different task revisions")
     recorded = feedback.review(feedback_ledger, decision, timestamp)
     return {"feedback_status": recorded["status"], "feedback_reason": recorded["reason"],
             "verdict": decision["verdict"], "packet_state": recorded["packet"]["state"]}
@@ -741,7 +1211,7 @@ def summary(state):
             "reviews": [{"review_id": r["review_id"], "gate": r["gate"], "reviewer": r["reviewer"],
                          "verdict": r["report"]["verdict"] if r["report"] else None,
                          "abandoned": r["abandoned"]} for r in state["reviews"]],
-            "reviews_used": len(state["reviews"]),
+            "reviews_used": reviews_used(state),
             "max_review_attempts": state["policy"]["max_review_attempts"],
             "attested": sorted(state["attestations"]), "waiver": state["waiver"],
             "user_decision": state["user_decision"], "resubmissions": state["resubmissions"],

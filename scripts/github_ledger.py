@@ -25,6 +25,10 @@ SHA = re.compile(r"[0-9a-f]{40}")
 # Rotating publishers or disabling writes must not make an existing registry unreadable.
 BINDING = ("schema_version", "repository", "state_branch", "accepted_branch", "master_issue")
 TASK = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
+# Feedback statuses whose derived packet may be extended by reviewer/integrator events and
+# published as accepted: the attempt completed and awaits review, or the acceptance controller
+# recorded its ACCEPTED decision through sync-feedback (ADR-025). Held or unfinished never.
+PUBLISHABLE = {"REVIEW_PENDING", "ACCEPTED"}
 
 
 def exact(value, keys):
@@ -110,7 +114,9 @@ def row_valid(task_id, row, anchor):
         require(state["anchor"] == anchor, "Feedback approval differs from this registry")
         packet_extends(state["packet"], row["packet"])
         if state["packet"] != row["packet"]:
-            require(state["status"] == "REVIEW_PENDING" and not state["pending"], "Cannot extend a held or unfinished feedback packet")
+            # A completed attempt awaiting review, or one the acceptance controller has already
+            # recorded as ACCEPTED (ADR-025), may be extended by reviewer/integrator events only.
+            require(state["status"] in PUBLISHABLE and not state["pending"], "Cannot extend a held or unfinished feedback packet")
             require(state["packet"]["revision_history"] == row["packet"]["revision_history"], "Review cannot revise the feedback contract")
             for event in row["packet"]["events"][len(state["packet"]["events"]):]:
                 require(event["role"] in {"reviewer", "integrator"}, "Only review/integration may extend completed feedback")
@@ -132,7 +138,7 @@ def row_valid(task_id, row, anchor):
             require(isinstance(receipt[name], list) and 0 < len(receipt[name]) <= 20 and
                     all(isinstance(item, str) and 0 < len(item.strip()) <= 2000 for item in receipt[name]), "Acceptance needs bounded verification and review evidence")
         require(row["packet"]["state"] == "VERIFIED", "Acceptance requires a VERIFIED packet")
-        require(state is None or state["status"] == "REVIEW_PENDING", "Feedback is not ready for acceptance")
+        require(state is None or state["status"] in PUBLISHABLE, "Feedback is not ready for acceptance")
     require(isinstance(row["discoveries"], dict), "Discovery mappings must be an object")
     known = {router.digest(item) for item in state["discoveries"]} if state else set()
     require(set(row["discoveries"]) <= known, "Unknown discovery mapping")
