@@ -93,7 +93,13 @@ class SerialAdapter:
                 length = header[1]
                 if 2 + length + 1 > self._frame_max:
                     raise RuntimeError("oversized frame; port closed")
-                body = self._read_within(length + 1, deadline, first_contact=False)
+                # A pure poll (timeout_s == 0) never waits at all, at either position, so it can
+                # never return data later than its own instant; the body earns the same
+                # unconditional first contact the header always gets (post-merge independent
+                # review, ADR-057). A positive timeout keeps ADR-042: only the header's contact is
+                # unconditional, so a body read after a real deadline the header already spent
+                # cannot scoop up data that arrived only after that deadline.
+                body = self._read_within(length + 1, deadline, first_contact=(timeout_s == 0))
                 if len(body) < length + 1:
                     raise TransportTimeout("frame incomplete at timeout; port closed")
                 return header + body
@@ -103,11 +109,14 @@ class SerialAdapter:
     def _read_within(self, size: int, deadline: float, first_contact: bool) -> bytes:
         """Up to `size` bytes, each read bounded by the time left; stops short when time runs out.
 
-        The allowance is the receive call's, not this read's (ADR-042): only the call's first
-        port contact is made unconditionally (a zero timeout is a poll of what has arrived).
-        After it, the port is not asked again once the deadline has passed — whether the read is
-        the header's or the body's — so bytes that arrive late are never returned as a frame
-        received in time.
+        `first_contact` exempts this call's own first port contact from the deadline (ADR-042,
+        ADR-057): the header's always does, and the body's does too exactly when the whole
+        `receive()` call is itself a zero-timeout poll (nothing was ever going to wait, so an
+        instantaneous check at either position cannot return data any later than the instant it
+        was called). With a positive timeout, only the header's contact is unconditional; once
+        the deadline has passed, a further read at either position -- a retry at the same one, or
+        the body's own first one -- is refused, so bytes that arrive after a real deadline are
+        never returned as a frame received in time.
         """
         buffer = b""
         asked = not first_contact

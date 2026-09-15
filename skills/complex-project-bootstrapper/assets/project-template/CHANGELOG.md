@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-15 — Issue #9 follow-up: post-merge independent review answered (ADR-056, ADR-057)
+
+- P1: the printed hardware-evidence lines omitted `validation_id`, so a schema-valid record made for one hardware-rung check could be appended unchanged for a different check in the same submission -- level, device, firmware, observed_at, outcome, operator, dispatch_id and artifact_sha256 can all legitimately match across two checks. Reproduced with a room-temperature record attested against a maximum-temperature check; default status wrongly reported `VERIFIED_ON_HARDWARE`. A hardware-rung attestation now also carries `validation_id`, checked against the attestation's own target at append time and against the record on the record basis.
+- P2: ADR-042 made a receive() body read's first contact conditional on remaining time regardless of the requested timeout, so `receive(0)` against a port with the whole frame already buffered read the header, then refused to look at the already-buffered body and raised a timeout for a complete frame that was there from the start. The body read now earns the same unconditional first contact the header gets, exactly when the whole call is itself a zero-timeout poll; a positive timeout keeps ADR-042's protection unchanged.
+- Both findings and their reproduction steps came from an independent review of `main` after PR #34's merge, posted through the maintainer's own GitHub account.
+
 ## 2026-09-15 — Issue #9 PR #34: Codex round 23 answered (ADR-055)
 
 - P2: `templates/software-hardware/PROFILE.md` and its identical `DOMAIN_PROFILE.md` copy still said acceptance plus full attestation earns `VERIFIED_ON_HARDWARE` unconditionally, contradicting `status()`'s actual behavior (ADR-050) for every worked example packet, all six of which declare `synthetic: true`. Both now state the ceiling explicitly.

@@ -228,6 +228,30 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertTrue(port.closed, "a started frame closes the port")
         self.assertFalse(adapter.is_open)
 
+    def test_zero_timeout_returns_a_complete_frame_already_buffered(self):
+        # Post-merge independent review (ADR-057): ADR-042 made the body's own first read
+        # conditional on remaining time, but a zero-timeout receive() never waits at either
+        # position -- an instantaneous poll cannot itself return data any later than the instant
+        # it was called. A whole frame already sitting in the port must still come back complete,
+        # not be split into a header-only read that then refuses to look at the buffered body.
+        port = FakePort([WHOLE_FRAME])
+        adapter = self.adapter(port)
+        self.assertEqual(adapter.receive(0), WHOLE_FRAME)
+        self.assertEqual(len(port.timeouts), 2, "header and body were each polled once")
+        self.assertTrue(all(t == 0.0 for t in port.timeouts))
+        self.assertTrue(adapter.is_open, "a complete frame in time leaves the port open")
+
+    def test_zero_timeout_with_only_the_header_buffered_still_times_out(self):
+        # The body's own unconditional first poll (above) must not become a second chance to
+        # wait: at timeout_s=0 a body that is not yet buffered still closes the port as an
+        # incomplete frame, exactly as a positive timeout does.
+        port = FakePort([WHOLE_FRAME[:2]])
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "frame incomplete at timeout; port closed"):
+            adapter.receive(0)
+        self.assertEqual(len(port.timeouts), 2, "header and the one body poll, no retry")
+        self.assertTrue(port.closed)
+
     def test_partial_frame_at_timeout_closes_the_port(self):
         # ADR-031: a frame this call started but could not finish never lingers to be read as
         # the next frame's header; the port is closed before the timeout is raised.
