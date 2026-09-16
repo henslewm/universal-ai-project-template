@@ -93,8 +93,8 @@ class SerialAdapter:
             raise ValueError("timeout must be non-negative")
         deadline = time.monotonic() + timeout_s
         polled = timeout_s == 0
-        budget = self._port.available() if polled else 0
         with self._wire():
+            budget = self._port.available() if polled else 0
             if polled:
                 header, budget = self._read_polled(2, budget)
             else:

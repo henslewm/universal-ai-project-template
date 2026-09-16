@@ -167,6 +167,21 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertTrue(port.closed)
         self.assertFalse(adapter.is_open)
 
+    def test_a_raising_available_closes_the_port(self):
+        # PR #35 review of ADR-058: sampling available() happened before entering _wire(), so a
+        # port that raises answering it (a disconnect discovered mid-poll) left the adapter open,
+        # contradicting SHB-04's rule that any raising port call closes the port.
+        class DisconnectedPort(FakePort):
+            def available(self):
+                raise OSError("device disconnected")
+
+        port = DisconnectedPort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(OSError, "disconnected"):
+            adapter.receive(0)
+        self.assertTrue(port.closed)
+        self.assertFalse(adapter.is_open)
+
     def test_a_driver_that_fails_to_close_still_leaves_the_adapter_closed(self):
         # ADR-036: closing is unconditional. The wire failure is what propagates; the failing
         # close is attached as its cause, and the adapter no longer holds the port.
