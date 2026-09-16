@@ -43,6 +43,11 @@ class FakePort:
     def close(self):
         self.closed = True
 
+    def available(self):
+        """How many bytes are sitting in the buffer right now, without consuming any of them --
+        a real port's `in_waiting`/`bytesAvailable()` equivalent."""
+        return len(self.buffer)
+
 
 class TricklePort(FakePort):
     """Returns at most one byte per read, as a slow serial line would."""
@@ -162,6 +167,21 @@ class SerialAdapterTests(unittest.TestCase):
         self.assertTrue(port.closed)
         self.assertFalse(adapter.is_open)
 
+    def test_a_raising_available_closes_the_port(self):
+        # PR #35 review of ADR-058: sampling available() happened before entering _wire(), so a
+        # port that raises answering it (a disconnect discovered mid-poll) left the adapter open,
+        # contradicting SHB-04's rule that any raising port call closes the port.
+        class DisconnectedPort(FakePort):
+            def available(self):
+                raise OSError("device disconnected")
+
+        port = DisconnectedPort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(OSError, "disconnected"):
+            adapter.receive(0)
+        self.assertTrue(port.closed)
+        self.assertFalse(adapter.is_open)
+
     def test_a_driver_that_fails_to_close_still_leaves_the_adapter_closed(self):
         # ADR-036: closing is unconditional. The wire failure is what propagates; the failing
         # close is attached as its cause, and the adapter no longer holds the port.
@@ -225,6 +245,67 @@ class SerialAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(TransportTimeout, "frame incomplete at timeout; port closed"):
             adapter.receive(0.03)
         self.assertEqual(len(port.timeouts), 1, "the body was not polled after the deadline")
+        self.assertTrue(port.closed, "a started frame closes the port")
+        self.assertFalse(adapter.is_open)
+
+    def test_zero_timeout_returns_a_complete_frame_already_buffered(self):
+        # Post-merge independent review (ADR-057): ADR-042 made the body's own first read
+        # conditional on remaining time, but a zero-timeout receive() never waits at either
+        # position -- an instantaneous poll cannot itself return data any later than the instant
+        # it was called. A whole frame already sitting in the port must still come back complete,
+        # not be split into a header-only read that then refuses to look at the buffered body.
+        port = FakePort([WHOLE_FRAME])
+        adapter = self.adapter(port)
+        self.assertEqual(adapter.receive(0), WHOLE_FRAME)
+        self.assertEqual(len(port.timeouts), 2, "header and body were each polled once")
+        self.assertTrue(all(t == 0.0 for t in port.timeouts))
+        self.assertTrue(adapter.is_open, "a complete frame in time leaves the port open")
+
+    def test_zero_timeout_with_only_the_header_buffered_still_times_out(self):
+        # The body's own unconditional first poll (above) must not become a second chance to
+        # wait: at timeout_s=0 a body that is not yet buffered still closes the port as an
+        # incomplete frame, exactly as a positive timeout does.
+        port = FakePort([WHOLE_FRAME[:2]])
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "frame incomplete at timeout; port closed"):
+            adapter.receive(0)
+        self.assertEqual(len(port.timeouts), 2, "header and the one body poll, no retry")
+        self.assertTrue(port.closed)
+
+    def test_zero_timeout_drains_an_already_buffered_frame_trickled_in_chunks(self):
+        # PR #35 review (ADR-058): a port that can only hand back one byte per call, but whose
+        # buffer already holds the whole frame before receive() is ever called, must still be
+        # drained completely at timeout_s=0 -- the bytes were all there at the poll instant, so
+        # chunking must not turn them into a spurious incomplete-frame timeout.
+        port = TricklePort(WHOLE_FRAME)
+        adapter = self.adapter(port)
+        self.assertEqual(adapter.receive(0), WHOLE_FRAME)
+        self.assertEqual(len(port.timeouts), 5, "one non-blocking read per byte of the frame")
+        self.assertTrue(all(t == 0.0 for t in port.timeouts))
+        self.assertTrue(adapter.is_open, "a complete frame in time leaves the port open")
+
+    def test_zero_timeout_does_not_return_a_body_that_only_arrives_after_the_poll_instant(self):
+        # PR #35 review (ADR-058): a header genuinely present when receive(0) polls the port must
+        # not license reading a body that only shows up afterward, however fast the two reads
+        # happen to be back to back -- no elapsed-wall-clock measurement can tell that apart from
+        # the trickled-but-already-buffered case above, so this fake is driven by an explicit call
+        # count, never real time, to stay deterministic.
+        class LateBodyAfterPollPort(FakePort):
+            def __init__(self):
+                super().__init__([WHOLE_FRAME[:2]])
+
+            def read(self, size, timeout_s):
+                if len(self.timeouts) == 1:
+                    # the header's own read has already happened; the body "arrives" only now --
+                    # strictly after `available()` reported the poll-instant budget.
+                    self.buffer[:] = self.buffer + WHOLE_FRAME[2:]
+                return super().read(size, timeout_s)
+
+        port = LateBodyAfterPollPort()
+        adapter = self.adapter(port)
+        with self.assertRaisesRegex(TransportTimeout, "frame incomplete at timeout; port closed"):
+            adapter.receive(0)
+        self.assertEqual(len(port.timeouts), 2, "the header, and one zero-sized body poll")
         self.assertTrue(port.closed, "a started frame closes the port")
         self.assertFalse(adapter.is_open)
 

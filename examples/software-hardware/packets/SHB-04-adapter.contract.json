@@ -22,11 +22,11 @@
   "inputs": [
     {
       "name": "Port contract",
-      "description": "write(bytes) -> int, read(size, timeout_s) -> bytes returning what arrived within timeout_s, close()."
+      "description": "write(bytes) -> int, read(size, timeout_s) -> bytes returning what arrived within timeout_s, available() -> int reporting the currently buffered byte count without blocking or consuming it, close()."
     },
     {
       "name": "Host rules",
-      "description": "Read one whole frame by declared length within the caller's timeout, handing each port read the time remaining; any failure on the wire — a frame left incomplete at the deadline, a short write, an oversized frame, a port call that raises — closes the port before it propagates; only a timeout that consumed nothing leaves it open; closed adapter refuses I/O."
+      "description": "Read one whole frame by declared length within the caller's timeout, handing each port read the time remaining; any failure on the wire — a frame left incomplete at the deadline, a short write, an oversized frame, a port call that raises — closes the port before it propagates; only a timeout that consumed nothing leaves it open; closed adapter refuses I/O. A zero-timeout receive polls at most as many bytes as available() reported before it touched the port, so an already-buffered frame is assembled whatever the port's chunking, while a byte that arrives only after that poll is never returned as received in time."
     },
     {
       "name": "Hardware-in-loop procedure",
@@ -151,6 +151,10 @@
     "hardware_assumptions": [
       {
         "assumption": "The host serial driver delivers bytes in order and read(size, timeout_s) returns what has arrived within timeout_s, never blocking past it.",
+        "source_id": "SRC-SYNTH-SPEC"
+      },
+      {
+        "assumption": "The host serial driver also reports, via available()/in_waiting, exactly how many bytes are currently buffered without blocking or consuming any of them.",
         "source_id": "SRC-SYNTH-SPEC"
       },
       {

@@ -102,7 +102,8 @@ def hardware_lines():
             "firmware=0.0.0-synthetic", f"observed_at={wp.now()}", "outcome=pass", "operator=Operator",
             "dispatch_id=" + "e" * 64,  # matches make_result's default dispatch_id
             # acceptance.artifact_identity of make_artifact()'s default reference and content combined (ADR-054)
-            "artifact_sha256=ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff"]
+            "artifact_sha256=ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff",
+            "validation_id=VAL-FRAMES"]  # matches this fixture's one hardware-rung check (ADR-056)
 
 
 CONTROLLER, ARCHITECT = "Acceptance controller", "Architect"

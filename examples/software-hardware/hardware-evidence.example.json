@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "task_id": "SHB-04-adapter",
   "revision": 1,
-  "contract_hash": "7d63523a572d8b073714984141f1955fa4febe2c39f7e9aba19b033529befca8",
+  "contract_hash": "58dfa34374d2eada2b675c5af6d37c853a098fdc8d2500002fd468e4e77ce121",
   "dispatch_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "artifact_sha256": "ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff",
   "validation_id": "VAL-HIL",
