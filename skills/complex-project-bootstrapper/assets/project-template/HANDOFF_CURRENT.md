@@ -1,12 +1,18 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-15 UTC
+- **Prepared:** 2026-09-16 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Branch:** main
-- **Latest accepted merge:** `d873ec5cd1be503a19880eacbaf9cfba764d9fa5` (PR #34, closed #9). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** #9 closed. Next unblocked child per master #14's ordered list is #10 (complete high-conflict NC family-law template).
+- **Latest accepted merge:** `d2350ec25474816545b4418a4c8c5cd97516e2c6` (PR #35, Issue #9 follow-up, ADR-058). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Scope:** #9 closed, and its post-merge follow-up (PR #35) is now also merged. Next unblocked child per master #14's ordered list is #10 (complete high-conflict NC family-law template).
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). Issues #2 through #9 are closed through merged PRs #15 to #34. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). Issues #2 through #9 are closed through merged PRs #15 to #34; #9's post-merge follow-up is merged through PR #35. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
+
+## What PR #35 left you (post-#9 follow-up, ADR-058)
+
+An independent review of merged `main` after PR #34 found two real defects, answered on branch `issue-9-postmerge-review` as ADR-056 (hardware-evidence `validation_id` binding) and ADR-057 (a fix to the sample adapter's zero-timeout `receive()`). PR #35's own review then found ADR-057's fix was incomplete (P2): making the body's first port contact unconditional whenever `timeout_s == 0` reopened the ADR-042 late-arrival hazard from the other direction, and never fixed a pre-existing bug where a port handing back an already-fully-buffered frame in small chunks still timed out. The reviewer's own reproduction proved this could not be fixed by further wall-clock/deadline tuning: no two of a port's own read calls, however fast, can be assumed to have happened at the same instant. The fix (ADR-058) extends the sample's `Port` protocol with `available()`, sampled once per zero-timeout `receive()` as a fixed byte budget for the whole call. A second review round then found the `available()` sample itself ran outside the `_wire()` close-on-failure guard (fixed) and a stale documented test count (fixed). Both the Codex bot and an independent reviewer reported the final head (`cb2f3b9`) clean before merge; all three finding threads on the PR were replied to with their fixing commits.
+
+This is the third time this generic class of bug (a deadline/timing invariant patched per-symptom instead of by its true invariant) has recurred in this repository (ADR-024, the ADR-031→042 series, and now ADR-057→058) — R-012 held again. If #10 or any later domain module adds its own timing- or ordering-sensitive polling logic, look for the actual invariant up front rather than patching the specific reproduction a reviewer hands you.
 
 ## What #9 left you
 
@@ -22,7 +28,7 @@ Third, R-012 (stop for diagnosis when a review class recurs) held again: the sub
 
 ## Verified state
 
-360 tests pass on Windows; the acceptance (68, 3 Windows-only skips), work-packet (41), software-hardware (50) and feedback (47) suites pass under WSL Linux. Repository validation passes 81 required paths and `scripts/sync_skills.py --check` reports 0 differing files. CI `validate` was green on the merged head.
+361 tests pass on Windows (the sample suite under `examples/software-hardware/sample` grew from 41 to 44 with PR #35's two ADR-058 regressions plus one for the `_wire()` fix). Repository validation passes 81 required paths and `scripts/sync_skills.py --check` reports 0 differing files. Both GitHub `validate` checks and the Codex review were green on the merged head.
 
 ## Exact next action
 
