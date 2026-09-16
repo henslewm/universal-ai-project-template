@@ -142,9 +142,9 @@ class ContractRuleTests(unittest.TestCase):
     def test_domain_rules_apply_only_to_the_registered_profile(self):
         broken = example()
         broken["domain"] = {"synthetic": True}
-        self.assertEqual(wp.validate_contract(broken, "family-law"), [])
+        self.assertEqual(wp.validate_contract(broken, "civil-rights-nc"), [])
         self.assertTrue(any(e.startswith("domain:") for e in errors_for(broken)))
-        self.assertIsNone(wp.domain_module("family-law"))
+        self.assertIsNone(wp.domain_module("civil-rights-nc"))
         # There is no default profile: a caller cannot skip the domain rules by omitting it.
         with self.assertRaises(TypeError):
             wp.validate_contract(broken)

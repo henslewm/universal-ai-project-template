@@ -1,0 +1,142 @@
+{
+  "title": "Fictional child-support calculation inputs",
+  "parent": {
+    "objective": "Maintain a source-pinned child-support calculation for the fictional Doe v. Doe matter, distinguishing inputs recomputed by rule from figures a party has merely reported.",
+    "milestone": "Support-calculation inputs verified against primary financial records"
+  },
+  "goal": "Recompute the fictional support-worksheet arithmetic from stated inputs and separately track which reported income figures have been checked against a primary financial record.",
+  "non_goals": [
+    "Advise on relief, deviation, or enforcement.",
+    "Treat a party's reported income as established without a primary-source check."
+  ],
+  "scope": {
+    "allowed": [
+      "Recompute the fictional worksheet's combined-income and pro-rata arithmetic.",
+      "Track fact status for each reported income figure."
+    ],
+    "prohibited": [
+      "Assert a reported income figure as verified without a bound primary-source record.",
+      "Introduce real people, income figures, or financial records."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Fictional support worksheet inputs",
+      "description": "Party A fictional reported gross monthly income $6,000; Party B fictional reported gross monthly income $4,000. Both fictional; establish no real financial fact."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Worksheet arithmetic record",
+      "description": "Recomputed combined income and each party's pro-rata share."
+    },
+    {
+      "name": "Fact-status ledger",
+      "description": "Each reported income figure tagged with its declared fact status and, where checked, the primary source consulted."
+    }
+  ],
+  "interface": {
+    "name": "fictional_support_worksheet",
+    "version": "1.0",
+    "description": "Input reported figures; output recomputed arithmetic and a fact-status ledger."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "Both income figures are invented solely for this worked example.",
+    "Pro-rata share is each party's income divided by combined income."
+  ],
+  "sources": [
+    {
+      "id": "SRC-FAM10-WORKSHEET",
+      "reference": "The two fictional reported income figures embedded in this contract's inputs.",
+      "authority": "Synthetic fixture manifest only; no real financial record."
+    },
+    {
+      "id": "SRC-FAM10-PARTYA-FINANCIAL",
+      "reference": "Fictional Party A financial-affidavit exhibit (illustrative only; not present in this repository).",
+      "authority": "Would be a primary financial record if real; here it is a synthetic placeholder for the worked example."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-ARITHMETIC",
+      "description": "Combined income and each party's pro-rata share are recomputed correctly from the stated inputs."
+    },
+    {
+      "id": "AC-FACT-STATUS",
+      "description": "Party A's reported income is tracked as an inference until checked against a primary financial record, never presented as verified by repetition."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-ARITHMETIC",
+      "description": "Recompute combined income and pro-rata shares and compare to the worksheet.",
+      "criterion_ids": [
+        "AC-ARITHMETIC"
+      ],
+      "evidence_required": [
+        "Recomputed combined income and pro-rata shares compared to the stated worksheet values."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "a, b = 6000, 4000; combined = a + b; share_a = round(a / combined, 4); share_b = round(b / combined, 4); assert combined == 10000 and share_a == 0.6 and share_b == 0.4; print('worksheet arithmetic verified')"
+        ]
+      }
+    },
+    {
+      "id": "VAL-INCOME-SOURCE",
+      "description": "A non-implementer reviews Party A's financial-affidavit exhibit and confirms whether it supports the reported income figure.",
+      "criterion_ids": [
+        "AC-FACT-STATUS"
+      ],
+      "evidence_required": [
+        "A source verification record binding the reviewed exhibit, its outcome, and the reviewing operator."
+      ]
+    }
+  ],
+  "complexity": "medium",
+  "risk": "medium",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    3
+  ],
+  "context_scope": [
+    "This contract and the embedded fictional worksheet inputs.",
+    "The derived arithmetic record and fact-status ledger."
+  ],
+  "architecture_boundaries": [
+    "Keep a reported figure distinct from a primary-source-verified figure until the ledger earns the upgrade.",
+    "Make no legal determination and perform no external writes."
+  ],
+  "domain": {
+    "synthetic": true,
+    "workstream": "support_financial",
+    "fact_basis": "UNVERIFIED_FACT",
+    "fact_assertions": [
+      {
+        "assertion": "Party A's gross monthly income is $6,000.",
+        "fact_status": "INFERENCE",
+        "source_id": "SRC-FAM10-WORKSHEET"
+      }
+    ],
+    "source_references": [
+      "SRC-FAM10-WORKSHEET",
+      "SRC-FAM10-PARTYA-FINANCIAL"
+    ],
+    "validation_levels": {
+      "VAL-ARITHMETIC": "structural",
+      "VAL-INCOME-SOURCE": "primary_source_verified"
+    },
+    "template_child_issue": 10
+  }
+}

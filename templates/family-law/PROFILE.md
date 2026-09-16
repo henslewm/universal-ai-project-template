@@ -1,20 +1,93 @@
 # Domain Profile — North Carolina Family Law
 
-This branch is the family-law specialization of the universal autonomous project template.
+This is the family-law specialization of the universal autonomous project template: evidence-first
+case research and preparation, built so that repetition never converts an allegation into a fact.
+`AUTONOMY_CONTROL_PLANE.md` is the controlling workflow policy; the controllers named below are
+the mechanism.
 
 ## Startup gate
-Autonomy is OFF until an interactive intake is completed and the user approves the project charter, case architecture, source map, objective hierarchy, deadlines, and human-intervention triggers.
 
-## Operating model
-Use the repository as durable state. Keep verified facts, allegations, inferences, disputed facts, legal propositions, and unknowns separate. Preserve original source material and provenance. Prefer controlling orders, filed docket material, transcripts, admitted exhibits, authenticated records, discovery responses, and primary legal authority over recollection or summaries.
+Autonomy is OFF until interactive intake is complete and the user approves the exact package.
+`scripts/validate_bootstrap.py` requires, for this profile, a meaningful answer to every domain
+orientation field before review or activation: court/county, case number(s), parties and
+procedural posture; controlling orders and judgments in effect; ranked objectives, disputed
+issues and deadlines; discovery served, received and outstanding; evidence/exhibit sources and
+preservation; financial/support inputs; parenting/custody inputs; known adverse facts;
+appellate-preservation posture; and standing restrictions/reserved consequential actions. The
+architect then presents the case architecture, source map, objective hierarchy, deadlines, and
+human-intervention triggers. A placeholder answer is refused, not deferred.
 
 ## Case decomposition
-Maintain distinct but linked workstreams for docket/procedure, custody/parenting, support/financial calculations, discovery, enforcement/contempt, evidentiary issues, communications, appellate preservation, deadlines, requested relief, and conduct issues when legally relevant.
 
-Each material legal issue should have a bounded work packet containing the precise question, jurisdiction, procedural posture, governing rule/standard, strongest adverse authority, supporting authority, facts/evidence mapped to each requirement, missing evidence, counterarguments, procedural vehicle, requested outcome, preservation requirements, confidence, and next action.
+Maintain distinct but linked workstreams for docket/procedure, custody/parenting, support/
+financial calculations, discovery, enforcement/contempt, evidentiary issues, communications,
+conduct issues when legally relevant, appellate preservation, deadlines, and requested relief.
+Every packet names exactly one workstream from this list. A packet that spans several is not
+independently testable and is decomposed further. `examples/family-law/` is a worked
+decomposition.
+
+## Work packet
+
+The common contract is unchanged. For this profile the `domain` block is structural, validated by
+`config/domains/family-law.schema.json` and `scripts/family_law.py` wherever a contract is
+validated:
+
+- `workstream`: the one linked workstream.
+- `fact_assertions`: every material factual claim the packet's output rests on, each declared
+  with its category (`ALLEGATION`, `DISPUTED_FACT`, `INFERENCE`, `LEGAL_PROPOSITION`, or
+  `UNKNOWN`) and citing a contract source. Empty means the packet asserts no material fact and is
+  `NOT_FACT_ASSERTING`.
+- `source_references`: contract sources the packet's claims rely on; required when any fact
+  assertion exists.
+- `adverse_authority`: the strongest authority against the packet's own position, each citing a
+  contract source. Required non-empty whenever any assertion is declared `LEGAL_PROPOSITION`.
+- `validation_levels`: every validation id mapped to exactly one rung of the ladder.
+- `fact_basis`: `UNVERIFIED_FACT` or `NOT_FACT_ASSERTING`. A contract cannot declare
+  `VERIFIED_FACT`; it is earned, never authored. The block is closed — no undeclared key and no
+  free text can carry that literal anywhere in it.
+
+## Verification ladder
+
+structural → citation_linked → primary_source_verified.
+
+The first two rungs are machine-runnable: each such validation must declare a `command`, and the
+acceptance controller's deterministic gate re-executes it in the reviewed workspace (completeness,
+cross-reference and citation-linkage checks — the kind of thing a script can verify). The rung
+above them must not declare a command: it fails closed to an attestation by a non-implementer
+operator who actually read the primary source, and that attestation must bind a structured source
+verification record by digest. A primary-source rung with a command is refused as a script
+masquerading as a human review; a citation check without one is refused as attestation
+substituting for a runnable check. `scripts/family_law.py status` derives the earned fact basis
+from the ledger: `VERIFIED_FACT` only for an accepted task whose primary-source rungs were all
+attested, every one supporting the claim, and whose contract does not declare
+`domain.synthetic: true` — every worked example in this template declares it, so none of them can
+earn `VERIFIED_FACT`. A primary source can also actively contradict the claim it was consulted to
+check, or be inconclusive: `status` reports `CONTRADICTED_BY_SOURCE` as its own outcome, ahead of
+every other reason, and an inconclusive review is reported unverified with that reason stated —
+neither is masked as a generic failure, and neither ever earns `VERIFIED_FACT`. The output names
+its `evidence_basis`: without `--evidence-dir` the status rests on the ledger's attestations and
+their declared outcomes; with `--evidence-dir` every bound record is found by digest, validated,
+and re-verified for task, revision, contract hash, submission identity, validation, rung, and the
+attesting operator. A ledger stored before these rules existed replays marked with its shortfall
+for audit and acceptance status; only new events are refused, and the fact-basis derivation is the
+one that refuses.
+
+## Cost posture
+
+Indexing, chronology, deadline arithmetic, citation linkage, and other bounded, deterministic work
+route to the local tiers first; objective failures and stakes, never preference, drive escalation.
+A packet asserting a disputed allegation or a legal proposition carries elevated risk so the
+acceptance floor adds independent model review and, at high stakes, the cross-family gate.
+Primary-source reviews are operator actions and are never dispatched to a worker.
 
 ## GitHub ledger
-Use one tracking issue per major objective and bounded issues for research questions, evidence gaps, discovery analysis, hearing preparation, and draft work. Issue comments are the progress/evidence ledger. Material changes to durable project documents move through PRs. New factual findings become separate issues rather than silently expanding another theory.
+
+Use one tracking issue per major objective and bounded issues for research questions, evidence
+gaps, discovery analysis, hearing preparation, and draft work. Issue comments are the
+progress/evidence ledger. Material changes to durable project documents move through PRs. New
+factual findings become separate issues rather than silently expanding another theory. Primary-
+source observations are recorded as bound source verification records and their attestations, not
+as prose in a comment.
 
 ## Model routing
 T0/T1 LM Studio: document organization, metadata normalization, scoped extraction, deterministic calculations, comparison of known fields, chronology support.

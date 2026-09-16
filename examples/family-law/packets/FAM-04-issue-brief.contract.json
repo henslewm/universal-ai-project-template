@@ -1,0 +1,134 @@
+{
+  "title": "Fictional legal-proposition issue brief",
+  "parent": {
+    "objective": "Maintain a source-pinned issue brief for the fictional Doe v. Doe matter's relief request, citing supporting and adverse authority together.",
+    "milestone": "Legal proposition citation-linked and adverse authority cited"
+  },
+  "goal": "State the fictional legal proposition supporting the requested relief, cite the fictional supporting authority, and cite the strongest fictional adverse authority against it.",
+  "non_goals": [
+    "Determine the outcome of the proposition.",
+    "File or send any brief or motion."
+  ],
+  "scope": {
+    "allowed": [
+      "State the proposition and check that every cited authority resolves to a declared source.",
+      "Verify the brief cites at least one adverse authority."
+    ],
+    "prohibited": [
+      "Cite a real statute, case, or authority.",
+      "Omit adverse authority for a stated legal proposition."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Fictional legal proposition",
+      "description": "Under the fictional Synthetic Domestic Relations Code section 10-100, the requested modification is warranted by a substantial change in circumstances. Fictional; establishes no real legal conclusion."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Issue brief",
+      "description": "The proposition, its supporting authority, and the strongest adverse authority against it, each resolving to a declared contract source."
+    }
+  ],
+  "interface": {
+    "name": "fictional_issue_brief",
+    "version": "1.0",
+    "description": "Input the proposition; output a brief with citation-linked supporting and adverse authority."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "The fictional code section and adverse authority are invented solely for this worked example."
+  ],
+  "sources": [
+    {
+      "id": "SRC-FAM10-CODE-10-100",
+      "reference": "Fictional Synthetic Domestic Relations Code section 10-100 (illustrative only; no such code exists).",
+      "authority": "Fictional statute invented for this worked example."
+    },
+    {
+      "id": "SRC-FAM10-ADVERSE-CASE",
+      "reference": "Fictional Smythe v. Smythe, Synthetic Ct. App. 2020 (illustrative only; no such case exists).",
+      "authority": "Fictional adverse authority invented for this worked example, holding against the proposition's own reading of section 10-100."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-CITATIONS-RESOLVE",
+      "description": "Every citation in the brief resolves to a source declared in this contract."
+    },
+    {
+      "id": "AC-ADVERSE-CITED",
+      "description": "The brief cites at least one adverse authority against its own proposition."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-CITATION-LINKAGE",
+      "description": "Check every cited source id against the declared sources and confirm adverse authority is present.",
+      "criterion_ids": [
+        "AC-CITATIONS-RESOLVE",
+        "AC-ADVERSE-CITED"
+      ],
+      "evidence_required": [
+        "Citation-to-source resolution for every reference in the brief.",
+        "Confirmation that adverse_authority is non-empty."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "sources = {'SRC-FAM10-CODE-10-100', 'SRC-FAM10-ADVERSE-CASE'}; cited = {'SRC-FAM10-CODE-10-100', 'SRC-FAM10-ADVERSE-CASE'}; adverse = ['SRC-FAM10-ADVERSE-CASE']; assert cited <= sources and adverse; print('citations linked, adverse authority present')"
+        ]
+      }
+    }
+  ],
+  "complexity": "medium",
+  "risk": "medium",
+  "routing": {
+    "min_tier": 2,
+    "max_tier": 4,
+    "reasoning_effort": "high",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    4
+  ],
+  "context_scope": [
+    "This contract and its declared sources.",
+    "The derived issue brief."
+  ],
+  "architecture_boundaries": [
+    "Never omit adverse authority once a legal proposition is declared.",
+    "Make no legal determination and perform no external writes."
+  ],
+  "domain": {
+    "synthetic": true,
+    "workstream": "requested_relief",
+    "fact_basis": "UNVERIFIED_FACT",
+    "fact_assertions": [
+      {
+        "assertion": "A substantial change in circumstances under fictional section 10-100 warrants the requested modification.",
+        "fact_status": "LEGAL_PROPOSITION",
+        "source_id": "SRC-FAM10-CODE-10-100"
+      }
+    ],
+    "source_references": [
+      "SRC-FAM10-CODE-10-100",
+      "SRC-FAM10-ADVERSE-CASE"
+    ],
+    "adverse_authority": [
+      {
+        "authority": "Fictional Smythe v. Smythe reads section 10-100 narrowly against the modification sought here.",
+        "source_id": "SRC-FAM10-ADVERSE-CASE"
+      }
+    ],
+    "validation_levels": {
+      "VAL-CITATION-LINKAGE": "citation_linked"
+    },
+    "template_child_issue": 10
+  }
+}

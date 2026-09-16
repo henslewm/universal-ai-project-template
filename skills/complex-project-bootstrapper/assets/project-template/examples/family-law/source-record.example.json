@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "task_id": "FAM-03-custody",
+  "revision": 1,
+  "contract_hash": "9bea6d64356b1bd4935b5769e077211a153747f0d35396ef7c30e15c7f3abc65",
+  "dispatch_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "artifact_sha256": "ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff",
+  "validation_id": "VAL-TRANSCRIPT-REVIEW",
+  "level": "primary_source_verified",
+  "source_type": "transcript",
+  "citation": "FICTIONAL 2026-03-02 hearing transcript, p. 14 ll. 3-19 (illustrative only; no such transcript exists).",
+  "custodian_or_repository": "Fictional court reporter's office, synthetic file no. SYN-TR-0001. No such record exists.",
+  "claim_verified": "Party A failed to appear for the scheduled 2026-02-14 custody exchange.",
+  "expected_content": "The transcript would show testimony either confirming or refuting Party A's appearance at the 2026-02-14 exchange.",
+  "observed_content": "Illustrative only: fictional testimony at p. 14 states Party A appeared but arrived after the scheduled time. This sentence is fiction and establishes nothing.",
+  "outcome": "contradicts",
+  "observed_at": "2026-09-13T00:00:00Z",
+  "operator": "Reviewing associate (fictional)",
+  "artifacts": [
+    {
+      "reference": "transcript-excerpt-0001.pdf (fictional; not present)"
+    }
+  ]
+}

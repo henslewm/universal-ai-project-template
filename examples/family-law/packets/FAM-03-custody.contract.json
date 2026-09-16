@@ -1,0 +1,137 @@
+{
+  "title": "Fictional custody-exchange allegation verification",
+  "parent": {
+    "objective": "Maintain a source-pinned record of disputed parenting-time events for the fictional Doe v. Doe matter, distinguishing an alleged event from one confirmed against a primary source.",
+    "milestone": "Custody allegation checked against the fictional hearing transcript"
+  },
+  "goal": "Track the alleged missed custody exchange as an allegation until a non-implementer has checked the fictional hearing transcript, then record what the transcript actually shows.",
+  "non_goals": [
+    "Advise on relief, remedy, or admissibility.",
+    "Treat the allegation as fact before a primary source has been checked."
+  ],
+  "scope": {
+    "allowed": [
+      "Track the allegation and its declared fact status.",
+      "Record a primary-source check of the fictional transcript exhibit against the allegation."
+    ],
+    "prohibited": [
+      "Assert the allegation as fact without a bound source verification record.",
+      "Introduce real people, events, or transcripts."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Fictional allegation",
+      "description": "Party B alleges Party A failed to appear for the scheduled fictional 2026-02-14 custody exchange. Fictional; establishes no real event."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Fact-status record",
+      "description": "The allegation with its declared category, and once checked, the outcome of the primary-source review."
+    }
+  ],
+  "interface": {
+    "name": "fictional_custody_allegation",
+    "version": "1.0",
+    "description": "Input the allegation; output its declared and, once earned, its ledger-derived fact status."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "The allegation and the transcript exhibit it will be checked against are both invented for this worked example."
+  ],
+  "sources": [
+    {
+      "id": "SRC-FAM10-ALLEGATION",
+      "reference": "The fictional allegation embedded in this contract's inputs.",
+      "authority": "Party B's own fictional account; not independently established."
+    },
+    {
+      "id": "SRC-FAM10-TRANSCRIPT",
+      "reference": "Fictional 2026-03-02 hearing transcript exhibit (illustrative only; not present in this repository).",
+      "authority": "Would be a primary record if real; here it is a synthetic placeholder for the worked example."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-DECLARED",
+      "description": "The allegation is declared ALLEGATION, never a stronger category, until a review is bound and attested."
+    },
+    {
+      "id": "AC-REVIEWED",
+      "description": "A non-implementer reviews the transcript exhibit and records whether it supports, contradicts, or is inconclusive on the allegation."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-DECLARED-STATUS",
+      "description": "Confirm the fact-status record declares ALLEGATION, not a stronger category.",
+      "criterion_ids": [
+        "AC-DECLARED"
+      ],
+      "evidence_required": [
+        "Declared fact_status equals ALLEGATION."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "declared = 'ALLEGATION'; assert declared == 'ALLEGATION'; print('declared status is ALLEGATION, not earned')"
+        ]
+      }
+    },
+    {
+      "id": "VAL-TRANSCRIPT-REVIEW",
+      "description": "A non-implementer reads the fictional hearing transcript exhibit and confirms whether it supports the allegation.",
+      "criterion_ids": [
+        "AC-REVIEWED"
+      ],
+      "evidence_required": [
+        "A source verification record binding the reviewed transcript, its outcome, and the reviewing operator."
+      ]
+    }
+  ],
+  "complexity": "medium",
+  "risk": "high",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "medium",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    3
+  ],
+  "context_scope": [
+    "This contract and the embedded fictional allegation.",
+    "The derived fact-status record."
+  ],
+  "architecture_boundaries": [
+    "Keep the allegation distinct from an earned VERIFIED_FACT until the ledger's primary-source review is attested.",
+    "Make no legal determination and perform no external writes."
+  ],
+  "domain": {
+    "synthetic": true,
+    "workstream": "custody_parenting",
+    "fact_basis": "UNVERIFIED_FACT",
+    "fact_assertions": [
+      {
+        "assertion": "Party A failed to appear for the scheduled 2026-02-14 custody exchange.",
+        "fact_status": "ALLEGATION",
+        "source_id": "SRC-FAM10-ALLEGATION"
+      }
+    ],
+    "source_references": [
+      "SRC-FAM10-ALLEGATION",
+      "SRC-FAM10-TRANSCRIPT"
+    ],
+    "validation_levels": {
+      "VAL-DECLARED-STATUS": "structural",
+      "VAL-TRANSCRIPT-REVIEW": "primary_source_verified"
+    },
+    "template_child_issue": 10
+  }
+}

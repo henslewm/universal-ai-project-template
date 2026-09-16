@@ -27,9 +27,16 @@ DOMAIN_FIELDS = {
         "architecture_boundaries": "Architecture boundaries whose change requires user approval",
     },
     "family-law": {
-        "posture": "Court/case posture, controlling orders and source references",
+        "case_identity": "Court/county, case number(s), parties and procedural posture, with source references",
+        "controlling_orders": "Current controlling orders and judgments in effect, with source references",
         "objectives_and_deadlines": "Ranked objectives, disputed issues, pending matters and deadlines",
-        "evidence": "Evidence/discovery sources and preservation constraints",
+        "discovery": "Discovery served, received and outstanding, with preservation obligations",
+        "evidence": "Evidence/exhibit sources, locations, provenance and preservation constraints",
+        "financial_support": "Income, expenses, assets/debts and support-calculation inputs, with sources",
+        "parenting_custody": "Parenting time, decision-making authority and safety/welfare inputs, with sources",
+        "adverse_facts": "Known adverse facts, weaknesses and the opposing party's positions",
+        "appellate_preservation": "Objections made or needed and preservation-of-error/appeal posture",
+        "reserved_actions": "Standing restrictions and user-reserved consequential actions (filing, service, external communication, disclosure)",
     },
     "civil-rights-nc": {
         "posture": "Forum/jurisdiction and procedural history with source references",

@@ -509,25 +509,77 @@
           "domain": {
             "type": "object",
             "required": [
-              "posture",
+              "case_identity",
+              "controlling_orders",
               "objectives_and_deadlines",
-              "evidence"
+              "discovery",
+              "evidence",
+              "financial_support",
+              "parenting_custody",
+              "adverse_facts",
+              "appellate_preservation",
+              "reserved_actions"
             ],
             "properties": {
-              "posture": {
+              "case_identity": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Court/county, case number(s), parties and procedural posture, with source references"
+              },
+              "controlling_orders": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Current controlling orders and judgments in effect, with source references"
               },
               "objectives_and_deadlines": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Ranked objectives, disputed issues, pending matters and deadlines"
+              },
+              "discovery": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Discovery served, received and outstanding, with preservation obligations"
               },
               "evidence": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Evidence/exhibit sources, locations, provenance and preservation constraints"
+              },
+              "financial_support": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Income, expenses, assets/debts and support-calculation inputs, with sources"
+              },
+              "parenting_custody": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Parenting time, decision-making authority and safety/welfare inputs, with sources"
+              },
+              "adverse_facts": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Known adverse facts, weaknesses and the opposing party's positions"
+              },
+              "appellate_preservation": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Objections made or needed and preservation-of-error/appeal posture"
+              },
+              "reserved_actions": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Standing restrictions and user-reserved consequential actions (filing, service, external communication, disclosure)"
               }
             }
           }

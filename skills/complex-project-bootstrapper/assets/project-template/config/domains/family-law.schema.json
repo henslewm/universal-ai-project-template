@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Family-law domain extension",
+  "description": "Profile-specific structure for a family-law contract's `domain` block and for the source verification record that a primary_source_verified attestation must bind. The common contract is enforced independently; this schema adds structure and never loosens it. Runtime rules in scripts/family_law.py add the cross-field checks: every validation id is mapped to exactly one rung, rungs at or below citation_linked require a declared command, the primary_source_verified rung forbids one, a packet asserting a legal proposition must cite adverse authority, and VERIFIED_FACT is never authored.",
+  "$defs": {
+    "nonblank": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "single_line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1991,
+      "pattern": "\\S",
+      "not": {
+        "pattern": "[\\r\\n]"
+      },
+      "description": "Non-blank and on one physical line: no CR or LF anywhere, stated as a prohibition because an end anchor matches before a trailing newline. The 1991 bound leaves room for the longest key prefix (`citation=` or `operator=`, 9 characters) an attestation line adds, so a schema-valid value can always be attested within the acceptance schema's 2000-character bounded_text limit."
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}(?![\\s\\S])"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+    },
+    "workstream": {
+      "type": "string",
+      "enum": [
+        "docket_procedure",
+        "custody_parenting",
+        "support_financial",
+        "discovery",
+        "enforcement_contempt",
+        "evidence",
+        "communications",
+        "conduct",
+        "appellate_preservation",
+        "deadlines",
+        "requested_relief"
+      ],
+      "description": "The one linked workstream this packet implements. A packet spanning several is not independently testable and must be decomposed."
+    },
+    "validation_level": {
+      "type": "string",
+      "enum": [
+        "structural",
+        "citation_linked",
+        "primary_source_verified"
+      ],
+      "description": "One rung of the verification ladder. structural and citation_linked are machine-runnable (completeness, cross-reference and citation-linkage checks) and must declare a command; primary_source_verified is observed by a non-implementer who actually read the primary source and must not."
+    },
+    "fact_status": {
+      "type": "string",
+      "enum": [
+        "ALLEGATION",
+        "DISPUTED_FACT",
+        "INFERENCE",
+        "LEGAL_PROPOSITION",
+        "UNKNOWN"
+      ],
+      "description": "The declarable categories a fact assertion may carry. VERIFIED_FACT is excluded deliberately: repetition never converts an allegation into a fact, so no assertion may declare itself verified. Verification is earned in the acceptance ledger, never authored."
+    },
+    "declared_fact_basis": {
+      "type": "string",
+      "enum": [
+        "UNVERIFIED_FACT",
+        "NOT_FACT_ASSERTING"
+      ],
+      "description": "What a contract may declare. VERIFIED_FACT is never authored; it is derived from an accepted acceptance ledger whose primary_source_verified validations were all attested with bound evidence agreeing the source supports the claim."
+    },
+    "contract_domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workstream",
+        "fact_basis",
+        "fact_assertions",
+        "source_references",
+        "validation_levels"
+      ],
+      "properties": {
+        "workstream": {
+          "$ref": "#/$defs/workstream"
+        },
+        "fact_basis": {
+          "$ref": "#/$defs/declared_fact_basis"
+        },
+        "fact_assertions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "assertion",
+              "fact_status",
+              "source_id"
+            ],
+            "properties": {
+              "assertion": {
+                "$ref": "#/$defs/nonblank"
+              },
+              "fact_status": {
+                "$ref": "#/$defs/fact_status"
+              },
+              "source_id": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          },
+          "description": "Every material factual claim this packet's output rests on, each declared with its category and citing a contract source. Empty means the packet asserts no material fact and is NOT_FACT_ASSERTING (pure procedure, calculation, or legal research)."
+        },
+        "source_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "uniqueItems": true,
+          "description": "Contract source ids the packet's claims rely on. Required non-empty when any fact assertion exists."
+        },
+        "adverse_authority": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "authority",
+              "source_id"
+            ],
+            "properties": {
+              "authority": {
+                "$ref": "#/$defs/nonblank"
+              },
+              "source_id": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          },
+          "description": "The strongest authority against the packet's own position, each citing a contract source. Required non-empty whenever any fact assertion is declared LEGAL_PROPOSITION."
+        },
+        "validation_levels": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/validation_level"
+          },
+          "minProperties": 1,
+          "description": "Exactly one ladder rung per contract validation id; no other ids."
+        },
+        "synthetic": {
+          "type": "boolean",
+          "description": "True when every input is fictional and establishes no real case fact or legal conclusion."
+        },
+        "template_child_issue": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "For this template's own dogfood packets only: the child issue the packet reviews."
+        }
+      },
+      "description": "Closed: no free-text field exists in which an earned fact status could be written; fact basis is carried by fact_basis alone and VERIFIED_FACT is refused wherever it appears."
+    },
+    "source_verification_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "task_id",
+        "revision",
+        "contract_hash",
+        "dispatch_id",
+        "artifact_sha256",
+        "validation_id",
+        "level",
+        "source_type",
+        "citation",
+        "custodian_or_repository",
+        "claim_verified",
+        "expected_content",
+        "observed_content",
+        "outcome",
+        "observed_at",
+        "operator",
+        "artifacts"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "task_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The work-packet contract revision this observation was made against; record verification refuses one that does not match the acceptance ledger's binding, so a source review of a changed implementation cannot verify a later revision."
+        },
+        "contract_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "The exact contract's hash at that revision. Revision numbers are lineage-local: two independently revised variants of the same task can both be \"revision 2\" with different content, so record verification checks this against the acceptance ledger's binding as well, binding the observation to the contract actually reviewed rather than merely its revision number."
+        },
+        "dispatch_id": {
+          "$ref": "#/$defs/sha256",
+          "description": "The submitted result's dispatch_id at the time this observation was made. Contract identity does not identify which draft was reviewed: a rejected submission can be resubmitted under the same contract and revision, clearing prior attestations, and an unchanged record must not silently re-verify a different, later submission. Record verification checks this against the acceptance ledger's current result."
+        },
+        "artifact_sha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "The submitted artifact's identity at the time this observation was made, checked against the acceptance ledger's current artifact for the same reason as dispatch_id: a resubmission can replace the artifact together with the result while leaving the contract and revision untouched. This is not the artifact's own `sha256` field alone: a reference-kind artifact may carry empty content (and so the fixed empty-content digest) regardless of what it references, so the identity checked here combines the artifact's `reference` and `sha256` together."
+        },
+        "validation_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "primary_source_verified"
+          ]
+        },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "controlling_order",
+            "docket_filing",
+            "transcript",
+            "exhibit",
+            "discovery_response",
+            "financial_record",
+            "statute",
+            "case_law",
+            "other_primary_source"
+          ]
+        },
+        "citation": {
+          "$ref": "#/$defs/single_line",
+          "description": "The precise citation or filing/exhibit identifier of the primary source consulted."
+        },
+        "custodian_or_repository": {
+          "$ref": "#/$defs/single_line",
+          "description": "Where the original is held; provenance for the source consulted, never the original itself."
+        },
+        "claim_verified": {
+          "$ref": "#/$defs/nonblank",
+          "description": "The specific factual assertion this record was consulted to check."
+        },
+        "expected_content": {
+          "$ref": "#/$defs/nonblank"
+        },
+        "observed_content": {
+          "$ref": "#/$defs/nonblank",
+          "description": "What the primary source actually says, in enough detail to be contradicted. A reference to the preserved original, never a copy of restricted or sensitive content."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "supports",
+            "contradicts",
+            "inconclusive"
+          ],
+          "description": "Unlike a hardware pass/fail, a primary source can actively contradict the claim it was consulted to check; that is itself a material finding, not merely an unmet check."
+        },
+        "observed_at": {
+          "$ref": "#/$defs/nonblank",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "description": "When the source was reviewed, RFC 3339; validated as a real calendar value, not only a shape."
+        },
+        "operator": {
+          "$ref": "#/$defs/single_line",
+          "description": "The person who reviewed the primary source and will record the attestation; never an implementation actor."
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "reference"
+            ],
+            "properties": {
+              "reference": {
+                "$ref": "#/$defs/nonblank"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          },
+          "description": "Preserved copies, page images, or excerpts, by reference and digest where integrity matters. Never restricted or sensitive content itself; originals stay in the approved source system per the repository's source-integrity rule."
+        }
+      },
+      "description": "The structured record a primary_source_verified attestation binds by digest. It is an operator's declaration the controller cannot authenticate; the digest makes it auditable and immutable once attested."
+    }
+  }
+}
