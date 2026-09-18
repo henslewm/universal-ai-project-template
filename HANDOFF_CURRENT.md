@@ -1,48 +1,41 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-16 UTC
-- **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `issue-10-family-law-domain` (off `main` at `d2350ec25474816545b4418a4c8c5cd97516e2c6`, PR #35 / Issue #9 follow-up, ADR-058). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** Issue #10 (complete high-conflict NC family-law template), session 1: design approved and posted to the issue, core mechanism delivered. Not yet closed — the repeat-dogfood acceptance run, PR, and Codex review loop remain.
+- **Prepared:** 2026-09-18; branch `issue-10-family-law-domain`, reviewed implementation `29422ca`. Read `git status` and `git log -5 --oneline` for the current checkpoint commit; no later commit is asserted here.
+- **Stop requested:** the user asked for cleanup, a local commit with comments, pickup instructions and a stop for the day. Do not automatically continue; resume only when the user returns.
+- **Active work:** Issue #10 only. Genuine `AC-ADVERSE` defect remains; no acceptance or PR. Do not start #11, alter locked master #14 or delete construction/evidence branches.
+- **Authority:** user explicitly approved the prepared Issue #10 maintenance exception. This reusable template remains unactivated: `config/bootstrap.json` is absent. The exception grants no expanded filesystem permissions, external-write authority or generated-project gate change.
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) — read its design comment before continuing. Issues #2 through #9 are closed through merged PRs #15 to #34; #9's post-merge follow-up is merged through PR #35. Read each closed child's completion comment for the limitations it carried forward.
+## Finish the local commit
 
-## What this session (#10, session 1) delivered
+The checkpoint is prepared but **not committed**: this session's `git add` failed because it could not create `.git/index.lock` (permission denied). No files were staged by that attempt. From a normal PowerShell terminal, run `& .\build\issue-10-29422ca-review3\commit-checkpoint.ps1`. The helper checks the branch, original HEAD, exact reviewed file hashes and staging scope, then uses the prepared descriptive commit message. It refuses changed inputs and does not push. Once it succeeds, confirm the commit and clean tracked tree with Git; stop for the day.
 
-Following the interactive-bootstrap-then-decompose pattern #9 used: a design was proposed, approved by Winston, then implemented and posted as [a comment on Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). The mechanism reuses #9's acceptance-controller split (machine-runnable command vs. non-implementer attestation bound to a digest-referenced evidence record) rather than inventing a parallel one:
+## Read first on resumption
 
-- `config/domains/family-law.schema.json` and `scripts/family_law.py`, registered in `work_packet.DOMAIN_MODULES`, add `workstream` (the charter's eleven linked-workstream categories), `fact_assertions` (each declared `ALLEGATION`/`DISPUTED_FACT`/`INFERENCE`/`LEGAL_PROPOSITION`/`UNKNOWN` and citing a contract source), `source_references`, `adverse_authority` (required non-empty for any `LEGAL_PROPOSITION` assertion — new, no software-hardware precedent), a three-rung ladder (`structural`, `citation_linked` machine-runnable; `primary_source_verified` attested), and `fact_basis` declarable only as `UNVERIFIED_FACT` or `NOT_FACT_ASSERTING` — `VERIFIED_FACT` is earned in the ledger, never authored.
-- One deliberate addition beyond the hardware mirror: unlike a hardware pass/fail, a primary source can legitimately contradict the claim it was consulted to check. `status` reports a third earned outcome, `CONTRADICTED_BY_SOURCE`, surfaced ahead of every other reason so a genuine adverse finding is never read as merely unverified; an inconclusive review is reported unverified with that reason stated. Neither ever earns `VERIFIED_FACT`.
-- `DOMAIN_FIELDS["family-law"]` expanded from 3 thin orientation fields to the 10 the charter actually requires (`case_identity`, `controlling_orders`, `objectives_and_deadlines`, `discovery`, `evidence`, `financial_support`, `parenting_custody`, `adverse_facts`, `appellate_preservation`, `reserved_actions`), kept synchronized from the start across `scripts/validate_bootstrap.py`, `config/bootstrap.schema.json`, and the bootstrapper's intake reference — applying #9's ADR-040 lesson proactively instead of discovering the drift later.
-- A small fictional four-packet worked decomposition under `examples/family-law/` (docket/deadline tracking; a support-calculation packet with a checked income inference; a custody allegation checked against a fictional transcript that turns out to contradict it, deliberately exercising `CONTRADICTED_BY_SOURCE`; a legal-proposition packet with cited adverse authority), plus a bound `source-record.example.json`.
-- `tests/test_family_law.py` (33 tests) exercising the domain schema, the attestation-binding rules, the `CONTRADICTED_BY_SOURCE`/inconclusive derivations, the CLI, and the bootstrap intake fields.
-- `templates/family-law/PROFILE.md` rewritten to describe the now-structural mechanism, following #9's `PROFILE.md` shape.
-- Three pre-existing generic fixtures/tests had to be adjusted because `family-law` is now a *registered* domain profile rather than the stock example of an unregistered one: `tests/test_work_packet.py`'s and `tests/test_software_hardware.py`'s "domain rules apply only to the registered profile" demonstrations now use `civil-rights-nc` instead; two `tests/test_github_ledger.py` profile-mismatch fixtures do the same; `examples/work-packets/family-law.contract.json`'s `domain` block was brought into the new closed schema.
+Read `AGENTS.md` and its routed control files, inspect the branch and tree, and run the required bootstrap gate. Record its actual result; do not manufacture ACTIVE state. Then read `docs/ISSUE_10_VALIDATION.md`, ADR-060 through ADR-062, and the three saved reports under `docs/reviews/`.
 
-See ADR-059 for the full design rationale and alternatives considered.
+## Exact next work
 
-## What #9 and PR #35 left you (background, unchanged this session)
+1. Recheck the original ledger at `C:\Users\hensl\Documents\GitHub\_acceptance-demo-10\ledger` and original report at `review-3\review-report.json`. Last verified: 12 events, pending third review, all three review openings used. The pending ID and artifact digest are in `docs/ISSUE_10_VALIDATION.md`.
+2. The architect must resolve pending-review handling, the packet's scope for standing closeout documents and further review authority before new implementation. The reconsidered report `docs/reviews/ISSUE_10_ROUND_3_RECONCILED.json` is offline-valid REJECT_BOUNDED (4/5 criteria, one failure) for the same pending opening. A permitted runtime may consider ingestion after checking bindings and explicitly selecting the authoritative report while preserving conflicting evidence. Do not overwrite the original external report or ingest the withdrawn `ISSUE_10_ROUND_3.json` approval.
+3. Define bounded work to require a `primary_source_verified` validation whenever a packet declares `LEGAL_PROPOSITION`, update the fictional issue-brief example as needed, and add regressions. Current FAM-04 declares a legal proposition with only `citation_linked` validation and returns no contract errors. No fix was made at this checkpoint. Do not open a fourth review, reset counters, recreate the ledger or invent a waiver; use the architect-controlled budget path and reassess bindings after changes.
+4. Once acceptance is actually recorded, prepare the PR and obtain automated Codex review of its final head. Address findings before seeking explicit merge authority. No external messages, push, merge or issue closure occurred in this session.
 
-`docs/ISSUE_9_VALIDATION.md` is the full record of #9's own acceptance and 23-round Codex review (ADR-041–ADR-055). Its two generic-controller lessons — evidence-binding is several checks, not one (revision, contract hash, dispatch/artifact identity, an observation-time bound), and a stored shortfall-marked record must replay for history but never justify a *new* acceptance (ADR-053) — were applied to family-law's mechanism from the start rather than rediscovered, though #10's own review will likely still find edges specific to this domain (R-012: stop for diagnosis when a review class recurs, and #9's own submission-binding class took five separate review rounds to close completely — expect this pattern to recur here too, and look for the actual invariant rather than patching the first reproduction a reviewer hands you). PR #35 (ADR-056–058) fixed a hardware-evidence `validation_id` binding gap and completed the sample adapter's zero-timeout `receive()` fix; unrelated to #10.
+## Verified evidence and limitations
 
-## Verified state
+The code at `29422ca` includes round-1 fix `f47a43d` (all four packet checks) and round-2 ADR-060 (record verification and every-assertion coverage). Fresh checks passed 398 tests in 205.068 seconds and 81 required paths. Those tests miss the reproduced primary-source-rung omission. The initial local approval was withdrawn after reconsideration; both original reports and the valid reconciled rejection are preserved. None was ingested; original ledger still ends at REVIEW_OPEN.
 
-394 tests pass on Windows (`unittest discover -s tests -p "test_*.py"` from the repo root — plain `discover` finds nothing; 361 before this session plus 33 new in `tests/test_family_law.py`). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files after running `sync_skills.py` (without `--check`) to propagate the canonical `scripts/`, `config/`, `templates/`, and `skills/complex-project-bootstrapper/` changes into the `.agents/skills`, `.claude/skills`, and payload mirrors. Nothing has been pushed, and no PR exists yet for this branch.
+A clean tracked archive of `29422ca` passed 81 required paths and zero payload drift. After selective checkpoint-document synchronization, the root and checkpoint-content snapshot each passed 81 paths, the snapshot reported zero payload drift, and `git diff --check` passed. The live-checkout check still flags only ignored `.claude/scheduled_tasks.lock`; preserve it and keep runtime state out of payloads. Confirm the eventual checkpoint commit through Git; validation is not a commit receipt.
 
-## Exact next action
+## Working Python
 
-Continue Issue #10 on `issue-10-family-law-domain`: run the repeat-dogfood acceptance exercise (a fresh ledger, same-family then cross-family review, no waiver unless Winston authorizes one — the same shape as `_acceptance-demo-9b`), then open the PR and run the Codex review loop to a clean result before asking for merge authorization. The construction branch `issue-9-software-hardware-domain` remains until the later authorized cleanup; do not delete it outside that cleanup.
+Use the full launcher path; PowerShell aliases and PATH edits from earlier tool shells may not persist:
 
-## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
+```powershell
+$env:PYTHONPATH = Join-Path $env:TEMP 'uaipt-venv\Lib\site-packages'
+& "$env:USERPROFILE\.local\bin\python3.12.exe" -B scripts/validate_bootstrap.py config/bootstrap.json --require-active
+& "$env:USERPROFILE\.local\bin\python3.12.exe" -B scripts/validate_project.py
+```
 
-OL-016 (template-packaging defects: generated projects inherit a payload-drift CI check they cannot pass; `sync_skills.py` never detects an obsolete payload file; development decision history ships into fresh projects) remains open from #8's closure, unaddressed by #9 or #10.
+The launcher reports Python 3.12.14 and resolves to `C:\Users\hensl\Documents\GitHub\_acceptance-demo-10\review-2\.python-runtime\cpython-3.12-windows-x86_64-none\python.exe`. Preserve that runtime and the temporary virtualenv's existing site-packages (`jsonschema` 4.26.0); they are dependencies, not disposable scratch. The old `%TEMP%\uaipt-venv\Scripts\python.exe` launcher cannot find its base Python. No repository virtualenv or new installation is required.
 
-## Environment and tooling notes
-
-The template is deliberately unactivated: `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` reports `BOOTSTRAP INVALID: no such file`. Everything proceeds as the maintainer's explicitly authorized template maintenance.
-
-This checkout has no repository virtualenv and must not gain one; the working interpreter with `jsonschema==4.26.0` is at `%TEMP%\uaipt-venv\Scripts\python.exe`. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. Under WSL, discover each suite individually (`discover -s tests -p test_acceptance.py`, etc.); importing by dotted module name fails because `tests/` is not a package. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
-
-## Boundaries
-
-The acceptance controller enforces independence against recorded declarations it cannot authenticate; a misdeclared reviewer family defeats the cross-family gate, and the record makes that auditable rather than invisible (R-010). The deterministic gate executes only architect-committed contract commands and does not sandbox them. A source verification record is an operator's declaration the controller cannot authenticate; the digest makes it auditable, not true. Acceptance justifies but does not perform merge, publication, or closure. No credential, restricted case fact, or real party/case identity belongs in this repository's examples, fixtures, configuration, packets, reports, ledgers or logs — every family-law example in this template is deliberately fictional and declares `domain.synthetic: true`. Model-performance calibration remains #12. Do not edit the locked master, and do not delete construction branches outside the later authorized cleanup.
+OL-016 packaging limitations and later #12 calibration remain deferred. All family-law examples are fictional; no real case, party or legal authority is established by this checkpoint.
