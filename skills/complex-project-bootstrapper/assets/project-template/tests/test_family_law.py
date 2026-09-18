@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -284,21 +285,63 @@ class AttestationRuleTests(AcceptanceBase):
                 with self.assertRaisesRegex(ValueError, "ledger's current"):
                     self.attest(ledger, record["operator"], domain.evidence_lines(record))
 
-    def test_supporting_review_earns_verified_fact_when_not_synthetic(self):
-        contract = custody_contract()
-        del contract["domain"]["synthetic"]
+    def accepted_source_ledger(self, contract=None, **changes):
+        """A non-synthetic, accepted ledger attesting one supporting record (with `changes` applied
+        to it), plus that record and a directory holding it."""
+        contract = contract or custody_contract()
+        contract["domain"].pop("synthetic", None)
         ledger, packet = self.start(packet=make_packet(contract))
         self.checked(ledger)
-        record = live(task_id="ACCEPT-FAM-001", contract_hash=wp.current(packet)["hash"], outcome="supports")
+        fields = dict(task_id="ACCEPT-FAM-001", contract_hash=wp.current(packet)["hash"], outcome="supports")
+        fields.update(changes)
+        record = live(**fields)
         self.attest(ledger, record["operator"], domain.evidence_lines(record))
         acceptance.accept(ledger, CONTROLLER)
-        self.assertEqual(domain.status(ledger)["earned_fact_basis"], "VERIFIED_FACT")
         records = self.directory / "records"
         records.mkdir()
         (records / "run.json").write_text(json.dumps(record), encoding="utf-8")
+        return ledger, record, records
+
+    def test_supporting_review_earns_verified_fact_only_from_a_reverified_record(self):
+        ledger, record, records = self.accepted_source_ledger()
+        # An attestation alone is reported for audit and earns nothing: the bound record's identity
+        # was never compared with the ledger.
+        attested = domain.status(ledger)
+        self.assertEqual((attested["earned_fact_basis"], attested["evidence_basis"]), ("UNVERIFIED_FACT", "attestation"))
+        self.assertIn("not re-verified", attested["reason"])
+        self.assertEqual(attested["highest_level_satisfied"], "structural")
+        self.assertEqual(attested["validations"][1]["attested_outcome"], "supports")
         checked = domain.status(ledger, records)
         self.assertEqual((checked["earned_fact_basis"], checked["evidence_basis"]), ("VERIFIED_FACT", "record"))
         self.assertEqual(checked["highest_level_satisfied"], "primary_source_verified")
+
+    def test_a_record_for_a_claim_the_contract_does_not_make_verifies_nothing(self):
+        ledger, _, records = self.accepted_source_ledger(claim_verified="Party B was late to a different exchange.")
+        report = domain.status(ledger, records)
+        self.assertEqual(report["earned_fact_basis"], "UNVERIFIED_FACT")
+        self.assertIn("claim_verified is not one of the contract's declared fact_assertions", report["reason"])
+        self.assertEqual(report["highest_level_satisfied"], "structural")
+
+    def test_one_supported_claim_does_not_verify_an_unreviewed_second_assertion(self):
+        contract = custody_contract()
+        contract["domain"]["fact_assertions"].append(
+            {"assertion": "Party A missed a second, unreviewed exchange.", "fact_status": "ALLEGATION",
+             "source_id": "SRC-FAM10-ALLEGATION"})
+        ledger, _, records = self.accepted_source_ledger(contract)
+        report = domain.status(ledger, records)
+        self.assertEqual(report["earned_fact_basis"], "UNVERIFIED_FACT")
+        self.assertIn("No re-verified supporting record covers: Party A missed a second, unreviewed exchange.",
+                      report["reason"])
+
+    def test_a_record_for_another_revision_or_contract_never_verifies(self):
+        for field, wrong in (("revision", 2), ("contract_hash", "0" * 64), ("task_id", "OTHER-TASK")):
+            with self.subTest(field=field):
+                ledger, _, records = self.accepted_source_ledger(**{field: wrong})
+                report = domain.status(ledger, records)
+                self.assertEqual(report["earned_fact_basis"], "UNVERIFIED_FACT")
+                self.assertIn(f"record {field}", report["reason"])
+                self.assertEqual(domain.status(ledger)["earned_fact_basis"], "UNVERIFIED_FACT")
+                shutil.rmtree(records)
 
     def test_attestation_is_refused_for_a_different_validation_at_the_same_rung(self):
         ledger, _ = self.start(packet=make_packet(two_source_rung_contract()))
@@ -461,7 +504,8 @@ class CommandLineTests(unittest.TestCase):
             acceptance.accept(ledger, CONTROLLER)
             attested = self.run_cli("status", ledger)
             self.assertEqual(attested["evidence_basis"], "attestation")
-            self.assertEqual(attested["earned_fact_basis"], "VERIFIED_FACT")
+            self.assertEqual(attested["earned_fact_basis"], "UNVERIFIED_FACT")
+            self.assertIn("not re-verified", attested["reason"])
             records = base / "records"
             records.mkdir()
             empty = self.run_cli("status", ledger, "--evidence-dir", records)

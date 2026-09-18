@@ -237,8 +237,8 @@ def validate_attestation(contract: dict, attestation: dict, attested_at: str,
 
     `dispatch_id` and `artifact_sha256` are the ledger's current submission: contract identity
     survives a RESUBMIT unchanged, so without checking these here an operator could re-attest an
-    unchanged, rejected record and have it reported VERIFIED_FACT on the attestation basis alone,
-    never reaching record_problems's equivalent check.
+    unchanged, rejected record and have it accepted at append time, whether or not `status` is
+    later given a record directory to re-verify it against.
 
     `submitted_at` is when the current result and artifact were submitted (the ledger's INIT, or
     its latest RESUBMIT): checking dispatch_id/artifact_sha256 alone still lets a genuinely
@@ -324,8 +324,12 @@ RECORD_FIELDS = {"source_type": "source_type", "citation": "citation", "observed
                  "validation_id": "validation_id"}
 
 
-def record_problems(record, binding, validation_id, level, attestation) -> list[str]:
-    """Why a digest-matched record does not verify the attestation; empty means it does."""
+def record_problems(record, binding, validation_id, level, attestation, assertions=()) -> list[str]:
+    """Why a digest-matched record does not verify the attestation; empty means it does.
+
+    `assertions` are the contract's declared fact assertions: a record verifies a claim only if
+    that claim is one the contract actually makes, so a source review of an unrelated statement
+    can never stand in for the packet's own."""
     try:
         validate_source_record(record)
     except ValueError as exc:
@@ -353,6 +357,10 @@ def record_problems(record, binding, validation_id, level, attestation) -> list[
         problems.append(f"record validation_id {record['validation_id']} is not {validation_id}")
     if record["level"] != level:
         problems.append(f"record level {record['level']} is not the contract's {level}")
+    if record["claim_verified"] not in assertions:
+        # Exact: a record for a paraphrase or an unrelated statement verifies nothing the
+        # contract asserts.
+        problems.append("record claim_verified is not one of the contract's declared fact_assertions")
     # A record's outcome is not itself a problem: unlike a hardware pass/fail, a primary source
     # can legitimately contradict the claim it was consulted to check, or be inconclusive.
     # `status` reads the outcome to classify the earned finding; it never lets a non-"supports"
@@ -389,6 +397,8 @@ def status(ledger, evidence_dir=None) -> dict:
     domain = state["contract"]["domain"]
     levels = domain["validation_levels"]
     gate = acceptance.deterministic_status(state)
+    assertions = [item["assertion"] for item in domain["fact_assertions"]]
+    covered = set()  # assertions a re-verified record found supported
     checks = []
     problems = []
     contradicted = []
@@ -408,9 +418,9 @@ def status(ledger, evidence_dir=None) -> dict:
             digest, values = parsed_evidence(attestation["evidence"])
             entry["evidence_digest"] = digest
             if levels[identifier] in SOURCE_LEVELS:
-                # The attestation's own declared outcome, trusted at the same level hardware
-                # trusts an attested digest: reported as attested, not record-verified, unless
-                # --evidence-dir re-derives it from the bound record below.
+                # The attestation's own declared outcome, reported for audit only: it earns
+                # nothing (no VERIFIED_FACT, no satisfied rung) unless --evidence-dir re-derives
+                # it from the bound record below.
                 entry["attested_outcome"] = values.get("outcome")
             if evidence_dir is not None and levels[identifier] in SOURCE_LEVELS:
                 path, record, refused = _find_record(Path(evidence_dir), entry["evidence_digest"] or "")
@@ -425,9 +435,12 @@ def status(ledger, evidence_dir=None) -> dict:
                              + (f" (refused: {'; '.join(refused)})" if refused else "")]
                 else:
                     found = [f"{identifier}: {problem}" for problem in
-                             record_problems(record, submission, identifier, levels[identifier], attestation)]
+                             record_problems(record, submission, identifier, levels[identifier], attestation,
+                                             assertions)]
                     if not found:
                         entry["attested_outcome"] = record["outcome"]
+                        if record["outcome"] == "supports":
+                            covered.add(record["claim_verified"])
                 entry["evidence_verified"] = not found
                 entry["evidence_path"] = str(path) if path else None
                 problems.extend(found)
@@ -465,21 +478,28 @@ def status(ledger, evidence_dir=None) -> dict:
         earned, reason = UNVERIFIED, ("The contract declares synthetic: true; every input is fictional and "
                                       "establishes no real case fact, so this profile refuses to derive "
                                       "VERIFIED_FACT for it.")
+    elif any(c["evidence_verified"] is not True for c in checks if not c["machine_runnable"]):
+        # An attested digest is a declaration the controller cannot inspect. Without the bound
+        # record re-verified against the ledger (revision, contract hash, submission, claim), the
+        # attestation is reported for audit and earns nothing.
+        earned, reason = UNVERIFIED, ("The attested digests were not re-verified against their records "
+                                      "(supply --evidence-dir); an attestation alone is reported for audit "
+                                      "and never earns VERIFIED_FACT.")
+    elif any(text not in covered for text in assertions):
+        uncovered = [text for text in assertions if text not in covered]
+        earned, reason = UNVERIFIED, ("No re-verified supporting record covers: " + "; ".join(uncovered))
     else:
         earned = VERIFIED
-        reason = ("Accepted with every primary_source_verified validation attested and supporting the claim; "
-                  "each attestation's declared outcome and digest are reported as attested, not "
-                  "record-verified (no --evidence-dir was supplied)."
-                  if basis == "attestation" else
-                  "Accepted with every primary_source_verified validation attested, supporting the claim, "
-                  "and every bound record re-verified by digest, task, validation, rung and operator.")
+        reason = ("Accepted with every primary_source_verified validation attested, supporting the claim, "
+                  "every bound record re-verified by digest, task, revision, contract hash, submission, "
+                  "validation, rung and operator, and every declared fact assertion covered by a supporting record.")
     # A primary-source rung counts as satisfied only when its outcome supports the claim; a rung
     # that contradicts, is inconclusive, or whose record did not verify is not satisfied. For a
     # synthetic contract a source rung never counts here either, for the same reason it never
     # earns VERIFIED_FACT above.
     satisfied = [c["level"] for c in checks
                  if c["gate"] == "PASSED"
-                 or (c["gate"] == "ATTESTED" and c["evidence_verified"] is not False
+                 or (c["gate"] == "ATTESTED" and c["evidence_verified"] is True
                      and c["attested_outcome"] == "supports" and not domain.get("synthetic"))]
     highest = max(satisfied, key=LEVELS.index) if satisfied else None
     return {"task_id": binding["task_id"], "revision": binding["revision"], "ledger_status": state["status"],

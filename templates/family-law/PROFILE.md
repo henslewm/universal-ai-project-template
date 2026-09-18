@@ -59,16 +59,22 @@ verification record by digest. A primary-source rung with a command is refused a
 masquerading as a human review; a citation check without one is refused as attestation
 substituting for a runnable check. `scripts/family_law.py status` derives the earned fact basis
 from the ledger: `VERIFIED_FACT` only for an accepted task whose primary-source rungs were all
-attested, every one supporting the claim, and whose contract does not declare
-`domain.synthetic: true` — every worked example in this template declares it, so none of them can
-earn `VERIFIED_FACT`. A primary source can also actively contradict the claim it was consulted to
-check, or be inconclusive: `status` reports `CONTRADICTED_BY_SOURCE` as its own outcome, ahead of
-every other reason, and an inconclusive review is reported unverified with that reason stated —
-neither is masked as a generic failure, and neither ever earns `VERIFIED_FACT`. The output names
-its `evidence_basis`: without `--evidence-dir` the status rests on the ledger's attestations and
-their declared outcomes; with `--evidence-dir` every bound record is found by digest, validated,
-and re-verified for task, revision, contract hash, submission identity, validation, rung, and the
-attesting operator. A ledger stored before these rules existed replays marked with its shortfall
+attested, every bound record re-verified against the ledger (`--evidence-dir`), every record
+supporting the claim, every declared fact assertion covered by a supporting record, and whose
+contract does not declare `domain.synthetic: true` — every worked example in this template declares
+it, so none of them can earn `VERIFIED_FACT`. A record verifies a claim only if its
+`claim_verified` is exactly one of the contract's `fact_assertions`; a record for an unrelated
+statement verifies nothing, and one checked claim never verifies a packet's other assertions. A
+primary source can also actively contradict the claim it was consulted to check, or be
+inconclusive: `status` reports `CONTRADICTED_BY_SOURCE` as its own outcome, ahead of every other
+reason, and an inconclusive review is reported unverified with that reason stated — neither is
+masked as a generic failure, and neither ever earns `VERIFIED_FACT`. The output names its
+`evidence_basis`: without `--evidence-dir` the status rests on the ledger's attestations alone,
+which are reported for audit and never earn `VERIFIED_FACT` or a satisfied primary-source rung,
+because nothing has compared the bound record's revision, contract hash, submission identity or
+claim with the ledger; with `--evidence-dir` every bound record is found by digest, validated, and
+re-verified for task, revision, contract hash, submission identity, validation, rung, claim, and
+the attesting operator. A ledger stored before these rules existed replays marked with its shortfall
 for audit and acceptance status; only new events are refused, and the fact-basis derivation is the
 one that refuses.
 
