@@ -1,47 +1,61 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-16 UTC
+- **Prepared:** 2026-09-18 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `issue-10-family-law-domain` (off `main` at `d2350ec25474816545b4418a4c8c5cd97516e2c6`, PR #35 / Issue #9 follow-up, ADR-058). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** Issue #10 (complete high-conflict NC family-law template), session 1: design approved and posted to the issue, core mechanism delivered. Not yet closed — the repeat-dogfood acceptance run, PR, and Codex review loop remain.
+- **Branch:** `issue-10-family-law-domain` (off `main` at `d2350ec25474816545b4418a4c8c5cd97516e2c6`, PR #35 / Issue #9 follow-up, ADR-058). Confirm the current head with `git log --oneline -1` rather than trusting a figure here. Working tree is clean; nothing pending to commit in the tracked repository.
+- **Scope:** Issue #10 (complete high-conflict NC family-law template), session 2: ran the repeat-dogfood acceptance exercise. Two rounds found and fixed real defects; the third and last review this task's budget permits found a real defect that is **not yet fixed**, and the review budget is now exhausted. Stopped here for the day — do not treat this as closed.
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) — read its design comment before continuing. Issues #2 through #9 are closed through merged PRs #15 to #34; #9's post-merge follow-up is merged through PR #35. Read each closed child's completion comment for the limitations it carried forward.
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). Read `PROJECT_STATE.md`'s "Issue #10, session 2" section and ADR-060/ADR-061/ADR-062 in `DECISIONS.md` before continuing — they contain the full findings; this handoff only summarizes the exact next action.
 
-## What this session (#10, session 1) delivered
+## Before doing anything else: check for another agent on this repo
 
-Following the interactive-bootstrap-then-decompose pattern #9 used: a design was proposed, approved by Winston, then implemented and posted as [a comment on Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). The mechanism reuses #9's acceptance-controller split (machine-runnable command vs. non-implementer attestation bound to a digest-referenced evidence record) rather than inventing a parallel one:
+This session found a second, unattended Codex CLI process (`codex.exe --ask-for-approval never`) independently working Issue #10 in this same checkout, started earlier the same day in a separate conversation the user had with it. Its edits collided with this session's edits to the shared control files (`PROJECT_STATE.md`, `DECISIONS.md`, `OPEN_LOOPS.md`, `CHANGELOG.md`, `SOURCE_INDEX.md`, `HANDOFF_CURRENT.md`) and it committed a conflicting "checkpoint" (`d2c67dd`) before it could be stopped. The user had it terminated; that commit was discarded by `git revert` (`95446eb` — the branch is unpushed, so nothing external was affected). See ADR-062. **Before resuming work, run a process check** (e.g. `Get-CimInstance Win32_Process | Where-Object CommandLine -match 'codex|claude'`) to confirm no other unattended agent is currently writing to this checkout, especially if these files look inconsistent with what you expect.
 
-- `config/domains/family-law.schema.json` and `scripts/family_law.py`, registered in `work_packet.DOMAIN_MODULES`, add `workstream` (the charter's eleven linked-workstream categories), `fact_assertions` (each declared `ALLEGATION`/`DISPUTED_FACT`/`INFERENCE`/`LEGAL_PROPOSITION`/`UNKNOWN` and citing a contract source), `source_references`, `adverse_authority` (required non-empty for any `LEGAL_PROPOSITION` assertion — new, no software-hardware precedent), a three-rung ladder (`structural`, `citation_linked` machine-runnable; `primary_source_verified` attested), and `fact_basis` declarable only as `UNVERIFIED_FACT` or `NOT_FACT_ASSERTING` — `VERIFIED_FACT` is earned in the ledger, never authored.
-- One deliberate addition beyond the hardware mirror: unlike a hardware pass/fail, a primary source can legitimately contradict the claim it was consulted to check. `status` reports a third earned outcome, `CONTRADICTED_BY_SOURCE`, surfaced ahead of every other reason so a genuine adverse finding is never read as merely unverified; an inconclusive review is reported unverified with that reason stated. Neither ever earns `VERIFIED_FACT`.
-- `DOMAIN_FIELDS["family-law"]` expanded from 3 thin orientation fields to the 10 the charter actually requires (`case_identity`, `controlling_orders`, `objectives_and_deadlines`, `discovery`, `evidence`, `financial_support`, `parenting_custody`, `adverse_facts`, `appellate_preservation`, `reserved_actions`), kept synchronized from the start across `scripts/validate_bootstrap.py`, `config/bootstrap.schema.json`, and the bootstrapper's intake reference — applying #9's ADR-040 lesson proactively instead of discovering the drift later.
-- A small fictional four-packet worked decomposition under `examples/family-law/` (docket/deadline tracking; a support-calculation packet with a checked income inference; a custody allegation checked against a fictional transcript that turns out to contradict it, deliberately exercising `CONTRADICTED_BY_SOURCE`; a legal-proposition packet with cited adverse authority), plus a bound `source-record.example.json`.
-- `tests/test_family_law.py` (33 tests) exercising the domain schema, the attestation-binding rules, the `CONTRADICTED_BY_SOURCE`/inconclusive derivations, the CLI, and the bootstrap intake fields.
-- `templates/family-law/PROFILE.md` rewritten to describe the now-structural mechanism, following #9's `PROFILE.md` shape.
-- Three pre-existing generic fixtures/tests had to be adjusted because `family-law` is now a *registered* domain profile rather than the stock example of an unregistered one: `tests/test_work_packet.py`'s and `tests/test_software_hardware.py`'s "domain rules apply only to the registered profile" demonstrations now use `civil-rights-nc` instead; two `tests/test_github_ledger.py` profile-mismatch fixtures do the same; `examples/work-packets/family-law.contract.json`'s `domain` block was brought into the new closed schema.
+## Exact state of the dogfood ledger
 
-See ADR-059 for the full design rationale and alternatives considered.
+`_acceptance-demo-10` (outside this repository, at `C:\Users\hensl\Documents\GitHub\_acceptance-demo-10`) holds 12 ledger events:
 
-## What #9 and PR #35 left you (background, unchanged this session)
+1. `INIT`, `CHECKS` (baseline)
+2. `REVIEW_OPEN`/`REVIEW_RESULT` round 1 (same-family Claude subagent) — `REJECT_BOUNDED` on `AC-DECOMPOSITION`
+3. `RESUBMIT`, `CHECKS` — fixed (commit `f47a43d`)
+4. `REVIEW_OPEN`/`REVIEW_RESULT` round 2 (cross-family Codex) — `REJECT_BOUNDED` on `AC-PROVENANCE`, `AC-ADVERSE`
+5. `RESUBMIT`, `CHECKS` (first attempt failed on an unrelated workspace artifact, second passed clean) — fixed via ADR-060 (commit `29422ca`)
+6. Event 12, `REVIEW_OPEN` — round 3 (cross-family Codex) dispatched. `reviews_used` is now **3 of `max_review_attempts=3`**.
 
-`docs/ISSUE_9_VALIDATION.md` is the full record of #9's own acceptance and 23-round Codex review (ADR-041–ADR-055). Its two generic-controller lessons — evidence-binding is several checks, not one (revision, contract hash, dispatch/artifact identity, an observation-time bound), and a stored shortfall-marked record must replay for history but never justify a *new* acceptance (ADR-053) — were applied to family-law's mechanism from the start rather than rediscovered, though #10's own review will likely still find edges specific to this domain (R-012: stop for diagnosis when a review class recurs, and #9's own submission-binding class took five separate review rounds to close completely — expect this pattern to recur here too, and look for the actual invariant rather than patching the first reproduction a reviewer hands you). PR #35 (ADR-056–058) fixed a hardware-evidence `validation_id` binding gap and completed the sample adapter's zero-timeout `receive()` fix; unrelated to #10.
+Round 3's report exists at `_acceptance-demo-10\review-3\review-report.json` with verdict `REJECT_BOUNDED`, but **`ingest-review` refused it**: its `scope`-kind `contract_failures` entry has `failed_ref: "scope.allowed"`, which is not a literal string from `contract.scope.allowed`/`prohibited` as the controller requires (`acceptance.py` line ~161-167). The report is genuine, real, evidence-worthy findings — do not discard it — but it cannot be ingested as written, and the round-3 review event therefore has a dispatched review with **no recorded verdict**.
 
-## Verified state
+## The two real findings from round 3
 
-394 tests pass on Windows (`unittest discover -s tests -p "test_*.py"` from the repo root — plain `discover` finds nothing; 361 before this session plus 33 new in `tests/test_family_law.py`). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files after running `sync_skills.py` (without `--check`) to propagate the canonical `scripts/`, `config/`, `templates/`, and `skills/complex-project-bootstrapper/` changes into the `.agents/skills`, `.claude/skills`, and payload mirrors. Nothing has been pushed, and no PR exists yet for this branch.
+1. **`AC-ADVERSE` (real code gap, must fix):** `scripts/family_law.py`'s `validate_contract_domain` requires nonempty `adverse_authority` whenever a `LEGAL_PROPOSITION` assertion is declared, but never requires a `primary_source_verified` validation to exist at all. `examples/family-law/packets/FAM-04-issue-brief.contract.json` declares a `LEGAL_PROPOSITION` with only `VAL-CITATION-LINKAGE` (`citation_linked`, command-bearing) and no primary-source rung, and it currently validates — contrary to the packet's own stated objective that a legal proposition needs both adverse authority *and* primary-source verification. Fix: require at least one command-free `primary_source_verified` validation whenever a contract declares `LEGAL_PROPOSITION`; add it to FAM-04; add a regression that a `LEGAL_PROPOSITION` packet omitting that rung (including a non-synthetic one) is refused.
+
+2. **Scope-declaration mismatch (needs a decision, not obviously a code fix):** the reviewer flagged that this branch's changes to `CHANGELOG.md`, `DECISIONS.md`, `HANDOFF_CURRENT.md`, `OPEN_LOOPS.md`, `PROJECT_STATE.md`, `SOURCE_INDEX.md` fall outside the dogfood packet's declared `scope.allowed` (which only names the domain schema/module/tests/examples/registration/bootstrap-field/fixture changes). This is arguably not a real defect — `MASTER_INSTRUCTIONS.md`'s closeout protocol requires these updates every session — but the packet's own scope declaration didn't anticipate that. Decide either to widen `scope.allowed` on the next contract revision to admit standing closeout docs, or to exclude those files from the reviewed diff artifact when preparing the next review packet.
 
 ## Exact next action
 
-Continue Issue #10 on `issue-10-family-law-domain`: run the repeat-dogfood acceptance exercise (a fresh ledger, same-family then cross-family review, no waiver unless Winston authorizes one — the same shape as `_acceptance-demo-9b`), then open the PR and run the Codex review loop to a clean result before asking for merge authorization. The construction branch `issue-9-software-hardware-domain` remains until the later authorized cleanup; do not delete it outside that cleanup.
+1. Fix `AC-ADVERSE` in `scripts/family_law.py` and `examples/family-law/packets/FAM-04-issue-brief.contract.json`, plus regressions, and rerun the full suite.
+2. Resolve the scope question above (widen `scope.allowed` via a contract revision, or narrow the next reviewed diff).
+3. `reviews_used` is already at `max_review_attempts` (3) — a fourth review dispatch needs either a contract revision (which can raise the budget) or a recorded architect decision under the existing budget. Check `ACCEPTANCE_PROTOCOL.md` and `scripts/acceptance.py`'s `decide`/`waive-cross-family` commands for the supported path; do not simply re-run `prepare-review` without resolving this first, since `_acceptance-demo-10`'s config currently refuses it.
+4. Once a further review is obtained and returns `APPROVE`, run `accept`, write `docs/ISSUE_10_VALIDATION.md` (does not exist yet — no analog to `docs/ISSUE_9_VALIDATION.md` has been created for #10), then open the PR and run the Codex review loop to a clean result before asking for merge authorization.
+
+## What #9 and PR #35 left you (background, unchanged)
+
+`docs/ISSUE_9_VALIDATION.md` is the full record of #9's own acceptance and 23-round Codex review (ADR-041–ADR-055). Its lessons — evidence-binding is several checks, not one, and R-012 (stop for diagnosis when a review class recurs) — are exactly what round 3 is: the third recurrence of a real gap in this domain's provenance/scope machinery, following rounds 1 and 2. Expect this pattern to continue; look for the actual invariant rather than patching only what round 3 found.
+
+## Verified state
+
+398 tests pass on Windows (`unittest discover -s tests -p "test_*.py"` from the repo root via `%TEMP%\uaipt-venv\Scripts\python.exe`). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). Git working tree is clean; nothing has been pushed, and no PR exists yet for this branch.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 
-OL-016 (template-packaging defects: generated projects inherit a payload-drift CI check they cannot pass; `sync_skills.py` never detects an obsolete payload file; development decision history ships into fresh projects) remains open from #8's closure, unaddressed by #9 or #10.
+OL-016 (template-packaging defects) remains open from #8's closure, unaddressed by #9 or #10.
 
 ## Environment and tooling notes
 
 The template is deliberately unactivated: `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` reports `BOOTSTRAP INVALID: no such file`. Everything proceeds as the maintainer's explicitly authorized template maintenance.
 
-This checkout has no repository virtualenv and must not gain one; the working interpreter with `jsonschema==4.26.0` is at `%TEMP%\uaipt-venv\Scripts\python.exe`. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. Under WSL, discover each suite individually (`discover -s tests -p test_acceptance.py`, etc.); importing by dotted module name fails because `tests/` is not a package. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
+This checkout has no repository virtualenv and must not gain one; the working interpreter with `jsonschema==4.26.0` is at `%TEMP%\uaipt-venv\Scripts\python.exe`. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
+
+The Codex CLI (`codex exec`) is available locally and was used directly for round 2's and round 3's cross-family review, run non-interactively with `-C <review-dir> -s read-only --skip-git-repo-check` and the prompt on stdin — this is a genuinely independent model, not a simulated one. Do not confuse a one-shot `codex exec` review dispatch with a persistent unattended `codex.exe --ask-for-approval never` session — check for the latter before assuming sole ownership of this working tree (see above).
 
 ## Boundaries
 
