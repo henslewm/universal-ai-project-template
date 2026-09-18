@@ -259,6 +259,23 @@ class AttestationRuleTests(AcceptanceBase):
                                  {"attestation": {"validation_id": validation_id, "operator": operator, "evidence": evidence}},
                                  previous_state=acceptance.replay(ledger))
 
+    def test_every_example_packets_declared_commands_execute_through_the_gate(self):
+        """The worked decomposition is executable, not only schema-valid: each packet's own
+        declared commands are re-executed by the deterministic gate and observed to pass."""
+        self.assertEqual(len(PACKET_FILES), 4)
+        for path in PACKET_FILES:
+            with self.subTest(packet=path.name):
+                contract = local_argv(wp.read_json(path))
+                contract["dependencies"] = []
+                contract["risk"] = "low"
+                declared = [check["id"] for check in contract["validation"] if "command" in check]
+                self.assertTrue(declared)
+                ledger, _ = self.start(packet=make_packet(contract))
+                self.checked(ledger)
+                observed = acceptance.deterministic_status(self.state(ledger))
+                for identifier in declared:
+                    self.assertEqual(observed[identifier], "PASSED", identifier)
+
     def test_attestation_is_refused_for_a_result_or_artifact_it_was_not_observed_against(self):
         ledger = self.custody_ledger()
         for field, other in (("dispatch_id", "f" * 64), ("artifact_sha256", "0" * 64)):
