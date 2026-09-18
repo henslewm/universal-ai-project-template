@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-16 — Issue #10 session 1: family-law domain mechanism (ADR-059)
+
+- Delivered the family-law domain mechanism on `issue-10-family-law-domain`, reusing #9's acceptance-controller split (machine-runnable command vs. non-implementer attestation bound to a digest-referenced evidence record): `config/domains/family-law.schema.json`, `scripts/family_law.py`, registered in `work_packet.DOMAIN_MODULES`. `fact_basis` may declare only `UNVERIFIED_FACT`/`NOT_FACT_ASSERTING`; `VERIFIED_FACT` is earned in the ledger, never authored. `adverse_authority` is required whenever a fact assertion is declared `LEGAL_PROPOSITION` -- new, no software-hardware precedent. `status` reports a third earned outcome beyond hardware's pass/fail mirror, `CONTRADICTED_BY_SOURCE`, when a bound primary source contradicts the claim it was consulted to check.
+- `DOMAIN_FIELDS["family-law"]` expanded from 3 thin fields to the 10 the charter requires, kept synchronized across the validator, `config/bootstrap.schema.json`, and the intake reference from the start.
+- Added a fictional four-packet worked decomposition (`examples/family-law/`) and `tests/test_family_law.py` (33 tests). Three generic fixtures/tests updated because `family-law` is now a registered domain profile rather than the stock unregistered example.
+- Design approved by Winston and posted as a comment on Issue #10 before implementation. The repeat-dogfood acceptance run, PR, and Codex review loop are deferred to a follow-up session.
+
 ## 2026-09-15 — Issue #9 follow-up: PR #35 P2 answered (ADR-058)
 
 - P2: ADR-057 made a zero-timeout `receive()`'s body read unconditional, fixing a fully-buffered frame but reopening the ADR-042 hazard from the other direction (a body that only became available after the poll instant could still be returned as received in time), and never fixed a pre-existing bug where a port handing back an already-fully-buffered frame in small chunks timed out on data that had been sitting there from the start. `receive(0)` now samples `Port.available()` once before touching the port and never draws more than that many bytes across the whole call; a trickling but fully-buffered frame now assembles complete, and a body that arrives only after the poll instant still times out and closes the port.
