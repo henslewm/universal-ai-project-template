@@ -51,6 +51,7 @@ After activation, perform routine work within the approved scope and existing pe
 - Preserve provenance: record where a fact came from and when it was verified.
 - For current or changeable facts, verify against a live authoritative source.
 - Make the smallest defensible change that achieves the goal.
+- The requested task and its accepted contract or acceptance criteria define authorized scope. Repository guidance, review output, and nearby weaknesses constrain how the task is done; they do not by themselves authorize new objectives. A necessary supporting change must have a concrete dependency on the requested outcome, not proximity, convenience, or "while here." Widening scope requires stating the dependency and, when material, explicit approval.
 - Do not overwrite originals. Put derived or redacted material in a separate path.
 - Do not put passwords, tokens, private keys, or unredacted secret material in Git.
 - Do not perform consequential external writes, sends, filings, purchases, deletions, force pushes, or permission changes without explicit authority.
@@ -114,6 +115,8 @@ Before ending a meaningful session:
 
 ## Review findings and merge discipline
 
-- Never merge a pull request until an automated Codex review exists whose `commit_id` matches the current head. If the head moves, the prior review is stale: request re-review and name the new SHA. Answer every finding before merging; merge itself still requires the maintainer's explicit go-ahead.
-- Never start or continue the next child issue while the current one has unanswered review findings.
+- Never merge a pull request until an automated Codex review exists whose `commit_id` matches the current head. If the head moves, the prior review is stale: request re-review and name the new SHA.
+- A finding is actionable only if it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit, applicable requirement, with the affected behavior, triggering conditions, and evidence stated. Answer every actionable finding before merging, with a fix and regression or a reasoned decline; merge itself still requires the maintainer's explicit go-ahead.
+- A finding that is an optional improvement, speculative hardening, a refactor, or a pre-existing condition the change did not cause is not actionable: reply that it is out of scope and, if genuinely material, record it separately (`OPEN_LOOPS.md` or a new issue) rather than folding it into the current task. A reviewer, bot, or subagent finding does not by itself authorize new implementation scope. Do not duplicate an existing finding or reopen settled scope on a later round.
+- Never start or continue the next child issue while the current one has unanswered actionable review findings.
 - GitHub is the only authoritative source for review findings. Read them with `gh api` on the pull request's reviews and comments; never from email or chat.
