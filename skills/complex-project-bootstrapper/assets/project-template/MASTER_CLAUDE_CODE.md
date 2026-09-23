@@ -24,7 +24,7 @@ Once activated, routine work within the approved scope and existing permissions 
 
 ## Review findings before merge
 
-After opening or updating a pull request, poll `gh api repos/<owner>/<repo>/pulls/<n>/reviews` and `.../pulls/<n>/comments` until a Codex review exists whose `commit_id` equals the current head. A moved head makes the prior review stale: request re-review naming the new SHA. Answer every finding on the pull request, with a fix and regression or a reasoned reply, before asking for merge authorization. Do not start or continue the next child issue while the current one has unanswered findings. Findings come from GitHub through `gh api`, never from email.
+After opening or updating a pull request, poll `gh api repos/<owner>/<repo>/pulls/<n>/reviews` and `.../pulls/<n>/comments` until a Codex review exists whose `commit_id` equals the current head. A moved head makes the prior review stale: request re-review naming the new SHA. Apply `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" exactly as it states: that section is the single definition of what is actionable and how everything else is handled, and it is deliberately not restated here. Answer every actionable finding before asking for merge authorization. Do not start or continue the next child issue while the current one has unanswered actionable findings. Findings come from GitHub through `gh api`, never from email.
 
 ## Closeout
 
