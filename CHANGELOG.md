@@ -4,7 +4,8 @@
 
 - Agents were treating broad project guidance, review suggestions and nearby weaknesses as authorization to expand a task; reviews generated additional requirements, implementation expanded to satisfy them, and repeated rounds kept growing the work. The instruction sources said "answer every finding" with no test for what counts as one, so an optional suggestion carried the same force as a genuine defect.
 - `MASTER_INSTRUCTIONS.md` now states that the requested task and its accepted contract define authorized scope, and that a finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit requirement applicable to the task under review. Optional improvements, speculative hardening, refactors and pre-existing conditions get a reasoned decline and a separate record instead of entering the task.
-- `MASTER_CLAUDE_CODE.md`, `.claude/rules/02-git-and-change-control.md` and the `.claude/agents/reviewer.md` brief are aligned to the same classification; the `sync_skills.py` payload mirror carries it so newly generated projects inherit the boundary.
+- A finding must also state the affected behavior, the conditions that trigger it, and the evidence for it, with severity by actual impact; a bare assertion that something is a defect is not a finding.
+- `MASTER_CLAUDE_CODE.md` and `.claude/rules/02-git-and-change-control.md` point at that section as the single definition rather than paraphrasing it, and the two standalone reviewer briefs (`.claude/agents/reviewer.md`, `.codex/agents/reviewer.toml`) carry the complete test, since a delegated reviewer receives the brief without the master files. The `sync_skills.py` payload mirror carries all of it so newly generated projects inherit the boundary.
 - Instruction text only, no code changed. Also ported to `esp32-ble-motors` and `shopmonkey_pricefileupdate_landNsea`.
 
 ## 2026-09-15 — Issue #9 follow-up: PR #35 P2 answered (ADR-058)
