@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-23 — Scope policy: review findings must be concrete defects (ADR-063)
+
+- Agents were treating broad project guidance, review suggestions and nearby weaknesses as authorization to expand a task; reviews generated additional requirements, implementation expanded to satisfy them, and repeated rounds kept growing the work. The instruction sources said "answer every finding" with no test for what counts as one, so an optional suggestion carried the same force as a genuine defect.
+- `MASTER_INSTRUCTIONS.md` now states that the requested task and its accepted contract define authorized scope, and that a finding is actionable only when it names a concrete defect the change introduced or exposed, or an unmet explicit requirement. Optional improvements, speculative hardening, refactors and pre-existing conditions get a reasoned decline and a separate record instead of entering the task.
+- `MASTER_CLAUDE_CODE.md`, `.claude/rules/02-git-and-change-control.md` and the `.claude/agents/reviewer.md` brief are aligned to the same classification; the `sync_skills.py` payload mirror carries it so newly generated projects inherit the boundary.
+- Instruction text only, no code changed. Also ported to `esp32-ble-motors` and `shopmonkey_pricefileupdate_landNsea`.
+
 ## 2026-09-15 — Issue #9 follow-up: PR #35 P2 answered (ADR-058)
 
 - P2: ADR-057 made a zero-timeout `receive()`'s body read unconditional, fixing a fully-buffered frame but reopening the ADR-042 hazard from the other direction (a body that only became available after the poll instant could still be returned as received in time), and never fixed a pre-existing bug where a port handing back an already-fully-buffered frame in small chunks timed out on data that had been sitting there from the start. `receive(0)` now samples `Port.available()` once before touching the port and never draws more than that many bytes across the whole call; a trickling but fully-buffered frame now assembles complete, and a body that arrives only after the poll instant still times out and closes the port.
