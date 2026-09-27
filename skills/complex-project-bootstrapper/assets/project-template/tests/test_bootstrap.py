@@ -43,6 +43,11 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(validation.returncode, 0, msg=validation.stdout + validation.stderr)
 
     def test_bootstrap_in_place(self) -> None:
+        # In-place bootstrap is refused once a project is generated (bootstrap_project.py
+        # rejects existing bootstrap state and template_mode=false), so only a template
+        # checkout can exercise it; same mode check as validate_project.py.
+        if not json.loads((ROOT / "config/project.json").read_text(encoding="utf-8")).get("template_mode", True):
+            self.skipTest("in-place bootstrap only applies to a template checkout")
         with tempfile.TemporaryDirectory() as temp:
             destination = Path(temp) / "github-template-project"
             shutil.copytree(
