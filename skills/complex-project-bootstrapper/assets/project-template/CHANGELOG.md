@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-27 — Merge rule accepts Codex or CodeRabbit reviews (ADR-074)
+
+- Codex's review quota ran out during PR #61. The merge rule now accepts an automated review by Codex or by CodeRabbit on the exact head; request one with `@codex review` or `@coderabbitai review`. ADR-063's actionability test applies unchanged.
+
 ## 2026-09-27 — Triage decisions: exit codes (ADR-072) and launcher boundary (ADR-073)
 
 - ADR-072 (#32): exit codes are 0 OK, 1 handled refusal, 2 not-OK outcome (usage error, domain stop/hold, or unreadable bootstrap file, told apart by the JSON `status`), 130 interrupted. Nothing is reclassified; implementation stays under #32 and #31.
