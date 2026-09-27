@@ -39,10 +39,20 @@ def build_inputs(project_dir, roots):
     return sorted({os.path.abspath(f) for f in files if os.path.isfile(f)})
 
 
+def _hash_name(path, project_dir):
+    # Project-relative when possible; a root on another Windows drive has no relative
+    # path (relpath raises ValueError), so use its normalized absolute path instead.
+    try:
+        name = os.path.relpath(path, project_dir)
+    except ValueError:
+        name = os.path.normcase(os.path.abspath(path))
+    return name.replace("\\", "/")
+
+
 def build_id(project_dir, roots, toolchain):
     digest = hashlib.sha256()
     for path in build_inputs(project_dir, roots):
-        digest.update(os.path.relpath(path, project_dir).replace("\\", "/").encode() + b"\0")
+        digest.update(_hash_name(path, project_dir).encode() + b"\0")
         with open(path, "rb") as handle:
             digest.update(handle.read() + b"\0")
     try:
