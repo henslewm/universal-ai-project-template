@@ -1,10 +1,10 @@
 # Project State
 
-- **Status:** TEMPLATE MAINTENANCE — #9 closed 2026-09-15 through merged PR #34; its post-merge follow-up merged 2026-09-16 through PR #35 (ADR-058); #10 not yet started
-- **Last verified:** 2026-09-16 UTC
-- **Active branch:** main, at `d2350ec25474816545b4418a4c8c5cd97516e2c6`
+- **Status:** TEMPLATE MAINTENANCE — #9 closed 2026-09-15 through merged PR #34 and its follow-up PR #35 (ADR-058); on 2026-09-27 PR #48 (Mistral Vibe platform files) and PR #45 (scope policy, ADR-063) merged; #10 in progress on its branch, not yet merged
+- **Last verified:** 2026-09-27 UTC
+- **Active branch:** main, at `a35b89dcfaaba0f113c403535558078a18a9ee1f`
 - **Controlling scope:** [Locked master #14](https://github.com/henslewm/universal-ai-project-template/issues/14); title/body/order unchanged.
-- **Active child:** [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) — complete high-conflict NC family-law evidence/research template. Not yet started; begin with the interactive-bootstrap-then-decompose pattern used for #9.
+- **Active child:** [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) — complete high-conflict NC family-law evidence/research template. In progress on branch `issue-10-family-law-domain` (8 commits ahead of and 14 behind `main` on 2026-09-27; no PR yet; ADR-059 to ADR-062 reserved there). It needs `main` merged in before its PR.
 
 ## Verified foundation
 
@@ -17,6 +17,12 @@ This is an unactivated reusable template under explicit maintenance authority. N
 ## Post-#9 follow-up (PR #35, ADR-058)
 
 An independent review of merged `main` after PR #34 found two real defects (ADR-056, ADR-057). PR #35's own review found ADR-057's zero-timeout `receive()` fix incomplete — it reopened the ADR-042 late-arrival hazard from the other direction and left a pre-existing chunked-frame bug unfixed, because no wall-clock/deadline measurement can distinguish "already-buffered data trickling in" from "data that arrived after the poll instant." The fix (ADR-058) adds `Port.available()`, sampled once per zero-timeout `receive()` as a fixed byte budget. A second review round found the sample itself ran outside the `_wire()` close-on-failure guard; both that and a stale documented test count were fixed. Merged 2026-09-16 at `d2350ec` after Codex and an independent reviewer both reported the final head clean.
+
+## Merged 2026-09-27: PR #48 and PR #45
+
+- **PR #48** (merged at `59f194e`) restores the Mistral Vibe platform files (`MASTER_MISTRAL.md`, `.mistral/*`, `instructions/profiles/mistral_high_synthesis_INSTRUCTIONS.md`, plus payload mirrors), which were lost when `main` was rewritten. Codex round 1 found that the offline knowledge set and startup reads omitted `FACTS_AND_ASSUMPTIONS.md`/`RISK_REGISTER.md`; this was fixed in `059ff61`. Round 2 asked for `RISK_REGISTER.md` in the startup reads; this was declined under ADR-063 because the canonical startup protocol does not require it. The files are present but not yet wired in; follow-ups are [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) (authority order, validator, README, bootstrapper) and [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) (verify product claims; master #14 scope decision).
+- **PR #45** (merged at `a35b89d`) adds the scope policy (ADR-063): a review finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit applicable requirement. It merged after a clean Codex review of head `5647fa9` with all 8 inline findings answered.
+- On the combined `main`, 361 tests pass and `validate_project.py` passes with 81 required paths.
 
 ## Continuation
 

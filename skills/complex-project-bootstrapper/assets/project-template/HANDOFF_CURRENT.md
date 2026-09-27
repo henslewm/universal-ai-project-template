@@ -1,12 +1,18 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-16 UTC
+- **Prepared:** 2026-09-27 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Branch:** main
-- **Latest accepted merge:** `d2350ec25474816545b4418a4c8c5cd97516e2c6` (PR #35, Issue #9 follow-up, ADR-058). Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** #9 closed, and its post-merge follow-up (PR #35) is now also merged. Next unblocked child per master #14's ordered list is #10 (complete high-conflict NC family-law template).
+- **Latest accepted merge:** `a35b89dcfaaba0f113c403535558078a18a9ee1f` (PR #45, scope policy, ADR-063), after PR #48 (Mistral Vibe platform files) at `59f194e`. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Scope:** #9 and its follow-up are closed. The active child per master #14's ordered list is #10 (complete high-conflict NC family-law template), in progress on branch `issue-10-family-law-domain`.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). Issues #2 through #9 are closed through merged PRs #15 to #34; #9's post-merge follow-up is merged through PR #35. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
+
+## What merged on 2026-09-27
+
+**PR #45: scope policy (ADR-063).** A review finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit applicable requirement, with its behavior, trigger and evidence. `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" is the single definition. Apply it to every later review round, including #10's.
+
+**PR #48: Mistral Vibe platform files.** These are restored but not yet wired in. [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) tracks the authority order, `validate_project.py` required paths, README and bootstrapper. [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) tracks verifying the product claims and the maintainer's master #14 scope decision. Neither blocks #10.
 
 ## What PR #35 left you (post-#9 follow-up, ADR-058)
 
@@ -28,11 +34,11 @@ Third, R-012 (stop for diagnosis when a review class recurs) held again: the sub
 
 ## Verified state
 
-361 tests pass on Windows (the sample suite under `examples/software-hardware/sample` grew from 41 to 44 with PR #35's two ADR-058 regressions plus one for the `_wire()` fix). Repository validation passes 81 required paths and `scripts/sync_skills.py --check` reports 0 differing files. Both GitHub `validate` checks and the Codex review were green on the merged head.
+On `main` at `a35b89d`, 361 tests pass on Windows and repository validation passes 81 required paths. Both GitHub `validate` checks and a Codex review of each merged head were green before merge.
 
 ## Exact next action
 
-Start #10 (complete high-conflict NC family-law template) from master #14 and #10 only, plus these durable documents, following the same interactive-bootstrap-then-decompose pattern used for #9. The construction branch `issue-9-software-hardware-domain` remains until the later authorized cleanup; do not delete it outside that cleanup.
+Continue #10 on `issue-10-family-law-domain` from master #14 and #10 only, plus these durable documents. That branch is 8 commits ahead of and 14 behind `main` (checked 2026-09-27). Merge `main` into it before opening its PR. Expect overlaps in `CHANGELOG.md`, `DECISIONS.md` and the four ADR-063 instruction files, because the branch's own tip commit carries an earlier scope-policy version. ADR-059 to ADR-062 are reserved for that branch. The construction branch `issue-9-software-hardware-domain` remains until the later authorized cleanup; do not delete it outside that cleanup.
 
 ## Limitations carried forward (outside #9; maintainer's call under master #14)
 
@@ -42,7 +48,7 @@ OL-016 (template-packaging defects: generated projects inherit a payload-drift C
 
 The template is deliberately unactivated: `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` reports `BOOTSTRAP INVALID: no such file`. Everything proceeds as the maintainer's explicitly authorized template maintenance.
 
-This checkout has no repository virtualenv and must not gain one; the working interpreter with `jsonschema==4.26.0` is at `%TEMP%\uaipt-venv\Scripts\python.exe`. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. Under WSL, discover each suite individually (`discover -s tests -p test_acceptance.py`, etc.); importing by dotted module name fails because `tests/` is not a package. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
+This checkout has no repository virtualenv and must not gain one; `%TEMP%\uaipt-venv` has lost its `pyvenv.cfg` and no longer runs (as of 2026-09-27); the system `python` (3.12.8) has `jsonschema==4.26.0` and runs the suite. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. Under WSL, discover each suite individually (`discover -s tests -p test_acceptance.py`, etc.); importing by dotted module name fails because `tests/` is not a package. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
 
 ## Boundaries
 
