@@ -13,16 +13,21 @@ SKILL = ROOT / 'skills/complex-project-bootstrapper'
 # folder is this repository; those are personal working files, never template payload.
 EXCLUDED = {'.git', '__pycache__', '.pytest_cache', '.venv', 'venv', 'dist', 'build', 'assets',
             'Claude outputs'}
+# Pruning skips only regenerated caches and version-control state, which bootstrap_project.py never
+# ships and which running the test suite legitimately creates inside the native mirrors.
+PRUNE_SKIPPED = {'.git', '__pycache__', '.pytest_cache'}
 
 
 def files_under(root: Path, every_file: bool = False):
-    """Files under `root`, never descending into EXCLUDED directories.
+    """Files under `root`.
 
-    By default only files that may become payload. `every_file=True` is for pruning a mirror: it
-    yields every file present, whatever its name, so anything the copy filters would never have
-    produced (a `.git` pointer, local bootstrap state, `.pyc`, `.zip`) is found and removed."""
+    By default only files that may become payload, never descending into EXCLUDED directories.
+    `every_file=True` is for pruning a mirror, whose invariant is that it holds exactly what the
+    copy produced: it yields every file present, whatever its name or directory, except under
+    PRUNE_SKIPPED, so anything the copy filters would never have produced is found and removed."""
+    skipped = PRUNE_SKIPPED if every_file else EXCLUDED
     for directory, dirs, files in os.walk(root):
-        dirs[:] = sorted(name for name in dirs if name not in EXCLUDED)
+        dirs[:] = sorted(name for name in dirs if name not in skipped)
         for name in sorted(files):
             # EXCLUDED names are excluded as files too: in a git worktree or submodule `.git`
             # is a pointer file, and it must never become payload.

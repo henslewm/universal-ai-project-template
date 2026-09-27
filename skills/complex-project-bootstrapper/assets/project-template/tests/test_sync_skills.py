@@ -43,7 +43,10 @@ class SyncSkillsTests(unittest.TestCase):
         asset = self.skill / "assets/project-template"
         native = self.root / ".agents/skills/complex-project-bootstrapper"
         stale = [asset / ".git", asset / "config/bootstrap.json", asset / "BOOTSTRAP_REVIEW.md",
-                 asset / "bootstrap-answers.local.json", asset / "stray.pyc", native / "bundle.zip"]
+                 asset / "bootstrap-answers.local.json", asset / "stray.pyc", native / "bundle.zip",
+                 # ... and anything under a directory the copy never descends into (round 3).
+                 asset / "build/stale.txt", asset / "assets/stale.txt", asset / ".venv/stale.txt",
+                 native / "dist/stale.txt", native / "assets/stale.txt"]
         for path in stale:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("stale\n", encoding="utf-8")
@@ -52,6 +55,15 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertTrue(all(path.exists() for path in stale), "--check must not write")
         sync_skills.sync()
         self.assertFalse(any(path.exists() for path in stale))
+        self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_regenerated_caches_in_a_mirror_are_not_drift(self):
+        # Running the suite executes scripts from the native mirrors, which leaves __pycache__
+        # there; CI runs the payload check after the tests, so caches must not count as drift.
+        native = self.root / ".agents/skills/complex-project-bootstrapper"
+        for path in (native / "scripts/__pycache__/x.cpython-312.pyc", native / ".pytest_cache/v/cache"):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("cache\n", encoding="utf-8")
         self.assertEqual(sync_skills.sync(check=True), [])
 
     def test_obsolete_mirror_files_are_reported_and_removed(self):
