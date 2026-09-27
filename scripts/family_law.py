@@ -414,6 +414,9 @@ def status(ledger, evidence_dir=None) -> dict:
     levels = domain["validation_levels"]
     gate = acceptance.deterministic_status(state)
     assertions = [item["assertion"] for item in domain["fact_assertions"]]
+    # An UNKNOWN assertion is declared unresolved: no record can turn it into a verified fact, so a
+    # packet carrying one never earns whole-task VERIFIED_FACT (ADR-060).
+    unknown = [item["assertion"] for item in domain["fact_assertions"] if item["fact_status"] == "UNKNOWN"]
     covered = set()  # assertions a re-verified record found supported
     checks = []
     problems = []
@@ -455,7 +458,7 @@ def status(ledger, evidence_dir=None) -> dict:
                                              assertions)]
                     if not found:
                         entry["attested_outcome"] = record["outcome"]
-                        if record["outcome"] == "supports":
+                        if record["outcome"] == "supports" and record["claim_verified"] not in unknown:
                             covered.add(record["claim_verified"])
                 entry["evidence_verified"] = not found
                 entry["evidence_path"] = str(path) if path else None
@@ -476,12 +479,16 @@ def status(ledger, evidence_dir=None) -> dict:
         earned, reason = UNVERIFIED, f"Acceptance ledger is {state['status']}, not ACCEPTED."
     elif not source_ids:
         earned, reason = UNVERIFIED, "No validation reaches primary_source_verified; machine-runnable checks cannot verify a factual claim."
+    elif contradicted:
+        # Precedence (ADR-059): a primary source that contradicts the claim is a material finding in
+        # its own right, surfaced ahead of every other evidence reason so it can never be read as
+        # merely unverified -- including problems with an unrelated check's record, which stay in
+        # the reason as diagnostics. Only a check whose own record verified (or, on the attestation
+        # basis, was not contradicted by a failed verification) is counted here.
+        earned, reason = CONTRADICTED, "; ".join([f"{v}: bound source contradicts the claim" for v in contradicted]
+                                                 + [f"also: {problem}" for problem in problems])
     elif problems:
         earned, reason = UNVERIFIED, "; ".join(problems)
-    elif contradicted:
-        # A primary source that contradicts the claim is a material finding in its own right, and
-        # is surfaced ahead of every other reason so it can never be read as merely unverified.
-        earned, reason = CONTRADICTED, "; ".join(f"{v}: bound source contradicts the claim" for v in contradicted)
     elif inconclusive:
         earned, reason = UNVERIFIED, "; ".join(f"{v}: primary source review was inconclusive" for v in inconclusive)
     elif not all(gate[v] == "ATTESTED" for v in source_ids):
@@ -501,6 +508,9 @@ def status(ledger, evidence_dir=None) -> dict:
         earned, reason = UNVERIFIED, ("The attested digests were not re-verified against their records "
                                       "(supply --evidence-dir); an attestation alone is reported for audit "
                                       "and never earns VERIFIED_FACT.")
+    elif unknown:
+        earned, reason = UNVERIFIED, ("The contract declares UNKNOWN assertion(s), which no record can resolve "
+                                      "into a verified fact: " + "; ".join(unknown))
     elif any(text not in covered for text in assertions):
         uncovered = [text for text in assertions if text not in covered]
         earned, reason = UNVERIFIED, ("No re-verified supporting record covers: " + "; ".join(uncovered))

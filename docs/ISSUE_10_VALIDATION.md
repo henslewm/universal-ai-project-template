@@ -40,6 +40,11 @@ The fifth dogfood criterion, `AC-SPLIT`, was met in every round. It requires reu
 - **Round 1 on `e93271d`:**
   - P1 (actionable, fixed): `PROFILE.md` promised independent model review for elevated fact statuses, but a low-risk `LEGAL_PROPOSITION` packet was accepted on the deterministic gate alone. A packet asserting `DISPUTED_FACT` or `LEGAL_PROPOSITION` now needs `model_review` in its effective gates (ADR-066).
   - P2 (fixed): `HANDOFF_CURRENT.md` still described the session-2 state.
+- **Round 2 on `7bb558e`**, two P1s (both actionable, fixed, ADR-067):
+  - A missing record on one check masked a re-verified contradiction on another.
+  - A supporting record for an `UNKNOWN` assertion earned `VERIFIED_FACT`.
+
+  Both are in the earned-status derivation dogfood round 2 had corrected, so under R-012 the precedence was stated as one rule before patching.
 
 ## Offline validation — 2026-09-27
 

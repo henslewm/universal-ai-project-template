@@ -434,6 +434,35 @@ class AttestationRuleTests(AcceptanceBase):
         # excluded from what counts as satisfied.
         self.assertEqual(report["highest_level_satisfied"], "structural")
 
+    def test_a_verified_contradiction_outranks_an_unrelated_record_problem(self):
+        # PR #50 round 2: a missing record for one check hid a re-verified contradiction on another.
+        contract = two_source_rung_contract()
+        del contract["domain"]["synthetic"]
+        ledger, packet = self.start(packet=make_packet(contract))
+        self.checked(ledger)
+        bound = dict(task_id="ACCEPT-FAM-001", contract_hash=wp.current(packet)["hash"])
+        against = live(outcome="contradicts", **bound)
+        other = live(outcome="supports", validation_id="VAL-SECOND-REVIEW", **bound)
+        self.attest(ledger, against["operator"], domain.evidence_lines(against))
+        self.attest(ledger, other["operator"], domain.evidence_lines(other), validation_id="VAL-SECOND-REVIEW")
+        acceptance.accept(ledger, CONTROLLER)
+        records = self.directory / "records"
+        records.mkdir()
+        (records / "against.json").write_text(json.dumps(against), encoding="utf-8")  # the other is missing
+        report = domain.status(ledger, records)
+        self.assertEqual(report["earned_fact_basis"], "CONTRADICTED_BY_SOURCE")
+        self.assertIn("VAL-TRANSCRIPT-REVIEW: bound source contradicts the claim", report["reason"])
+        self.assertIn("VAL-SECOND-REVIEW: no source verification record", report["reason"])
+
+    def test_an_unknown_assertion_never_earns_verified_fact(self):
+        # PR #50 round 2: a supporting record for an UNKNOWN assertion made it covered.
+        contract = custody_contract()
+        contract["domain"]["fact_assertions"][0]["fact_status"] = "UNKNOWN"
+        ledger, _, records = self.accepted_source_ledger(contract)
+        report = domain.status(ledger, records)
+        self.assertEqual(report["earned_fact_basis"], "UNVERIFIED_FACT")
+        self.assertIn("UNKNOWN assertion", report["reason"])
+
     def test_inconclusive_review_does_not_earn_verified_fact(self):
         contract = custody_contract()
         del contract["domain"]["synthetic"]

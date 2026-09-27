@@ -24,6 +24,7 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 - **PR #50, Codex round 1 on `e93271d`:**
   - P1 (actionable, fixed): the profile promises model review for elevated fact statuses, but a low-risk `LEGAL_PROPOSITION` packet was accepted on the deterministic gate alone. A packet asserting `DISPUTED_FACT` or `LEGAL_PROPOSITION` must now have `model_review` in its effective gates.
   - P2 (fixed): this handoff was stale.
+- **PR #50, Codex round 2 on `7bb558e`:** two P1s in `family_law.status`, both fixed (ADR-067). A verified contradiction now outranks an unrelated record problem, and an `UNKNOWN` assertion can never be covered. Round 3 is the last in this session's bound.
 
 ## Exact next action
 
@@ -35,7 +36,7 @@ Continue PR #50's Codex loop. This session applies a bound of three rounds, and 
 
 ## Verified state
 
-400 tests pass on Windows after PR #50 round 1 (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). Git working tree is clean; nothing has been pushed, and no PR exists yet for this branch.
+402 tests pass on Windows after PR #50 round 2 (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). Git working tree is clean; nothing has been pushed, and no PR exists yet for this branch.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 
