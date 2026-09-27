@@ -23,6 +23,9 @@ EXCLUDE_NAMES = {
     # Approval belongs only to its original project, even if generation fails.
     "bootstrap.json", "bootstrap.json.tmp", "BOOTSTRAP_REVIEW.md",
 }
+# The template's own build evidence. A generated project starts its own history, so these are
+# removed rather than inherited (#49); reusable docs, examples and templates stay.
+TEMPLATE_HISTORY = ("docs/ISSUE_*_VALIDATION.md", "docs/WORKER_STARTUP_VALIDATION.md")
 
 
 def slugify(value: str) -> str:
@@ -416,6 +419,18 @@ Complete `config/bootstrap.json` using `prompts/INTERACTIVE_BOOTSTRAP.md`, prese
 - Generated `{answers['project_name']}` from universal template v1.0.0.
 - Tailored charter, state, connectors, skills, risks, sources, and handoff.
 """, encoding="utf-8")
+
+    (dest / "DECISIONS.md").write_text(f"""# Decision Log
+
+Append material decisions. Do not rewrite prior decisions without recording supersession.
+
+| ID | Date | Decision | Rationale | Alternatives considered | Consequences | Status |
+|---|---|---|---|---|---|---|
+| ADR-000 | {today} | Use GitHub as the durable project state and native instruction files as platform adapters | Enables cross-model continuity and reviewable history | Chat-only memory; separate vendor projects | Requires disciplined closeout and commits | Accepted |
+""", encoding="utf-8")
+    for pattern in TEMPLATE_HISTORY:
+        for path in dest.glob(pattern):
+            path.unlink()
 
 
 def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:

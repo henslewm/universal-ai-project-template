@@ -85,6 +85,14 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertFalse(data["approval"]["approved"])
                     self.assertEqual(data["domain_profile"], profile)
                     self.assertIn("autonomy OFF", (root / "PROJECT_STATE.md").read_text(encoding="utf-8"))
+                    # A fresh project starts its own history, not the template's (#49).
+                    decisions = (root / "DECISIONS.md").read_text(encoding="utf-8")
+                    self.assertIn("ADR-000", decisions)
+                    self.assertNotIn("ADR-001", decisions)
+                    self.assertEqual(sorted(p.name for p in (root / "docs").glob("*VALIDATION.md")), [])
+                    self.assertTrue((root / "docs/PLATFORMIO.md").exists(), "reusable docs stay")
+                    self.assertFalse((root / "skills/complex-project-bootstrapper/assets/project-template").exists(),
+                                     "a generated project has no payload, so CI skips the payload check")
                     self.active_check(root, False)
                     self.activate(root)
                     self.run_cli(root / "scripts/validate_project.py")

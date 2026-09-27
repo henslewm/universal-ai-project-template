@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-27 — #49: template packaging fixes (ADR-071)
+
+- The CI workflow runs the payload-drift check only when `skills/complex-project-bootstrapper/assets/project-template` exists. Generated projects, which inherit the workflow but have no payload, skip it and still run validation and tests.
+- `sync_skills.py --check` reports mirror files that no longer have a source, and a sync removes them. It excludes `.git` and the other excluded names as files too, so a worktree's `.git` pointer is never copied into the payload.
+- A generated project gets a fresh `DECISIONS.md` (ADR-000 only), and the template's own `docs/ISSUE_*_VALIDATION.md` and `docs/WORKER_STARTUP_VALIDATION.md` are not copied into it. The other records were already regenerated.
+
 ## 2026-09-27 — #23: worker reports are schema-checked in both entrypoints
 
 - `report_valid` now applies the controller's own result schema (`feedback.shape("result", ...)`) before it reads any nested field. `verify-report` therefore refuses what `ingest` already did: string Booleans, invalid outcomes, negative costs, and missing or extra nested fields. A refused report leaves the attempt pending.

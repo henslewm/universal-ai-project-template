@@ -43,7 +43,7 @@ The maintainer approved an open-issue triage on 2026-09-27, ranked by value per 
   - Overlapping wants were cross-linked: #31/#32; #38/#43 under #12; #36, #37, #40 and #41 blocked on #25.
   - Refresh comments went onto #11, #13, #28, #29, #39, #44 and #49.
 - **Next, in order:**
-  1. **#49 (packaging defects).** This is the highest-value open item. First get the maintainer's decision on which CI a generated project inherits.
+  1. **#49 (packaging defects), ADR-071.** Implemented on branch `issue-49-packaging`; see its PR. The maintainer chose one workflow file whose payload check runs only where the payload folder exists.
   2. **#11** under master #14, on a normal branch from `main` (OL-021), then #12 → #13. Pull #43 and #38 into #12 as local-tier calibration runs.
   3. **#25 (worker launcher).** Decide the execution boundary before any provider-runner want.
 
