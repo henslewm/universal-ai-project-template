@@ -45,7 +45,7 @@ a larger served window whatever this change does.
 ## Checks
 
 - A missing, empty, non-UTF-8, credential-like, linked or oversized source, or a missing governing document, refuses the dispatch before `feedback.reserve` is called. No attempt is spent and no run directory is left.
-- Unsafe paths are refused: absolute paths, traversal, drive letters, Win32 device names and trailing dots. A `worker_instructions` entry naming a governing document is refused too, compared case-insensitively, because governing text travels only as a digest.
+- Unsafe paths are refused: absolute paths, traversal, drive letters, Win32 device names and trailing dots. A `worker_instructions` entry is refused if it names a governing document (compared case-insensitively) or if its bytes match one, which catches a hard link or a copy. Governing text travels only as a digest.
 - `verify-report` checks startup integrity: digests, no text in governance entries, and documents exactly matching the contract's `worker_instructions`. It still accepts an exact legacy `1.0` brief.
 - A regression dispatches with the real rules and governing documents against the example 16384-token binding, and requires positive headroom.
 

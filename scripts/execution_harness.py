@@ -196,9 +196,15 @@ def startup_valid(startup, contract, config):
             and [item.get("path") if isinstance(item, dict) else None for item in documents]
             == [startup_path(path) for path in contract.get("worker_instructions", [])],
             "Startup documents must be exactly the contract's worker_instructions, in order")
+    # The invariant is about text, not names: no embedded document may carry a governing
+    # document's bytes, whatever path reached them (a case alias, a hard link or a copy).
+    governing = {item["sha256"] for item in governance}
     for item in documents:
         size += embedded_valid(item, "Worker instruction")
         not_governance(item["path"])
+        require(item["sha256"] not in governing,
+                f"Worker instruction {item['path']} has the same content as a governing document; "
+                "workers receive only its digest")
     require(size <= startup_max_chars(config),
             f"Startup instructions total {size} characters, over startup_max_chars {startup_max_chars(config)}")
     return startup

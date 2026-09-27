@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -419,6 +420,19 @@ class HarnessStartupTests(HarnessBase):
             with self.subTest(name=name):
                 self.refused_before_reserve(self.instructed_ledger("ledger-gov-" + name, [name]),
                                             "cannot be a worker instruction", name="gov-" + name)
+        # Another name for the same text is refused by content, not spelling (PR #58 Codex round 2).
+        charter = self.project / "PROJECT_CHARTER.md"
+        (self.project / "copy.md").write_bytes(charter.read_bytes())
+        aliases = ["copy.md"]
+        try:
+            os.link(charter, self.project / "hard.md")
+            aliases.append("hard.md")
+        except (OSError, NotImplementedError):
+            pass
+        for alias in aliases:
+            with self.subTest(alias=alias):
+                self.refused_before_reserve(self.instructed_ledger("ledger-alias-" + alias, [alias]),
+                                            "same content as a governing document", name="alias-" + alias)
         prepared = self.prepare()
         document = wp.read_json(Path(prepared["destination"]) / "brief.json")
         document["contract"]["worker_instructions"] = ["PROJECT_CHARTER.md"]
