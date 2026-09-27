@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-27 — Merge rule accepts Codex or CodeRabbit reviews (ADR-074)
+
+- Codex's review quota ran out during PR #61. The merge rule now accepts an automated review by Codex or by CodeRabbit on the exact head; request one with `@codex review` or `@coderabbitai review`. ADR-063's actionability test applies unchanged.
+
 ## 2026-09-27 — #49: template packaging fixes (ADR-071)
 
 - The CI workflow runs the payload-drift check only when `skills/complex-project-bootstrapper/assets/project-template` exists. Generated projects, which inherit the workflow but have no payload, skip it and still run validation and tests.
