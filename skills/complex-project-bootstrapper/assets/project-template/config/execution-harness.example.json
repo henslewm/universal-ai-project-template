@@ -1,8 +1,9 @@
 {
   "schema_version": 1,
   "enabled": false,
+  "startup_documents": [],
   "limits": {
-    "brief_max_chars": 40000,
+    "brief_max_chars": 100000,
     "report_max_bytes": 400000,
     "chars_per_token": 3.5,
     "context_growth_reserve_tokens": 4000
@@ -26,7 +27,7 @@
         "--auto-approve",
         "true",
         "--json",
-        "Read {rules} and the contract in {brief}. Do exactly what that contract requires inside {workspace}, run its validation, then write your report to {report}."
+        "Read {rules} and all of {brief}. Complete its mandatory startup before editing: read the bundled instructions, contract and handoff/review findings. Work only inside {workspace} as the contract permits, run its validation, then write your report to {report}."
       ],
       "description": "Cline CLI as a bounded worker. Flags confirmed against Cline CLI 3.86.2: --data-dir gives the run its own isolated state so no global Cline configuration is touched, and the worker writes the report itself because the CLI has no output-file flag. Re-confirm the flags against your installed version; this adapter never runs the command. Its system prompt and tool definitions consume context before the brief is read: about 6805 tokens were observed on this build, declared conservatively as 7000. Re-measure it for your version; an understated overhead lets a dispatch be prepared that the worker cannot accept.",
       "context_overhead_tokens": 7000

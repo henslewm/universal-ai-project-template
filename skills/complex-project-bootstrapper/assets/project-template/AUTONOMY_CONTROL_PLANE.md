@@ -75,6 +75,8 @@ Canonical work packets now use `config/work-packet.schema.json` and the local to
 
 A worker may solve only the work packet it was given. It may not silently expand scope or redesign the project.
 
+Every fresh or resumed worker session has a mandatory startup phase before implementation: read governing instructions, the current contract and relevant handoff/review findings; identify scope, required validation and stop conditions; resolve missing inputs or instruction conflicts before dependent work. `MASTER_INSTRUCTIONS.md` defines the role-specific rule. The execution harness automatically embeds the worker's instruction bundle in every brief, with bounded contents and source digests. It refuses preparation when required instructions cannot be supplied. This does not expand task scope or replace the bootstrap gate.
+
 A worker may return only a bounded outcome:
 
 - `PASS` — acceptance criteria satisfied with evidence;
@@ -137,6 +139,8 @@ Do not blindly traverse every tier. High-risk or inherently complex work may sta
 ## Review economy
 
 Reviewers should receive the smallest sufficient context:
+
+Restricted independent reviewers follow their supplied reviewer rules and evidence boundary. The worker startup requirement does not authorize them to explore repository instructions or history beyond that boundary; launch them in an isolated review directory without unrelated native instruction imports.
 
 1. work packet contract;
 2. relevant diff/draft/result;

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import posixpath
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from test_feedback import ANCHOR, active_project, options, policy, result, timestamp
@@ -30,6 +33,14 @@ def configuration():
 
 
 class HarnessConfigTests(unittest.TestCase):
+    def test_real_template_governance_fits_the_example_brief_limit(self):
+        config = wp.read_json(ROOT / "config/execution-harness.example.json")
+        bundle = harness.startup_bundle(ROOT, config)
+        self.assertEqual(bundle["role"], "worker")
+        # Keep room for the contract and dispatch metadata, not just the source text.
+        size = len(json.dumps(bundle, indent=2, ensure_ascii=False))
+        self.assertLess(size + 10000, config["limits"]["brief_max_chars"])
+
     def test_example_configuration_is_valid_disabled_and_credential_free(self):
         example = wp.read_json(ROOT / "config/execution-harness.example.json")
         harness.config_valid(example)
@@ -98,6 +109,10 @@ class HarnessBase(unittest.TestCase):
         self.base = Path(temporary.name)
         self.project = self.base / "project"
         active_project(self.project)
+        for name in harness.STARTUP_DOCUMENTS:
+            path = self.project / name
+            if not path.exists():
+                path.write_text(f"# Synthetic startup instruction: {name}\nStay within the packet.\n", encoding="utf-8")
         self.ledger = self.base / "ledger"
         self.config = configuration()
         self.router = router_config(resource())
@@ -119,6 +134,153 @@ class HarnessBase(unittest.TestCase):
                                 self.project, self.base / destination)
 
 class HarnessDispatchTests(HarnessBase):
+    def test_dispatch_embeds_complete_ordered_startup_for_brief_only_harnesses(self):
+        (self.project / "AGENTS.md").write_text("# Local startup\nKeep packet boundaries.\n", encoding="utf-8")
+        nested = self.project / "module"
+        nested.mkdir()
+        extra = nested / "AGENTS.md"
+        extra.write_bytes("# Scoped instructions\r\nPreserve café fixtures.\r\n".encode("utf-8"))
+        self.config["startup_documents"] = ["module/AGENTS.md"]
+        self.config["bindings"][0]["harness_id"] = "replacement-harness"
+        prepared = self.prepare()
+        document = wp.read_json(Path(prepared["destination"]) / "brief.json")
+        self.assertEqual(document["schema_version"], "1.1")
+        startup = document["startup"]
+        self.assertEqual(startup["role"], "worker")
+        sources = startup["documents"]
+        self.assertEqual([item["path"] for item in sources],
+                         [*harness.STARTUP_DOCUMENTS, "AGENTS.md", "module/AGENTS.md", harness.WORKER_RULES_PATH])
+        for item in sources:
+            base = self.project if item["source"] == "project" else ROOT
+            original = (base / item["path"]).read_bytes()
+            self.assertEqual("".join(item["content_lines"]), original.decode("utf-8"))
+            self.assertEqual(item["sha256"], hashlib.sha256(original).hexdigest())
+        self.assertNotIn(str(Path(prepared["destination"]) / "BOUNDED_WORKER_RULES.md"),
+                         prepared["invocation"]["argv"], "This harness receives only the brief and report paths")
+        self.assertEqual(document["contract"], wp.current(self.packet)["contract"])
+        steps = " ".join(startup["steps"])
+        for required in ("before implementation", "contract.context_scope", "review_rejections",
+                         "BLOCKED", "ARCHITECTURE_CONFLICT"):
+            self.assertIn(required, steps)
+
+    def test_bad_startup_documents_refuse_without_spending_attempts_or_creating_run(self):
+        required = self.project / harness.STARTUP_DOCUMENTS[0]
+        original = required.read_bytes()
+        for name, content, expected in (
+            ("missing", None, "missing or unreadable"),
+            ("empty", b" \r\n", "empty"),
+            ("invalid-utf8", b"\xff\xfe", "missing or unreadable"),
+            ("credential", b"api_key: sk-abcdefghijklmnopqrstuvwxyz", "credential-like"),
+            ("oversized", b"x" * (self.config["limits"]["brief_max_chars"] + 1), "configured brief bound"),
+        ):
+            with self.subTest(case=name):
+                required.unlink()
+                if content is not None:
+                    required.write_bytes(content)
+                destination = self.base / name
+                with mock.patch.object(harness.feedback, "reserve") as reserve:
+                    with self.assertRaisesRegex(ValueError, expected):
+                        harness.dispatch(self.ledger, self.config, self.router, options(), self.project, destination)
+                    reserve.assert_not_called()
+                self.assertFalse(destination.exists())
+                required.write_bytes(original)
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"], [])
+
+    def test_unreadable_startup_file_is_refused_before_reservation(self):
+        blocked = self.project / harness.STARTUP_DOCUMENTS[0]
+        original_open = Path.open
+
+        def open_file(path, *args, **kwargs):
+            if path == blocked:
+                raise PermissionError("Synthetic unreadable governance")
+            return original_open(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "open", new=open_file), mock.patch.object(harness.feedback, "reserve") as reserve:
+            with self.assertRaisesRegex(ValueError, "missing or unreadable"):
+                self.prepare()
+            reserve.assert_not_called()
+
+    def test_explicit_extra_instruction_is_required_even_for_normally_optional_file(self):
+        for extra in ("missing/handoff.md", "CONTRIBUTING.md"):
+            with self.subTest(extra=extra):
+                self.config["startup_documents"] = [extra]
+                with mock.patch.object(harness.feedback, "reserve") as reserve:
+                    with self.assertRaisesRegex(ValueError, "missing or unreadable"):
+                        self.prepare()
+                    reserve.assert_not_called()
+
+    def test_case_sensitive_instruction_paths_are_not_deduplicated(self):
+        # Exercise POSIX identities even on a Windows test host. A case-sensitive filesystem
+        # may hold both spellings, or only the uppercase canonical source.
+        extra = "master_instructions.md"
+        self.config["startup_documents"] = [extra]
+        read_document = harness.startup_document
+        content = "Distinct lowercase instruction file.\n"
+
+        def read_case_sensitive(root, relative, source, remaining, optional=False):
+            if relative == extra:
+                return {"source": source, "path": relative, "content_lines": [content],
+                        "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest()}
+            return read_document(root, relative, source, remaining, optional)
+
+        with mock.patch.object(harness, "startup_identity", side_effect=posixpath.normcase):
+            with mock.patch.object(harness, "startup_document", side_effect=read_case_sensitive):
+                bundle = harness.startup_bundle(self.project, self.config)
+            names = [document["path"] for document in bundle["documents"]]
+            self.assertIn("MASTER_INSTRUCTIONS.md", names)
+            self.assertIn(extra, names)
+
+            def missing_case_sensitive(root, relative, source, remaining, optional=False):
+                if relative == extra:
+                    raise ValueError("Startup document is missing or unreadable: " + extra)
+                return read_document(root, relative, source, remaining, optional)
+
+            with mock.patch.object(harness, "startup_document", side_effect=missing_case_sensitive), \
+                    mock.patch.object(harness.feedback, "reserve") as reserve:
+                with self.assertRaisesRegex(ValueError, "missing or unreadable"):
+                    self.prepare()
+                reserve.assert_not_called()
+
+    def test_startup_paths_refuse_escape_and_cross_platform_absolute_names(self):
+        for extra in ("../outside.md", "module/../../outside.md", "module\\..\\outside.md",
+                      "/absolute.md", "C:\\absolute.md", "C:relative.md", "\\\\server\\share\\doc.md",
+                      "module/file.md:stream", "module//file.md", ".. /outside.md", "module./file.md",
+                      "module/file.md ", "NUL.md", "CON", "aux.txt", "COM1.md", "LPT¹.log",
+                      "CONIN$", "module/CON .txt", "bad\x00name.md"):
+            with self.subTest(extra=extra):
+                self.config["startup_documents"] = [extra]
+                with mock.patch.object(harness.feedback, "reserve") as reserve:
+                    with self.assertRaises(ValueError):
+                        self.prepare()
+                    reserve.assert_not_called()
+
+    def test_reparse_directory_is_refused_before_reading_its_document(self):
+        nested = self.project / "linked"
+        nested.mkdir()
+        (nested / "AGENTS.md").write_text("Never read this source", encoding="utf-8")
+        self.config["startup_documents"] = ["linked/AGENTS.md"]
+        original_lstat = Path.lstat
+
+        def lstat(path, *args, **kwargs):
+            metadata = original_lstat(path, *args, **kwargs)
+            if path == nested:
+                return SimpleNamespace(st_mode=metadata.st_mode, st_file_attributes=0x400)
+            return metadata
+
+        with mock.patch.object(Path, "lstat", new=lstat), mock.patch.object(harness.feedback, "reserve") as reserve:
+            with self.assertRaisesRegex(ValueError, "symlink or reparse point"):
+                self.prepare()
+            reserve.assert_not_called()
+
+    def test_startup_documents_are_cumulatively_bounded_before_reservation(self):
+        self.config["limits"]["brief_max_chars"] = 3000
+        for name in harness.STARTUP_DOCUMENTS:
+            (self.project / name).write_text("x" * 700, encoding="utf-8")
+        with mock.patch.object(harness.feedback, "reserve") as reserve:
+            with self.assertRaisesRegex(ValueError, "configured brief bound"):
+                self.prepare()
+            reserve.assert_not_called()
+
     def test_dispatch_prepares_a_bounded_brief_and_never_executes_the_harness(self):
         with mock.patch("subprocess.run", side_effect=AssertionError("the adapter must not run a harness")):
             prepared = self.prepare()
@@ -205,8 +367,6 @@ class HarnessDispatchTests(HarnessBase):
         for name, mutate, expected in (
             ("unbound", lambda c: c["bindings"][0].update(resource_id="some-other-resource"),
              "No harness binding for routed resource"),
-            ("oversize-brief", lambda c: c["limits"].update(brief_max_chars=1000),
-             "Brief exceeds its configured bound"),
             # A window the worker cannot physically accept is a refusal, not a run that fails on
             # its first tool call: the routed resource here declares 100000 tokens, the local
             # server is loaded with 8192, and the harness prompt alone claims 7000 of them.
@@ -410,6 +570,66 @@ class HarnessReportTests(HarnessBase):
         wp.write_new(Path(prepared["destination"]) / "not-a-brief.json", json.dumps({"contract": {}}))
         with self.assertRaisesRegex(ValueError, "Expected fields"):
             harness.verify_report(self.config, Path(prepared["destination"]) / "not-a-brief.json", path)
+
+    def test_report_verification_retains_legacy_briefs_and_requires_startup_for_new_briefs(self):
+        prepared = self.prepare()
+        brief_path = Path(prepared["destination"]) / "brief.json"
+        document = wp.read_json(brief_path)
+        _, report_path = self.report(prepared, outcome="PASS", passed=True)
+        legacy = copy.deepcopy(document)
+        legacy["schema_version"] = "1.0"
+        legacy.pop("startup")
+        legacy_path = self.base / "legacy-brief.json"
+        wp.write_new(legacy_path, json.dumps(legacy))
+        self.assertTrue(harness.verify_report(self.config, legacy_path, report_path)["valid"])
+        for name, value in (
+            ("missing", {key: value for key, value in document.items() if key != "startup"}),
+            ("empty", {**document, "startup": {}}),
+            ("wrong-role", {**document, "startup": {**document["startup"], "role": "reviewer"}}),
+            ("unknown-version", {**document, "schema_version": "9.9"}),
+            ("legacy-extra", {**document, "schema_version": "1.0"}),
+        ):
+            with self.subTest(case=name):
+                path = self.base / (name + "-brief.json")
+                wp.write_new(path, json.dumps(value))
+                with self.assertRaises(ValueError):
+                    harness.verify_report(self.config, path, report_path)
+
+    def test_report_verification_refuses_malformed_or_changed_startup_snapshots(self):
+        prepared = self.prepare()
+        document = wp.read_json(Path(prepared["destination"]) / "brief.json")
+        _, report_path = self.report(prepared, outcome="PASS", passed=True)
+
+        def change_content(startup, content):
+            startup["documents"][0]["content_lines"] = [content]
+            startup["documents"][0]["sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+        for name, mutate in (
+            ("null-steps", lambda s: s.update(steps=[None])),
+            ("blank-steps", lambda s: s.update(steps=[" "])),
+            ("null-documents", lambda s: s.update(documents=[None])),
+            ("extra-bundle-field", lambda s: s.update(unknown=True)),
+            ("extra-record-field", lambda s: s["documents"][0].update(unknown=True)),
+            ("unknown-source", lambda s: s["documents"][0].update(source="untrusted")),
+            ("unsafe-path", lambda s: s["documents"][0].update(path=".. /outside.md")),
+            ("null-content", lambda s: s["documents"][0].update(content_lines=[None])),
+            ("blank-content", lambda s: change_content(s, " \n")),
+            ("changed-digest", lambda s: s["documents"][0].update(sha256="0" * 64)),
+            ("changed-content", lambda s: s["documents"][0].update(content_lines=["Changed without a new hash"])),
+            ("missing-canonical", lambda s: s["documents"].pop(0)),
+            ("wrong-order", lambda s: s["documents"].insert(0, s["documents"].pop(1))),
+            ("missing-worker-rules", lambda s: s["documents"].pop()),
+            ("duplicate-document", lambda s: s["documents"].insert(-1, copy.deepcopy(s["documents"][0]))),
+            ("credential-content", lambda s: change_content(s, "api_key: sk-abcdefghijklmnopqrstuvwxyz")),
+            ("oversized-content", lambda s: change_content(s, "x" * (self.config["limits"]["brief_max_chars"] + 1))),
+        ):
+            with self.subTest(case=name):
+                broken = copy.deepcopy(document)
+                mutate(broken["startup"])
+                brief_path = self.base / (name + ".json")
+                wp.write_new(brief_path, json.dumps(broken))
+                with self.assertRaises(ValueError):
+                    harness.verify_report(self.config, brief_path, report_path)
 
     def test_a_worker_that_writes_nothing_does_not_strand_the_attempt(self):
         prepared = self.prepare()

@@ -2,7 +2,11 @@
 
 This repository uses a shared multi-model control plane.
 
-## Read before substantive work
+## Select the startup path first
+
+For a bounded worker, follow the mandatory role-specific startup in `MASTER_INSTRUCTIONS.md`: read the supplied worker rules, `brief.startup`, contract and handoff/review evidence before editing. If no generated brief was supplied, load the applicable repository/platform instructions and binding contract directly. For an independent reviewer with a restricted packet, use only the supplied reviewer context; do not run the general repository startup below. Restricted reviews must be launched outside the repository's native instruction-import context.
+
+## Read before substantive work in a general repository session
 
 Read these files in order:
 
@@ -33,7 +37,7 @@ After activation, routine work within the approved scope and existing permission
 - Use `.agents/skills/complex-project-bootstrapper/` for new-project initialization or project retrofits.
 - Use `.codex/agents/` for parallel, non-overlapping subagent work.
 - Dispatch bounded worker runs through `EXECUTION_HARNESS_PROTOCOL.md`; never widen a packet inside a worker.
-- Run `python scripts/validate_project.py` before completing material repository changes.
+- In a general repository session, run `python scripts/validate_project.py` before completing material repository changes. A bounded worker runs exactly its contract validation; its dispatcher owns the bootstrap preflight, as specified in `MASTER_INSTRUCTIONS.md`.
 - Apply the closeout protocol in `MASTER_INSTRUCTIONS.md`.
 
 ## Safety

@@ -19,7 +19,19 @@ Apply instructions in this order, highest first:
 
 When two sources conflict, do not silently choose. Identify the conflict, preserve both sources, and use the higher-authority source unless the user resolves it differently.
 
-## Required startup protocol
+## Role-specific startup requirement
+
+Determine the assigned role at the start of every fresh or resumed chat, before editing.
+
+- **Bounded worker:** read the supplied worker rules and the complete `brief.startup` instruction bundle, then the current contract, architect guidance, prior failures and review rejections. Identify the allowed and prohibited scope, required validation, architecture boundaries and stop conditions before implementation. `EXECUTION_HARNESS_PROTOCOL.md` defines automatic delivery of these instructions. For a manually started worker without a generated brief, read the applicable repository instructions, active platform master, `AUTONOMY_CONTROL_PLANE.md`, the binding task contract and its relevant handoff/review findings first; the person handing off the task must provide those locations. A worker must not depend on a reminder in chat.
+- **Independent reviewer with a restricted packet:** read only the assigned reviewer rules and evidence packet, including artifacts explicitly supplied for review. Worker startup and general repository exploration do not apply. Launch restricted reviews in their isolated review directory so native repository imports do not expand the review context.
+- **Architect or general repository session:** follow the full startup protocol below.
+
+The worker's supplied governance adds constraints; it never widens the task's editable scope or permits unrelated investigation. Read applicable local instructions inside permitted task context before editing those paths. If a required instruction, contract or handoff is unavailable, stop dependent work and report the missing input. If the contract conflicts with governing instructions, report `ARCHITECTURE_CONFLICT` for resolution instead of silently choosing, editing the contract or proceeding. A worker's closeout is its bounded report; repository-wide bookkeeping remains the architect/integrator's responsibility unless explicitly assigned.
+
+For a harness-dispatched worker, the feedback controller performs the active-bootstrap and matching-architecture check before reserving the dispatch. The worker uses that current reserved dispatch and runs only the contract's validation commands; it does not repeat repository-wide bootstrap, history or project-validation commands from generic platform instructions inside its isolated workspace. The launcher remains responsible for a current authorized reservation and existing permission/deadline controls. A manually started worker without that dispatch must perform the normal bootstrap check before autonomous work. These role-specific rules govern startup, validation and closeout wherever a generic repository/platform instruction requests broader checks; they do not remove an acceptance gate or grant execution authority.
+
+## Required startup protocol for general repository sessions
 
 Before substantive work:
 

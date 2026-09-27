@@ -9,6 +9,13 @@
   "properties": {
     "schema_version": {"const": 1},
     "enabled": {"type": "boolean", "description": "Dispatch preparation is refused while false."},
+    "startup_documents": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 260},
+      "description": "Additional required repository-relative instruction documents, in reading order: applicable nested AGENTS.md, platform instructions or task handoffs. Canonical worker governance is always included. Absolute, traversal and linked paths are refused; omitted documents cannot be inferred from prose task scope."
+    },
     "limits": {
       "type": "object",
       "additionalProperties": false,

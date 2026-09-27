@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-18 — Automatic worker startup (ADR-060)
+
+- Every harness dispatch embeds a role-specific startup bundle with full governing instructions, source paths and SHA-256 digests, plus the contract and existing failure/review guidance. Missing, unsafe or oversized required sources fail before reserving a worker attempt.
+- Native/manual worker startup now explicitly requires applicable instructions, contract scope, validation and stop conditions. Restricted reviewers remain limited to their supplied evidence; bounded workers use the controller's bootstrap preflight and their contract's validation commands.
+- New briefs use version 1.1; exact legacy 1.0 briefs remain verifiable. Report fields, acceptance controllers and historical ledgers are unchanged. The example brief-size limit accommodates the instruction bundle while model context limits remain enforced.
+
 ## 2026-09-15 — Issue #9 follow-up: PR #35 P2 answered (ADR-058)
 
 - P2: ADR-057 made a zero-timeout `receive()`'s body read unconditional, fixing a fully-buffered frame but reopening the ADR-042 hazard from the other direction (a body that only became available after the poll instant could still be returned as received in time), and never fixed a pre-existing bug where a port handing back an already-fully-buffered frame in small chunks timed out on data that had been sitting there from the start. `receive(0)` now samples `Port.available()` once before touching the port and never draws more than that many bytes across the whole call; a trickling but fully-buffered frame now assembles complete, and a body that arrives only after the poll instant still times out and closes the port.

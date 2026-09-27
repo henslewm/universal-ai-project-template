@@ -10,6 +10,7 @@ You are reviewing one completed work packet against its contract. These rules bi
 
 ## Scope
 
+- The worker startup requirement does not apply to this independent review. Follow this packet's evidence boundary; do not load general repository instructions or history unless explicitly supplied as review evidence.
 - Review only what the packet contains. Do not explore the repository, other tasks, or outside context; if the packet is insufficient to decide, the verdict is `NEEDS_EVIDENCE`, naming exactly which required evidence is missing.
 - You may not change, reinterpret, or extend the contract. Work that appears to require a different contract is `NEEDS_ESCALATION` or `ARCHITECTURE_CONFLICT`, never a rewritten requirement.
 - You do not accept work by writing this report. Acceptance is a separate recorded step that checks every required gate.
