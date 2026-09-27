@@ -60,7 +60,7 @@ PR #52 (the ESP32 rules) merged at `6c3c0ee`; its open Codex finding was #56, no
   git push origin --delete codex/automatic-worker-startup esp014-skip-in-place-when-generated issue-23-report-schema issue-51-modular-platformio-rules issue-56-platformio-snippet worker-startup-lean
   git fetch --prune
   ```
-- **`platformio.ini`** in the repository root is the maintainer's ESP32-S3 dev config, and it is deliberately untracked. Committed here, `sync_skills.py` would ship it into every generated project. It would also contradict PR #52's rule that a project's `platformio.ini` is generated from `esptool flash-id`. Keep it untracked, move it to the ESP32 project, or, if it should ship as an example, add it as `templates/software-hardware/platformio.example.ini`. While it sits here untracked, `sync_skills.py --check` reports drift, and `sync_skills.py` copies it into the payload; delete that payload copy before committing.
+- **`platformio.ini`:** resolved 2026-09-27. The maintainer's root ESP32-S3 config now ships as `templates/software-hardware/platformio.example.ini`, conformed to `docs/PLATFORMIO.md`'s rules, through PR #63 (merged at `fd4c20d` after a CodeRabbit review under ADR-074). The untracked root file is gone, so `sync_skills.py` no longer copies it into the payload. Add `platformio-example` to the branch cleanup.
 
 ## What #9 and PR #35 left you (background, unchanged)
 

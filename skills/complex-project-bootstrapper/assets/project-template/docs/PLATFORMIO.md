@@ -35,6 +35,8 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` next to it
 
 ## Example
 
+`templates/software-hardware/platformio.example.ini` is a complete Arduino-ESP32 2.0.x variant (stock `espressif32` 6.x, LittleFS, `dev`/`debug`/`release` environments) for the same board. Like the one below, it illustrates the rules and is never copied into a project.
+
 ESP32-S3 N16R8 (16 MB flash, embedded 8 MB octal PSRAM), console on native USB, Arduino-ESP32 3.3.12:
 
 ```ini

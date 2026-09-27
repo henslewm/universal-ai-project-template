@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-27 — PR #63: PlatformIO example shipped with the software-hardware template
+
+- `templates/software-hardware/platformio.example.ini` is an Arduino-ESP32 2.0.x (espressif32 6.9.0) variant for the ESP32-S3-DevKitC-1 N16R8. It conforms to `docs/PLATFORMIO.md`: an exact pin, an app-partition `maximum_size`, quiet `dev`/verbose `debug`/silent `release` environments, and the arduino-cli equivalent. It replaces the untracked root `platformio.ini`.
+- Merged at `fd4c20d`. Codex was out of credits, so CodeRabbit reviewed under ADR-074; its one finding (the missing arduino-cli equivalent) was fixed in `c01cf10` and verified by CodeRabbit.
+
 ## 2026-09-27 — Merge rule accepts Codex or CodeRabbit reviews (ADR-074)
 
 - Codex's review quota ran out during PR #61. The merge rule now accepts an automated review by Codex or by CodeRabbit on the exact head; request one with `@codex review` or `@coderabbitai review`. ADR-063's actionability test applies unchanged.
