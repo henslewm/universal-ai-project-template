@@ -80,5 +80,8 @@ elif __name__ == "__main__":
     parser.add_argument("--project", default=os.getcwd())
     args = parser.parse_args()
     project = os.path.abspath(args.project)
-    roots = [os.path.abspath(args.sketch)] + [os.path.join(project, d) for d in ("lib", "include", "boards")]
+    sketch = os.path.abspath(os.path.join(project, args.sketch))  # relative to --project; absolute kept
+    if not os.path.isdir(sketch):
+        parser.error(f"sketch folder not found: {sketch}")  # never hash nothing silently
+    roots = [sketch] + [os.path.join(project, d) for d in ("lib", "include", "boards")]
     print(build_id(project, roots, args.toolchain))
