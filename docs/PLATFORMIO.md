@@ -30,9 +30,8 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` next to it
 11. **Bind evidence to the artifact itself.**
     - The firmware prints the ELF SHA-256 that `elf2image --elf-sha256-offset 0xb0` embeds in the app image, `esp_app_get_description()->app_elf_sha256` (snippet below). arduino-cli and PlatformIO/pioarduino both set this offset.
     - Evidence compares that runtime value with the recorded ELF hash. It changes with every input: sources, flags, board options, core and scripts.
-    - Also inject a readable `FIRMWARE_BUILD_ID` label, never hard-coded, from `pio_build_id.py`. It combines the git commit, a hash of the source roots from disk, and the toolchain.
-    - The label is a convenience, not proof of identity: a pre-build hash cannot see flags or the installed core.
-12. **Verify before relying on it.** `pio run -e <default>` must succeed. For hardware claims, upload, run the project's smoke test and record the build ID and ELF SHA-256. A successful compile is not hardware verification.
+    - An optional readable label can be passed as `-DFIRMWARE_BUILD_ID="..."`. It is never proof of identity: a pre-build label cannot see flags or the installed core.
+12. **Verify before relying on it.** `pio run -e <default>` must succeed. For hardware claims, upload, run the project's smoke test and record the runtime `elf_sha256` and the ELF SHA-256. A successful compile is not hardware verification.
 
 ## Example
 
@@ -47,7 +46,6 @@ src_dir = firmware/MySketch
 platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.312-1/platform-espressif32.zip
 board = esp32-s3-devkitc-1
 framework = arduino
-extra_scripts = pre:scripts/pio_build_id.py   ; injects FIRMWARE_BUILD_ID
 board_build.arduino.memory_type = qio_opi
 board_build.flash_mode = qio
 board_build.f_flash = 80000000L
@@ -72,20 +70,16 @@ build_flags = ${env.build_flags} -DCORE_DEBUG_LEVEL=4
 build_flags = ${env.build_flags} -DCORE_DEBUG_LEVEL=0
 ```
 
-Equivalent arduino-cli command (PowerShell, project root), with the same build ID:
+Equivalent arduino-cli command:
 
 ```powershell
-$id = python scripts/pio_build_id.py --sketch firmware/MySketch --toolchain cli
 arduino-cli compile -b esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashMode=qio,FlashSize=16M `
-  --build-property build.partitions=default_16MB --build-property upload.maximum_size=6553600 `
-  --build-property "compiler.cpp.extra_flags='-DFIRMWARE_BUILD_ID=`"$id`"'" firmware/MySketch
+  --build-property build.partitions=default_16MB --build-property upload.maximum_size=6553600 firmware/MySketch
 ```
 
-The single quotes keep the double quotes through arduino-cli's own argument splitter; without them, the build fails or the ID is lost. Verified on hardware in the downstream project described in issue #51.
+To add an optional label with arduino-cli, append `--build-property "compiler.cpp.extra_flags='-DFIRMWARE_BUILD_ID=\"<label>\"'"`. The single quotes are needed to keep the double quotes through arduino-cli's argument splitter. Verified on hardware in the downstream project described in issue #51.
 
-The example's `extra_scripts` line requires the build-ID pre-script. Copy [`templates/software-hardware/pio_build_id.py`](../templates/software-hardware/pio_build_id.py) to the project's `scripts/pio_build_id.py`. It injects the label `FIRMWARE_BUILD_ID = <git sha|nogit>-src<hash>-pio-<env>`, where `<hash>` covers the source roots (sketch/`src_dir`, the configured lib, include and boards dirs, `platformio.ini`, root partition CSVs and `scripts/*.py`) read from disk. `python scripts/pio_build_id.py --sketch <folder> --toolchain cli` prints the same label for arduino-cli. Without that file, remove the `extra_scripts` line, because PlatformIO fails before compiling if a pre-script is missing.
-
-Firmware side: the label has a visible fallback, and the runtime artifact identity is printed next to it:
+Firmware side: print the runtime artifact identity (plus the optional label, with a visible fallback):
 
 ```cpp
 #include "esp_app_desc.h"
