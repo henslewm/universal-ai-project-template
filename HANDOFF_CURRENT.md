@@ -2,16 +2,16 @@
 
 - **Prepared:** 2026-09-27 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `issue-10-family-law-domain`, open as [PR #50](https://github.com/henslewm/universal-ai-project-template/pull/50) against `main`. `main` (PRs #45 and #48; ADR-063 and ADR-064) was merged in at `a638098`. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** Issue #10 (complete high-conflict NC family-law template) is accepted through its dogfood at `_acceptance-demo-10b` and is in PR review. It is not merged or closed.
+- **Branch:** `main`. PR #50 merged at `620fc9a` on 2026-09-27. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Scope:** Issue #10 (the complete high-conflict NC family-law template) is **closed** through merged PR #50. The next child under master #14 is #11.
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) and PR #50. `docs/ISSUE_10_VALIDATION.md` is the full record, and ADR-059 through ADR-062 and ADR-065 through ADR-068 hold the decisions.
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #11](https://github.com/henslewm/universal-ai-project-template/issues/11). #10's completion comment and `docs/ISSUE_10_VALIDATION.md` are its full record, and ADR-059 through ADR-062 and ADR-065 through ADR-068 hold the decisions.
 
 ## What merged on 2026-09-27
 
-**PR #45: scope policy (ADR-063).** A review finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit applicable requirement, with its behavior, trigger and evidence. `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" is the single definition. Apply it to every later review round, including #10's.
+**PR #45: scope policy (ADR-063).** A review finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit applicable requirement, with its behavior, trigger and evidence. `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" is the single definition. Apply it to every later review round.
 
-**PR #48: Mistral Vibe platform files.** These are restored but not yet wired in. [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) tracks the authority order, `validate_project.py` required paths, README and bootstrapper. [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) tracks verifying the product claims and the maintainer's master #14 scope decision. Neither blocks #10.
+**PR #48: Mistral Vibe platform files.** These are restored but not yet wired in. [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) tracks the authority order, `validate_project.py` required paths, README and bootstrapper. [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) tracks verifying the product claims and the maintainer's master #14 scope decision. Neither blocks #11.
 
 ## Before doing anything else: check for another agent on this repo
 
@@ -29,17 +29,32 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
   - P1 (actionable, fixed, ADR-068): a source verification record was bound to its claim only by text, so a record of an unrelated source could verify a legal proposition. Assertions now declare `verified_by`, the sources whose review can verify them, and a legal proposition must list its own authority. Each record names its `source_id`. An undeclared source verifies nothing, and a record covers a claim only when its `source_id` is in that claim's `verified_by`.
   - P2 (fixed): stale current-state text, swept across all the control files.
 
+- **PR #50, Codex round 4 on `7ff2158`** (the one extra round the maintainer authorized): one P1, actionable and **deferred to [#53](https://github.com/henslewm/universal-ai-project-template/issues/53)**. Coverage is keyed by assertion text, so two entries with identical text but different `verified_by` can share one supporting record. The maintainer chose to merge as is, and the thread reply points to #53.
+
 ## Exact next action
 
-Read Codex round 4 on PR #50's current head. The maintainer authorized this one round and no more. If it is clean, ask the maintainer for the merge go-ahead. If it has actionable findings (ADR-063), do not start round 5. Instead ask the maintainer to merge as is, and open a detailed GitHub issue for each remaining finding, with its file and line, trigger, evidence and classification. After merge, close #10 with a completion comment and continue master #14.
+1. Select #11 under master #14, one child at a time.
+2. Separately, when the maintainer chooses:
+   - [#53](https://github.com/henslewm/universal-ai-project-template/issues/53): the family-law duplicate-assertion coverage gap. Write the invariant as an ADR first (R-012).
+   - [#52](https://github.com/henslewm/universal-ai-project-template/pull/52): ESP32 modular/PlatformIO rules, owned by another session. After #50 it needs a rebase or merge of `main`.
+   - The unreviewed `codex/automatic-worker-startup` branch (see "Branches" below).
+   - [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) and [#47](https://github.com/henslewm/universal-ai-project-template/issues/47): Mistral wiring and verification.
+   - [#49](https://github.com/henslewm/universal-ai-project-template/issues/49): packaging defects.
+
+## Branches (audited 2026-09-27 after the #50 merge)
+
+- **Merged:** every `issue-*` construction branch, `scope-policy-review-findings`, `mistral-vibe-support` and `issue-10-family-law-domain` have their content on `main`. `issue-9-software-hardware-domain` shows commits "ahead" only because PR #34 was squash-merged; its tip tree equals `d873ec5`. No branch is deleted: construction branches wait for the later authorized cleanup.
+- **`codex/automatic-worker-startup`:** about 1,000 lines of unreviewed Codex work from 2026-09-18 (automatic worker-startup governance in the execution harness; see its `docs/WORKER_STARTUP_VALIDATION.md`). It was found **uncommitted** in the worktree at `_acceptance-demo-10/review-2/worker-startup`. It was committed as-is (`d1daa59`) and pushed so it is not lost. It has no PR and has not been reviewed, re-tested or merged. It is based on `3eeba90`, an ancestor of `main`. The maintainer decides whether it proceeds.
+- **Pre-rewrite branches from 2026-09-11** (`family-law`, `civil-rights-nc`, `family-law-profile`, `software-hardware`, `software-hardware-final`, `architecture/autonomous-domain-templates`, `x`, `dont-use`) and **`release/v1.1.0`** (open PR #1, "probe", 2026-09-01) predate the `main` rewrite. `family-law`, `civil-rights-nc` and `release/v1.1.0` each carry one or two commits not on `main` (early domain-profile docs and a release stage). These are for the maintainer's cleanup decision and are not work in progress.
+- **Untracked `platformio.ini`** in the repository root was left by the ESP32 session. It is not committed. `sync_skills.py --check` reports it as payload drift until it is removed.
 
 ## What #9 and PR #35 left you (background, unchanged)
 
-`docs/ISSUE_9_VALIDATION.md` is the full record of #9's own acceptance and 23-round Codex review (ADR-041–ADR-055). Its lessons — evidence-binding is several checks, not one, and R-012 (stop for diagnosis when a review class recurs) — are exactly what round 3 is: the third recurrence of a real gap in this domain's provenance/scope machinery, following rounds 1 and 2. Expect this pattern to continue; look for the actual invariant rather than patching only what round 3 found.
+`docs/ISSUE_9_VALIDATION.md` is the full record of #9's own acceptance and 23-round Codex review (ADR-041–ADR-055). Its lessons — evidence-binding is several checks, not one, and R-012 (stop for diagnosis when a review class recurs) — applied throughout #10: each recurrence in its record-provenance class (ADR-060, ADR-067, ADR-068, and #53) was answered by stating the invariant first. Expect the same in #11's legal domain.
 
 ## Verified state
 
-406 tests pass on Windows after PR #50 round 3 (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). The branch is pushed and open as PR #50. Confirm the head and CI with `gh pr view 50`.
+406 tests pass on Windows on `main` after the PR #50 merge (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). `main` is pushed. Confirm with `git status -sb` and `gh pr list`.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-27 — Issue #10 closed: PR #50 merged
+
+- PR #50 merged at `620fc9a` after 4 Codex rounds. Round 4's one finding (coverage keyed by assertion text) was deferred to #53 at the maintainer's decision. #10 closed with a completion comment.
+- Post-merge branch audit: uncommitted Codex work in the `codex/automatic-worker-startup` worktree was committed as-is and pushed so it is not lost (unreviewed; OL-020). The pre-rewrite branches were recorded for cleanup (OL-021). No branch was deleted.
+
 ## 2026-09-27 — Issue #10 session 3: AC-ADVERSE fixed; repeat review at contract revision 2 (ADR-065)
 
 - A family-law packet declaring a `LEGAL_PROPOSITION` must now map at least one validation to `primary_source_verified`; adverse authority alone no longer suffices. FAM-04 declares the rung, `PROFILE.md` states the rule, and a regression covers it (399 tests).

@@ -49,7 +49,9 @@ The fifth dogfood criterion, `AC-SPLIT`, was met in every round. It requires reu
   - P1 (actionable, fixed, ADR-068): a record was bound to its claim only by text, so a record of an unrelated source could verify a legal proposition. Assertions now declare `verified_by`, and a legal proposition must list its own authority. Each record names its `source_id`: an undeclared source verifies nothing, and a record covers a claim only when its source is in that claim's `verified_by`.
   - P2 (fixed): stale current-state text, swept across all the control files.
   - This was the third finding on what a source record proves, so under R-012 the invariant was written as ADR-068 before the code.
-- **Round 4:** the last round the maintainer authorized. If it is not clean, the maintainer decides whether to merge as is, and any remaining finding goes into a detailed GitHub issue.
+- **Round 4 on `7ff2158`** (the one extra round the maintainer authorized): one P1, actionable. Coverage is keyed by assertion text, so two entries with identical text but different `verified_by` share one supporting record. It is deferred to [#53](https://github.com/henslewm/universal-ai-project-template/issues/53) at the maintainer's decision.
+
+**Merged 2026-09-27** at `620fc9a`, pinned to the reviewed head `7ff2158`, with CI passing. #10 closed with a completion comment.
 
 ## Offline validation — 2026-09-27
 
