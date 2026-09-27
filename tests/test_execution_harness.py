@@ -412,6 +412,22 @@ class HarnessStartupTests(HarnessBase):
                 self.refused_before_reserve(self.instructed_ledger("ledger-" + name, ["notes.md"]), expected,
                                             name=name)
 
+    def test_governing_documents_cannot_be_embedded_as_worker_instructions(self):
+        # They travel as digests only; embedding one would break that guarantee and spend the
+        # context the lean startup exists to save (PR #58 Codex round 1).
+        for name in ("PROJECT_CHARTER.md", "master_instructions.md", "WORK_PACKET_PROTOCOL.md"):
+            with self.subTest(name=name):
+                self.refused_before_reserve(self.instructed_ledger("ledger-gov-" + name, [name]),
+                                            "cannot be a worker instruction", name="gov-" + name)
+        prepared = self.prepare()
+        document = wp.read_json(Path(prepared["destination"]) / "brief.json")
+        document["contract"]["worker_instructions"] = ["PROJECT_CHARTER.md"]
+        text = (self.project / "PROJECT_CHARTER.md").read_bytes()
+        document["startup"]["documents"] = [{"path": "PROJECT_CHARTER.md", "sha256": hashlib.sha256(text).hexdigest(),
+                                             "content_lines": text.decode("utf-8").splitlines(keepends=True)}]
+        with self.assertRaisesRegex(ValueError, "cannot be a worker instruction"):
+            harness.startup_valid(document["startup"], document["contract"], self.config)
+
     def test_missing_governance_refuses_before_an_attempt_is_reserved(self):
         (self.project / "WORK_PACKET_PROTOCOL.md").unlink()
         self.refused_before_reserve(self.ledger, "missing or unreadable: WORK_PACKET_PROTOCOL.md")

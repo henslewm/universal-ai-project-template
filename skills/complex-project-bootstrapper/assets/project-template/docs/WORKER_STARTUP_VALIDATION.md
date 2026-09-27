@@ -45,13 +45,13 @@ a larger served window whatever this change does.
 ## Checks
 
 - A missing, empty, non-UTF-8, credential-like, linked or oversized source, or a missing governing document, refuses the dispatch before `feedback.reserve` is called. No attempt is spent and no run directory is left.
-- Unsafe paths are refused: absolute paths, traversal, drive letters, Win32 device names and trailing dots.
+- Unsafe paths are refused: absolute paths, traversal, drive letters, Win32 device names and trailing dots. A `worker_instructions` entry naming a governing document is refused too, compared case-insensitively, because governing text travels only as a digest.
 - `verify-report` checks startup integrity: digests, no text in governance entries, and documents exactly matching the contract's `worker_instructions`. It still accepts an exact legacy `1.0` brief.
 - A regression dispatches with the real rules and governing documents against the example 16384-token binding, and requires positive headroom.
 
 ## Results (Windows, system Python 3.12.8, `jsonschema` 4.26.0)
 
-- `python -m unittest discover -s tests -p "test_*.py"`: 418 tests passed, 407 on `main` plus 11 new.
+- `python -m unittest discover -s tests -p "test_*.py"`: 419 tests passed, 407 on `main` plus 12 new.
 - `python scripts/validate_project.py`: 81 required paths passed, exit code 0.
 - `python scripts/sync_skills.py`, then `--check`: in this Git worktree, `--check` reports drift on exactly one path, `skills/complex-project-bootstrapper/assets/project-template/.git`. That is the worktree's `.git` pointer file, which `sync_skills.py` copies into the payload. It is not ignored, so it was deleted and never committed. Every tracked payload file matches. In a normal clone, as CI uses, `.git` is a directory, is excluded, and the check passes. This is a pre-existing packaging limitation (#49), not part of this change.
 - The template is intentionally unactivated. Bootstrap validation reports a missing `config/bootstrap.json`, and this work proceeds as authorized template maintenance.

@@ -137,6 +137,16 @@ def startup_document(root, relative, remaining):
             "content_lines": content.splitlines(keepends=True)}
 
 
+def not_governance(relative):
+    """A governing document travels as a digest only; naming it for embedding is refused.
+
+    Compared case-insensitively so a Windows alias of the same file cannot slip through.
+    """
+    require(relative.casefold() not in {name.casefold() for name in GOVERNANCE_DOCUMENTS},
+            f"Governing document {relative} cannot be a worker instruction; workers receive only its digest")
+    return relative
+
+
 def startup_max_chars(config):
     return config["limits"].get("startup_max_chars", DEFAULT_STARTUP_MAX_CHARS)
 
@@ -188,6 +198,7 @@ def startup_valid(startup, contract, config):
             "Startup documents must be exactly the contract's worker_instructions, in order")
     for item in documents:
         size += embedded_valid(item, "Worker instruction")
+        not_governance(item["path"])
     require(size <= startup_max_chars(config),
             f"Startup instructions total {size} characters, over startup_max_chars {startup_max_chars(config)}")
     return startup
@@ -203,7 +214,7 @@ def startup_bundle(root, contract, config):
     remaining -= sum(len(line) for line in rules["content_lines"])
     documents = []
     for relative in contract.get("worker_instructions", []):
-        document = startup_document(root, relative, remaining)
+        document = startup_document(root, not_governance(startup_path(relative)), remaining)
         remaining -= sum(len(line) for line in document["content_lines"])
         documents.append(document)
     governance = [governance_reference(root, name) for name in GOVERNANCE_DOCUMENTS]
