@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-27 — Mistral Vibe platform files restored (PR #48); scope policy merged (PR #45)
+
+- Restored the additive Mistral Vibe (Le Chat) platform files lost when `main` was rewritten: `MASTER_MISTRAL.md`, `.mistral/PROJECT_INSTRUCTIONS.md`, `.mistral/PROJECT_KNOWLEDGE.md` and `instructions/profiles/mistral_high_synthesis_INSTRUCTIONS.md`, with their payload mirrors. Their startup and offline lists now include `FACTS_AND_ASSUMPTIONS.md`, and the offline set includes `RISK_REGISTER.md`. They are not yet wired into the authority order, validator, README or bootstrapper (#46), and their product claims are unverified (#47).
+- Merged the 2026-09-23 scope policy (ADR-063, entry below) through PR #45.
+- ADR-064: Mistral Vibe support is in scope under master #14. OL-016's packaging defects are now issue #49, with a fourth defect added: `sync_skills.py` treats a worktree's `.git` file as payload.
+
+## 2026-09-23 — Scope policy: review findings must be concrete defects (ADR-063)
+
+- Agents were treating broad project guidance, review suggestions and nearby weaknesses as authorization to expand a task; reviews generated additional requirements, implementation expanded to satisfy them, and repeated rounds kept growing the work. The instruction sources said "answer every finding" with no test for what counts as one, so an optional suggestion carried the same force as a genuine defect.
+- `MASTER_INSTRUCTIONS.md` now states that the requested task and its accepted contract define authorized scope, and that a finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit requirement applicable to the task under review. Anything failing that test — typically an optional improvement, speculative hardening, a refactor, or a pre-existing condition the change neither caused nor exposed — gets a reasoned decline and, only if genuinely material, a separate record. The test governs those examples, not the reverse: a latent defect the change made reachable, and a pre-existing condition the task was explicitly required to fix, both stay actionable — never entry into the task, and never an open loop merely because someone raised it.
+- A finding must also state the affected behavior, the conditions that trigger it, and the evidence for it, with severity by actual impact; a bare assertion that something is a defect is not a finding.
+- `MASTER_CLAUDE_CODE.md` and `.claude/rules/02-git-and-change-control.md` point at that section as the single definition rather than paraphrasing it, and the two standalone reviewer briefs (`.claude/agents/reviewer.md`, `.codex/agents/reviewer.toml`) carry the complete test, since a delegated reviewer receives the brief without the master files. The `sync_skills.py` payload mirror carries all of it so newly generated projects inherit the boundary.
+- Instruction text only, no code changed. Also ported to `esp32-ble-motors` and `shopmonkey_pricefileupdate_landNsea`.
+
 ## 2026-09-18 — Issue #10 session 2: repeat-dogfood acceptance run, one defect still open (ADR-060, ADR-061, ADR-062)
 
 - Ran the repeat-dogfood on `_acceptance-demo-10` (outside this repository). Round 1 (same-family) found `AC-DECOMPOSITION` overclaimed — only one of four example packets' commands ran through the gate; fixed by a regression running all four (commit `f47a43d`). Round 2 (cross-family Codex) rejected on `AC-PROVENANCE`/`AC-ADVERSE`: a supporting record could verify an unrelated claim, and the default attestation-only `status` path could earn `VERIFIED_FACT` without checking the bound record's revision/contract hash against the ledger. Fixed via ADR-060 (commit `29422ca`); post-fix checks passed cleanly (398 tests, 0 payload diffs).

@@ -1,11 +1,17 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-18 UTC
+- **Prepared:** 2026-09-27 UTC (session-2 content from 2026-09-18; merge note added)
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `issue-10-family-law-domain` (off `main` at `d2350ec25474816545b4418a4c8c5cd97516e2c6`, PR #35 / Issue #9 follow-up, ADR-058). Confirm the current head with `git log --oneline -1` rather than trusting a figure here. Working tree is clean; nothing pending to commit in the tracked repository.
+- **Branch:** `issue-10-family-law-domain`. Merged `main` at `1b13c5a` (PR #48 Mistral files, PR #45 scope policy ADR-063, ADR-064) into this branch on 2026-09-27, resolving conflicts in favor of main's reviewed ADR-063 text for the four scope-policy instruction files and keeping both sides of the records. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
 - **Scope:** Issue #10 (complete high-conflict NC family-law template), session 2: ran the repeat-dogfood acceptance exercise. Two rounds found and fixed real defects; the third and last review this task's budget permits found a real defect that is **not yet fixed**, and the review budget is now exhausted. Stopped here for the day — do not treat this as closed.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). Read `PROJECT_STATE.md`'s "Issue #10, session 2" section and ADR-060/ADR-061/ADR-062 in `DECISIONS.md` before continuing — they contain the full findings; this handoff only summarizes the exact next action.
+
+## What merged on 2026-09-27
+
+**PR #45: scope policy (ADR-063).** A review finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit applicable requirement, with its behavior, trigger and evidence. `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" is the single definition. Apply it to every later review round, including #10's.
+
+**PR #48: Mistral Vibe platform files.** These are restored but not yet wired in. [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) tracks the authority order, `validate_project.py` required paths, README and bootstrapper. [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) tracks verifying the product claims and the maintainer's master #14 scope decision. Neither blocks #10.
 
 ## Before doing anything else: check for another agent on this repo
 
@@ -43,17 +49,17 @@ Round 3's report exists at `_acceptance-demo-10\review-3\review-report.json` wit
 
 ## Verified state
 
-398 tests pass on Windows (`unittest discover -s tests -p "test_*.py"` from the repo root via `%TEMP%\uaipt-venv\Scripts\python.exe`). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). Git working tree is clean; nothing has been pushed, and no PR exists yet for this branch.
+398 tests pass on Windows after the 2026-09-27 merge of `main` (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). Git working tree is clean; nothing has been pushed, and no PR exists yet for this branch.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 
-OL-016 (template-packaging defects) remains open from #8's closure, unaddressed by #9 or #10.
+OL-016 (template-packaging defects) is now tracked as [#49](https://github.com/henslewm/universal-ai-project-template/issues/49) (maintainer decision 2026-09-27); it is outside #10.
 
 ## Environment and tooling notes
 
 The template is deliberately unactivated: `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` reports `BOOTSTRAP INVALID: no such file`. Everything proceeds as the maintainer's explicitly authorized template maintenance.
 
-This checkout has no repository virtualenv and must not gain one; the working interpreter with `jsonschema==4.26.0` is at `%TEMP%\uaipt-venv\Scripts\python.exe`. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
+This checkout has no repository virtualenv and must not gain one; `%TEMP%\uaipt-venv` has lost its `pyvenv.cfg` and no longer runs (as of 2026-09-27); the system `python` (3.12.8) has `jsonschema==4.26.0` and runs the suite. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. Under WSL, discover each suite individually (`discover -s tests -p test_acceptance.py`, etc.); importing by dotted module name fails because `tests/` is not a package. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
 
 The Codex CLI (`codex exec`) is available locally and was used directly for round 2's and round 3's cross-family review, run non-interactively with `-C <review-dir> -s read-only --skip-git-repo-check` and the prompt on stdin — this is a genuinely independent model, not a simulated one. Do not confuse a one-shot `codex exec` review dispatch with a persistent unattended `codex.exe --ask-for-approval never` session — check for the latter before assuming sole ownership of this working tree (see above).
 
