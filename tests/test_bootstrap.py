@@ -75,6 +75,10 @@ class BootstrapTests(unittest.TestCase):
             config = json.loads((destination / "config/project.json").read_text(encoding="utf-8"))
             self.assertFalse(config["template_mode"])
             self.assertEqual(config["project_slug"], "example-complex-matter")
+            # In place, as by copy, a generated project has no payload, so its inherited CI skips
+            # the payload-drift check it could never pass (PR #61 Codex round 1).
+            self.assertFalse((destination / "skills/complex-project-bootstrapper/assets/project-template").exists())
+            self.assertEqual(sorted(p.name for p in (destination / "docs").glob("*VALIDATION.md")), [])
             validation = subprocess.run(
                 [sys.executable, str(destination / "scripts/validate_project.py")],
                 cwd=destination,

@@ -132,6 +132,11 @@ def copy_template(source: Path, destination: Path) -> None:
     if source == destination:
         if not (destination / ".ai-project-template").exists():
             raise SystemExit(f"Not a recognized template repository: {destination}")
+        # A generated project carries no bootstrap payload, whichever way it was generated; the
+        # copy path already omits it, and CI runs the payload check only where it exists (#49).
+        payload = destination / "skills/complex-project-bootstrapper/assets/project-template"
+        if payload.is_dir():
+            shutil.rmtree(payload)
         return
 
     if destination.exists() and any(destination.iterdir()):

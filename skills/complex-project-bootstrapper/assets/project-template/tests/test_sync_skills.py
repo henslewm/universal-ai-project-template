@@ -36,6 +36,16 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertFalse((self.skill / "assets/project-template/.git").exists())
         self.assertEqual(sync_skills.sync(check=True), [])
 
+    def test_a_previously_copied_git_pointer_is_pruned(self):
+        # A payload synced before this fix may already hold the pointer (PR #61 Codex round 1).
+        stale = self.skill / "assets/project-template/.git"
+        stale.write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        self.assertEqual(sync_skills.sync(check=True), ["skills/complex-project-bootstrapper/assets/project-template/.git"])
+        self.assertTrue(stale.exists(), "--check must not write")
+        sync_skills.sync()
+        self.assertFalse(stale.exists())
+        self.assertEqual(sync_skills.sync(check=True), [])
+
     def test_obsolete_mirror_files_are_reported_and_removed(self):
         asset = self.skill / "assets/project-template"
         native = self.root / ".claude/skills/complex-project-bootstrapper"
