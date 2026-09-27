@@ -4,6 +4,7 @@
 
 - Restored the additive Mistral Vibe (Le Chat) platform files lost when `main` was rewritten: `MASTER_MISTRAL.md`, `.mistral/PROJECT_INSTRUCTIONS.md`, `.mistral/PROJECT_KNOWLEDGE.md` and `instructions/profiles/mistral_high_synthesis_INSTRUCTIONS.md`, with their payload mirrors. Their startup and offline lists now include `FACTS_AND_ASSUMPTIONS.md`, and the offline set includes `RISK_REGISTER.md`. They are not yet wired into the authority order, validator, README or bootstrapper (#46), and their product claims are unverified (#47).
 - Merged the 2026-09-23 scope policy (ADR-063, entry below) through PR #45.
+- ADR-064: Mistral Vibe support is in scope under master #14. OL-016's packaging defects are now issue #49, with a fourth defect added: `sync_skills.py` treats a worktree's `.git` file as payload.
 
 ## 2026-09-23 — Scope policy: review findings must be concrete defects (ADR-063)
 
