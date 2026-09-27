@@ -15,16 +15,19 @@ EXCLUDED = {'.git', '__pycache__', '.pytest_cache', '.venv', 'venv', 'dist', 'bu
             'Claude outputs'}
 
 
-def files_under(root: Path, excluded_files: bool = False):
-    """Payload files under `root`. `excluded_files=True` also yields files with an EXCLUDED name,
-    so a mirror that already holds one (a copied `.git` pointer) can be pruned."""
+def files_under(root: Path, every_file: bool = False):
+    """Files under `root`, never descending into EXCLUDED directories.
+
+    By default only files that may become payload. `every_file=True` is for pruning a mirror: it
+    yields every file present, whatever its name, so anything the copy filters would never have
+    produced (a `.git` pointer, local bootstrap state, `.pyc`, `.zip`) is found and removed."""
     for directory, dirs, files in os.walk(root):
         dirs[:] = sorted(name for name in dirs if name not in EXCLUDED)
         for name in sorted(files):
             # EXCLUDED names are excluded as files too: in a git worktree or submodule `.git`
             # is a pointer file, and it must never become payload.
-            if ((excluded_files or name not in EXCLUDED) and not name.endswith(('.pyc', '.zip'))
-                    and name not in {'bootstrap-answers.local.json', 'bootstrap.json', 'bootstrap.json.tmp', 'BOOTSTRAP_REVIEW.md'}):
+            if every_file or (name not in EXCLUDED and not name.endswith(('.pyc', '.zip'))
+                              and name not in {'bootstrap-answers.local.json', 'bootstrap.json', 'bootstrap.json.tmp', 'BOOTSTRAP_REVIEW.md'}):
                 yield Path(directory) / name
 
 
@@ -48,7 +51,7 @@ def sync(check: bool = False) -> list[str]:
         # is obsolete, reported by --check and removed by a sync.
         if not mirror.is_dir():
             return
-        for target in files_under(mirror, excluded_files=True):
+        for target in files_under(mirror, every_file=True):
             if target not in expected:
                 differences.append(target.relative_to(ROOT).as_posix())
                 if not check:

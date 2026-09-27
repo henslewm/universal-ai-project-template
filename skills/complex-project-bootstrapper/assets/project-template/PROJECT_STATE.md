@@ -1,6 +1,6 @@
 # Project State
 
-- **Status:** TEMPLATE MAINTENANCE — #9 closed 2026-09-15 through merged PR #34; its post-merge follow-up merged 2026-09-16 through PR #35 (ADR-058); #10 closed 2026-09-27 through merged [PR #50](https://github.com/henslewm/universal-ai-project-template/pull/50) (`620fc9a`), and its round-4 gap fixed by #53/PR #54 (ADR-069, `dff35e0`); PRs #48 and #45 merged 2026-09-27; lean worker startup (ADR-070) merged through [PR #58](https://github.com/henslewm/universal-ai-project-template/pull/58) (`6c24d03`), superseding closed PR #55; #56 and #23 fixed through PRs #59 and #60; next: #49 (needs the generated-project CI decision), then child #11
+- **Status:** TEMPLATE MAINTENANCE — #9 closed 2026-09-15 through merged PR #34; its post-merge follow-up merged 2026-09-16 through PR #35 (ADR-058); #10 closed 2026-09-27 through merged [PR #50](https://github.com/henslewm/universal-ai-project-template/pull/50) (`620fc9a`), and its round-4 gap fixed by #53/PR #54 (ADR-069, `dff35e0`); PRs #48 and #45 merged 2026-09-27; lean worker startup (ADR-070) merged through [PR #58](https://github.com/henslewm/universal-ai-project-template/pull/58) (`6c24d03`), superseding closed PR #55; #56 and #23 fixed through PRs #59 and #60; #49 packaging fixed through PR #61 (ADR-071); next child #11
 - **Last verified:** 2026-09-27 UTC
 - **Active branch:** `main` at the PR #50 merge (`620fc9a`) plus this records commit
 - **Controlling scope:** [Locked master #14](https://github.com/henslewm/universal-ai-project-template/issues/14); title/body/order unchanged.

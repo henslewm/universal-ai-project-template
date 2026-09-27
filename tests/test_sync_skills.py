@@ -36,14 +36,22 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertFalse((self.skill / "assets/project-template/.git").exists())
         self.assertEqual(sync_skills.sync(check=True), [])
 
-    def test_a_previously_copied_git_pointer_is_pruned(self):
-        # A payload synced before this fix may already hold the pointer (PR #61 Codex round 1).
-        stale = self.skill / "assets/project-template/.git"
-        stale.write_text("gitdir: /elsewhere\n", encoding="utf-8")
-        self.assertEqual(sync_skills.sync(check=True), ["skills/complex-project-bootstrapper/assets/project-template/.git"])
-        self.assertTrue(stale.exists(), "--check must not write")
+    def test_every_file_the_copy_filters_would_skip_is_pruned(self):
+        # Pruning inspects every file already in a mirror, independent of the copy filters: a
+        # `.git` pointer copied before the fix (PR #61 round 1), and local bootstrap state or build
+        # artifacts in the payload or a native mirror (round 2), are all obsolete.
+        asset = self.skill / "assets/project-template"
+        native = self.root / ".agents/skills/complex-project-bootstrapper"
+        stale = [asset / ".git", asset / "config/bootstrap.json", asset / "BOOTSTRAP_REVIEW.md",
+                 asset / "bootstrap-answers.local.json", asset / "stray.pyc", native / "bundle.zip"]
+        for path in stale:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("stale\n", encoding="utf-8")
+        drift = sync_skills.sync(check=True)
+        self.assertEqual(sorted(drift), sorted(path.relative_to(self.root).as_posix() for path in stale))
+        self.assertTrue(all(path.exists() for path in stale), "--check must not write")
         sync_skills.sync()
-        self.assertFalse(stale.exists())
+        self.assertFalse(any(path.exists() for path in stale))
         self.assertEqual(sync_skills.sync(check=True), [])
 
     def test_obsolete_mirror_files_are_reported_and_removed(self):
