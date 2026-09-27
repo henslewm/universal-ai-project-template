@@ -13,7 +13,7 @@ Issue: [Complete high-conflict NC family-law evidence/research template](https:/
 | # | Criterion (issue #10) | Dogfood criterion | Evidence |
 |---|---|---|---|
 | 1 | A fresh family-law project can be bootstrapped interactively | `AC-BOOTSTRAP` | `validate_bootstrap.DOMAIN_FIELDS["family-law"]` requires ten orientation fields: case identity, controlling orders, objectives and deadlines, discovery, evidence, financial support, parenting/custody, adverse facts, appellate preservation, and reserved actions. They are kept identical in `config/bootstrap.schema.json` and the intake reference, and a placeholder answer is refused. |
-| 2 | Evidence provenance and fact-status rules are mechanically represented | `AC-PROVENANCE` | `config/domains/family-law.schema.json` and `scripts/family_law.py`. Assertions are declared `ALLEGATION`, `DISPUTED_FACT`, `INFERENCE`, `LEGAL_PROPOSITION` or `UNKNOWN`, each citing a contract source. `VERIFIED_FACT` is refused anywhere in a contract. It is earned only from an accepted ledger whose primary-source rung was attested against a digest-bound source record, re-verified, and covering every declared assertion (ADR-060). A contradicting or inconclusive record never earns it. |
+| 2 | Evidence provenance and fact-status rules are mechanically represented | `AC-PROVENANCE` | `config/domains/family-law.schema.json` and `scripts/family_law.py`. Assertions are declared `ALLEGATION`, `DISPUTED_FACT`, `INFERENCE`, `LEGAL_PROPOSITION` or `UNKNOWN`, each citing a contract source. `VERIFIED_FACT` is refused anywhere in a contract. It is earned only from an accepted ledger whose primary-source rung was attested against a digest-bound source record, re-verified, and covering every declared assertion (ADR-060). A record covers an assertion only when it reviewed a source that assertion names in `verified_by` (ADR-068). A contradicting or inconclusive record never earns it. |
 | 3 | Legal issue packets require adverse authority and primary-source verification | `AC-ADVERSE` | A packet declaring a `LEGAL_PROPOSITION` is refused without non-empty `adverse_authority`, and (ADR-065) without at least one `primary_source_verified` validation. That rung must not declare a command; it is satisfied only by a non-implementer attestation binding the record by digest, revision, contract hash, dispatch identity, artifact identity, validation id and a bounded observation time. `FAM-04-issue-brief` declares both. |
 | 4 | The project can progress task-by-task through GitHub without relying on chat memory | `AC-DECOMPOSITION` | `examples/family-law/`: four fictional, component-scoped packets (docket, support, custody, issue brief) validate under the closed schema, declare `synthetic: true`, and have their declared commands executed through the deterministic gate. |
 
@@ -45,10 +45,15 @@ The fifth dogfood criterion, `AC-SPLIT`, was met in every round. It requires reu
   - A supporting record for an `UNKNOWN` assertion earned `VERIFIED_FACT`.
 
   Both are in the earned-status derivation dogfood round 2 had corrected, so under R-012 the precedence was stated as one rule before patching.
+- **Round 3 on `8845668`:**
+  - P1 (actionable, fixed, ADR-068): a record was bound to its claim only by text, so a record of an unrelated source could verify a legal proposition. Assertions now declare `verified_by`, and a legal proposition must list its own authority. Each record names its `source_id`: an undeclared source verifies nothing, and a record covers a claim only when its source is in that claim's `verified_by`.
+  - P2 (fixed): stale current-state text, swept across all the control files.
+  - This was the third finding on what a source record proves, so under R-012 the invariant was written as ADR-068 before the code.
+- **Round 4:** the last round the maintainer authorized. If it is not clean, the maintainer decides whether to merge as is, and any remaining finding goes into a detailed GitHub issue.
 
 ## Offline validation — 2026-09-27
 
-On Windows with system Python 3.12.8 and `jsonschema==4.26.0`: `unittest discover -s tests -p "test_*.py"` ran 399 tests OK, 38 of them family-law; `scripts/validate_project.py` checked 81 required paths; `scripts/sync_skills.py --check` found 0 differing files.
+On Windows with system Python 3.12.8 and `jsonschema==4.26.0`: `unittest discover -s tests -p "test_*.py"` ran 406 tests OK, 45 of them family-law, after PR #50 round 3 (399 at `-10b`'s acceptance); `scripts/validate_project.py` checked 81 required paths; `scripts/sync_skills.py --check` found 0 differing files.
 
 ## Boundaries
 

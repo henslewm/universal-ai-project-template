@@ -346,11 +346,46 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertIn("claim_verified is not one of the contract's declared fact_assertions", report["reason"])
         self.assertEqual(report["highest_level_satisfied"], "structural")
 
+    def test_a_record_of_a_declared_source_that_does_not_verify_the_claim_covers_nothing(self):
+        """ADR-068: the pleading that makes an allegation is a declared source, but reviewing it
+        only shows the allegation was made. It verifies as a record and covers nothing."""
+        ledger, _, records = self.accepted_source_ledger(source_id="SRC-FAM10-ALLEGATION")
+        report = domain.status(ledger, records)
+        self.assertEqual(report["earned_fact_basis"], "UNVERIFIED_FACT")
+        self.assertIn("No re-verified supporting record covers", report["reason"])
+        self.assertIs(report["validations"][1]["evidence_verified"], True)
+        self.assertIs(report["validations"][1]["covers_claim"], False)
+        self.assertEqual(report["highest_level_satisfied"], "structural")
+
+    def test_a_record_of_a_source_the_contract_does_not_declare_verifies_nothing(self):
+        ledger, _, records = self.accepted_source_ledger(source_id="SRC-UNRELATED-FINANCIAL")
+        report = domain.status(ledger, records)
+        self.assertEqual(report["earned_fact_basis"], "UNVERIFIED_FACT")
+        self.assertIn("record source_id SRC-UNRELATED-FINANCIAL is not a source the contract declares",
+                      report["reason"])
+        self.assertEqual(report["highest_level_satisfied"], "structural")
+
+    def test_a_legal_proposition_must_be_verifiable_by_its_own_authority(self):
+        contract = wp.read_json(EXAMPLES / "packets/FAM-04-issue-brief.contract.json")
+        self.assertEqual(errors_for(contract), [])
+        contract["domain"]["fact_assertions"][0]["verified_by"] = ["SRC-FAM10-ADVERSE-CASE"]
+        self.assertTrue(any("must be verifiable by its own authority SRC-FAM10-CODE-10-100" in e
+                            for e in errors_for(contract)))
+        contract["domain"]["fact_assertions"][0]["verified_by"] = ["SRC-NOT-DECLARED", "SRC-FAM10-CODE-10-100"]
+        self.assertTrue(any("verified_by: unknown source SRC-NOT-DECLARED" in e for e in errors_for(contract)))
+
+    def test_a_record_of_a_verifying_source_covers_the_claim(self):
+        ledger, record, records = self.accepted_source_ledger()
+        self.assertEqual(record["source_id"], "SRC-FAM10-TRANSCRIPT")
+        report = domain.status(ledger, records)
+        self.assertEqual(report["earned_fact_basis"], "VERIFIED_FACT")
+        self.assertIs(report["validations"][1]["covers_claim"], True)
+
     def test_one_supported_claim_does_not_verify_an_unreviewed_second_assertion(self):
         contract = custody_contract()
         contract["domain"]["fact_assertions"].append(
             {"assertion": "Party A missed a second, unreviewed exchange.", "fact_status": "ALLEGATION",
-             "source_id": "SRC-FAM10-ALLEGATION"})
+             "source_id": "SRC-FAM10-ALLEGATION", "verified_by": ["SRC-FAM10-TRANSCRIPT"]})
         ledger, _, records = self.accepted_source_ledger(contract)
         report = domain.status(ledger, records)
         self.assertEqual(report["earned_fact_basis"], "UNVERIFIED_FACT")

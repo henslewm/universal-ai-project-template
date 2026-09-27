@@ -121,7 +121,10 @@
       {
         "assertion": "Party A failed to appear for the scheduled 2026-02-14 custody exchange.",
         "fact_status": "ALLEGATION",
-        "source_id": "SRC-FAM10-ALLEGATION"
+        "source_id": "SRC-FAM10-ALLEGATION",
+        "verified_by": [
+          "SRC-FAM10-TRANSCRIPT"
+        ]
       }
     ],
     "source_references": [

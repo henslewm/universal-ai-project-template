@@ -98,7 +98,8 @@
             "required": [
               "assertion",
               "fact_status",
-              "source_id"
+              "source_id",
+              "verified_by"
             ],
             "properties": {
               "assertion": {
@@ -108,7 +109,16 @@
                 "$ref": "#/$defs/fact_status"
               },
               "source_id": {
-                "$ref": "#/$defs/identifier"
+                "$ref": "#/$defs/identifier",
+                "description": "Where the claim is made: its provenance, not what verifies it. For an allegation this is the filing that alleges it; for a legal proposition it is the authority the proposition rests on."
+              },
+              "verified_by": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/identifier"
+                },
+                "uniqueItems": true,
+                "description": "The contract sources whose primary-source review can verify this claim (ADR-068). A source verification record covers the assertion only when its source_id is one of these. A legal proposition must list its own source_id: the authority it rests on is the one that has to be read. Empty means the claim is tracked but nothing declared can verify it."
               }
             }
           },
@@ -177,6 +187,7 @@
         "artifact_sha256",
         "validation_id",
         "level",
+        "source_id",
         "source_type",
         "citation",
         "custodian_or_repository",
@@ -221,6 +232,10 @@
           "enum": [
             "primary_source_verified"
           ]
+        },
+        "source_id": {
+          "$ref": "#/$defs/identifier",
+          "description": "The contract source this record reviewed (ADR-068). Record verification refuses a source the contract does not declare, and the record covers an assertion only when this id is among that assertion's verified_by. The free-text citation says where in the source; this says which declared source."
         },
         "source_type": {
           "type": "string",

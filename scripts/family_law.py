@@ -150,6 +150,14 @@ def validate_contract_domain(contract: dict) -> list[str]:
     for index, item in enumerate(domain["fact_assertions"]):
         if item["source_id"] not in sources:
             errors.append(f"fact_assertions/{index}: unknown source {item['source_id']}")
+        for source in item["verified_by"]:
+            if source not in sources:
+                errors.append(f"fact_assertions/{index}/verified_by: unknown source {source}")
+        # ADR-068: the authority a legal proposition rests on is the source that has to be read to
+        # verify it, so a proposition cannot be verified by some other source alone.
+        if item["fact_status"] == "LEGAL_PROPOSITION" and item["source_id"] not in item["verified_by"]:
+            errors.append(f"fact_assertions/{index}/verified_by: a legal proposition must be verifiable by "
+                          f"its own authority {item['source_id']}")
     for index, item in enumerate(domain["source_references"]):
         if item not in sources:
             errors.append(f"source_references/{index}: unknown source {item}")
@@ -340,12 +348,14 @@ RECORD_FIELDS = {"source_type": "source_type", "citation": "citation", "observed
                  "validation_id": "validation_id"}
 
 
-def record_problems(record, binding, validation_id, level, attestation, assertions=()) -> list[str]:
+def record_problems(record, binding, validation_id, level, attestation, assertions=(), sources=()) -> list[str]:
     """Why a digest-matched record does not verify the attestation; empty means it does.
 
-    `assertions` are the contract's declared fact assertions: a record verifies a claim only if
-    that claim is one the contract actually makes, so a source review of an unrelated statement
-    can never stand in for the packet's own."""
+    `assertions` are the texts of the contract's declared fact assertions: a record verifies a
+    claim only if that claim is one the contract actually makes, so a source review of an
+    unrelated statement can never stand in for the packet's own. `sources` are the contract's
+    declared source ids: a record of a source the contract never declared verifies nothing
+    (ADR-068). Whether a verified record also covers its claim is decided by `covers`."""
     try:
         validate_source_record(record)
     except ValueError as exc:
@@ -377,6 +387,9 @@ def record_problems(record, binding, validation_id, level, attestation, assertio
         # Exact: a record for a paraphrase or an unrelated statement verifies nothing the
         # contract asserts.
         problems.append("record claim_verified is not one of the contract's declared fact_assertions")
+    if record["source_id"] not in sources:
+        # The citation is free text; source_id names which declared source was actually read.
+        problems.append(f"record source_id {record['source_id']} is not a source the contract declares")
     # A record's outcome is not itself a problem: unlike a hardware pass/fail, a primary source
     # can legitimately contradict the claim it was consulted to check, or be inconclusive.
     # `status` reads the outcome to classify the earned finding; it never lets a non-"supports"
@@ -392,6 +405,15 @@ def record_problems(record, binding, validation_id, level, attestation, assertio
     if attested.get("operator", "").strip().casefold() != record["operator"].strip().casefold():
         problems.append("attested operator differs from the record's operator")
     return problems
+
+
+def covers(record, fact_assertions) -> bool:
+    """ADR-068: a verified supporting record covers its claim only when the source it reviewed is
+    one the contract names as verifying that claim. A record of another declared source (an
+    adverse authority, or the filing that makes an allegation) is still a verified record whose
+    outcome counts, but it does not verify the claim."""
+    return any(item["assertion"] == record["claim_verified"] and record["source_id"] in item["verified_by"]
+               for item in fact_assertions)
 
 
 def status(ledger, evidence_dir=None) -> dict:
@@ -417,7 +439,8 @@ def status(ledger, evidence_dir=None) -> dict:
     # An UNKNOWN assertion is declared unresolved: no record can turn it into a verified fact, so a
     # packet carrying one never earns whole-task VERIFIED_FACT (ADR-060).
     unknown = [item["assertion"] for item in domain["fact_assertions"] if item["fact_status"] == "UNKNOWN"]
-    covered = set()  # assertions a re-verified record found supported
+    declared_sources = {entry["id"] for entry in state["contract"]["sources"]}
+    covered = set()  # assertions a re-verified record from one of their verifying sources found supported
     checks = []
     problems = []
     contradicted = []
@@ -426,7 +449,8 @@ def status(ledger, evidence_dir=None) -> dict:
         identifier = check["id"]
         entry = {"validation_id": identifier, "level": levels[identifier], "gate": gate[identifier],
                  "machine_runnable": levels[identifier] in MACHINE_LEVELS, "evidence_digest": None,
-                 "evidence_verified": None, "evidence_path": None, "attested_outcome": None}
+                 "evidence_verified": None, "evidence_path": None, "attested_outcome": None,
+                 "covers_claim": None}
         attestation = state["attestations"].get(identifier)
         if attestation is not None:
             if attestation.get("domain_shortfall"):  # stored before the rule that would refuse it
@@ -455,10 +479,12 @@ def status(ledger, evidence_dir=None) -> dict:
                 else:
                     found = [f"{identifier}: {problem}" for problem in
                              record_problems(record, submission, identifier, levels[identifier], attestation,
-                                             assertions)]
+                                             assertions, declared_sources)]
                     if not found:
                         entry["attested_outcome"] = record["outcome"]
-                        if record["outcome"] == "supports" and record["claim_verified"] not in unknown:
+                        entry["covers_claim"] = covers(record, domain["fact_assertions"])
+                        if (record["outcome"] == "supports" and entry["covers_claim"]
+                                and record["claim_verified"] not in unknown):
                             covered.add(record["claim_verified"])
                 entry["evidence_verified"] = not found
                 entry["evidence_path"] = str(path) if path else None
@@ -519,13 +545,14 @@ def status(ledger, evidence_dir=None) -> dict:
         reason = ("Accepted with every primary_source_verified validation attested, supporting the claim, "
                   "every bound record re-verified by digest, task, revision, contract hash, submission, "
                   "validation, rung and operator, and every declared fact assertion covered by a supporting record.")
-    # A primary-source rung counts as satisfied only when its outcome supports the claim; a rung
+    # A primary-source rung counts as satisfied only when its outcome supports a claim it covers
+    # (ADR-068: its record reviewed one of that claim's verifying sources); a rung
     # that contradicts, is inconclusive, or whose record did not verify is not satisfied. For a
     # synthetic contract a source rung never counts here either, for the same reason it never
     # earns VERIFIED_FACT above.
     satisfied = [c["level"] for c in checks
                  if c["gate"] == "PASSED"
-                 or (c["gate"] == "ATTESTED" and c["evidence_verified"] is True
+                 or (c["gate"] == "ATTESTED" and c["evidence_verified"] is True and c["covers_claim"] is True
                      and c["attested_outcome"] == "supports" and not domain.get("synthetic"))]
     highest = max(satisfied, key=LEVELS.index) if satisfied else None
     return {"task_id": binding["task_id"], "revision": binding["revision"], "ledger_status": state["status"],

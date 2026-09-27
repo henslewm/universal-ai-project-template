@@ -127,7 +127,10 @@
       {
         "assertion": "A substantial change in circumstances under fictional section 10-100 warrants the requested modification.",
         "fact_status": "LEGAL_PROPOSITION",
-        "source_id": "SRC-FAM10-CODE-10-100"
+        "source_id": "SRC-FAM10-CODE-10-100",
+        "verified_by": [
+          "SRC-FAM10-CODE-10-100"
+        ]
       }
     ],
     "source_references": [

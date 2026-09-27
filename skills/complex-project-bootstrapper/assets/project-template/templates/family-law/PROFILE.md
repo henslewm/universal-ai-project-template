@@ -35,8 +35,12 @@ validated:
 - `workstream`: the one linked workstream.
 - `fact_assertions`: every material factual claim the packet's output rests on, each declared
   with its category (`ALLEGATION`, `DISPUTED_FACT`, `INFERENCE`, `LEGAL_PROPOSITION`, or
-  `UNKNOWN`) and citing a contract source. Empty means the packet asserts no material fact and is
-  `NOT_FACT_ASSERTING`.
+  `UNKNOWN`) and citing a contract source (`source_id`: where the claim is made). Each also lists
+  `verified_by`, the contract sources whose primary-source review can verify it; the filing that
+  makes an allegation is its provenance, not its proof. A `LEGAL_PROPOSITION` must list its own
+  authority in `verified_by`, because that authority is what has to be read. Empty means the claim
+  is tracked and nothing declared can verify it. An empty `fact_assertions` list means the packet
+  asserts no material fact and is `NOT_FACT_ASSERTING`.
 - `source_references`: contract sources the packet's claims rely on; required when any fact
   assertion exists.
 - `adverse_authority`: the strongest authority against the packet's own position, each citing a
@@ -68,6 +72,11 @@ contract does not declare `domain.synthetic: true` — every worked example in t
 it, so none of them can earn `VERIFIED_FACT`. A record verifies a claim only if its
 `claim_verified` is exactly one of the contract's `fact_assertions`; a record for an unrelated
 statement verifies nothing, and one checked claim never verifies a packet's other assertions. A
+record also names the declared contract source it reviewed (`source_id`): a record of an
+undeclared source verifies nothing, and a record covers its claim only when its `source_id` is in
+that claim's `verified_by`. A record of another declared source, such as the adverse authority,
+still verifies as a record and its outcome still counts, so a contradiction it finds is reported,
+but it never covers the claim. A
 primary source can also actively contradict the claim it was consulted to check, or be
 inconclusive: `status` reports `CONTRADICTED_BY_SOURCE` as its own outcome, ahead of every other
 reason, and an inconclusive review is reported unverified with that reason stated — neither is

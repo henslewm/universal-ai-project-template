@@ -126,7 +126,10 @@
       {
         "assertion": "Party A's gross monthly income is $6,000.",
         "fact_status": "INFERENCE",
-        "source_id": "SRC-FAM10-WORKSHEET"
+        "source_id": "SRC-FAM10-WORKSHEET",
+        "verified_by": [
+          "SRC-FAM10-PARTYA-FINANCIAL"
+        ]
       }
     ],
     "source_references": [

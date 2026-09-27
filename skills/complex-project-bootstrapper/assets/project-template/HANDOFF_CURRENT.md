@@ -5,7 +5,7 @@
 - **Branch:** `issue-10-family-law-domain`, open as [PR #50](https://github.com/henslewm/universal-ai-project-template/pull/50) against `main`. `main` (PRs #45 and #48; ADR-063 and ADR-064) was merged in at `a638098`. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
 - **Scope:** Issue #10 (complete high-conflict NC family-law template) is accepted through its dogfood at `_acceptance-demo-10b` and is in PR review. It is not merged or closed.
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) and PR #50. `docs/ISSUE_10_VALIDATION.md` is the full record, and ADR-059 through ADR-062 and ADR-065 hold the decisions.
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) and PR #50. `docs/ISSUE_10_VALIDATION.md` is the full record, and ADR-059 through ADR-062 and ADR-065 through ADR-068 hold the decisions.
 
 ## What merged on 2026-09-27
 
@@ -24,11 +24,14 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 - **PR #50, Codex round 1 on `e93271d`:**
   - P1 (actionable, fixed): the profile promises model review for elevated fact statuses, but a low-risk `LEGAL_PROPOSITION` packet was accepted on the deterministic gate alone. A packet asserting `DISPUTED_FACT` or `LEGAL_PROPOSITION` must now have `model_review` in its effective gates.
   - P2 (fixed): this handoff was stale.
-- **PR #50, Codex round 2 on `7bb558e`:** two P1s in `family_law.status`, both fixed (ADR-067). A verified contradiction now outranks an unrelated record problem, and an `UNKNOWN` assertion can never be covered. Round 3 is the last in this session's bound.
+- **PR #50, Codex round 2 on `7bb558e`:** two P1s in `family_law.status`, both fixed (ADR-067). A verified contradiction now outranks an unrelated record problem, and an `UNKNOWN` assertion can never be covered. 
+- **PR #50, Codex round 3 on `8845668`:**
+  - P1 (actionable, fixed, ADR-068): a source verification record was bound to its claim only by text, so a record of an unrelated source could verify a legal proposition. Assertions now declare `verified_by`, the sources whose review can verify them, and a legal proposition must list its own authority. Each record names its `source_id`. An undeclared source verifies nothing, and a record covers a claim only when its `source_id` is in that claim's `verified_by`.
+  - P2 (fixed): stale current-state text, swept across all the control files.
 
 ## Exact next action
 
-Continue PR #50's Codex loop. This session applies a bound of three rounds, and stops early on R-012 recurrence. Answer only actionable findings (ADR-063). On a clean review of the current head, ask the maintainer for the merge go-ahead, then close #10 with a completion comment and continue master #14.
+Read Codex round 4 on PR #50's current head. The maintainer authorized this one round and no more. If it is clean, ask the maintainer for the merge go-ahead. If it has actionable findings (ADR-063), do not start round 5. Instead ask the maintainer to merge as is, and open a detailed GitHub issue for each remaining finding, with its file and line, trigger, evidence and classification. After merge, close #10 with a completion comment and continue master #14.
 
 ## What #9 and PR #35 left you (background, unchanged)
 
@@ -36,7 +39,7 @@ Continue PR #50's Codex loop. This session applies a bound of three rounds, and 
 
 ## Verified state
 
-402 tests pass on Windows after PR #50 round 2 (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). Git working tree is clean; nothing has been pushed, and no PR exists yet for this branch.
+406 tests pass on Windows after PR #50 round 3 (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). The branch is pushed and open as PR #50. Confirm the head and CI with `gh pr view 50`.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 

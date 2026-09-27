@@ -6,6 +6,7 @@
 - The dogfood contract's `scope.allowed` now admits the standing closeout records required by the closeout protocol. It is re-reviewed on a fresh ledger, `_acceptance-demo-10b`, and `_acceptance-demo-10` is preserved as provisional.
 - `_acceptance-demo-10b` was accepted: the deterministic gate passed, and a cross-family Codex review approved all five criteria. `docs/ISSUE_10_VALIDATION.md` records the whole review history.
 - PR #50 Codex round 1: a packet asserting `DISPUTED_FACT` or `LEGAL_PROPOSITION` must now have `model_review` in its acceptance floor, as `PROFILE.md` already stated (ADR-066). The handoff is updated to the accepted state.
+- PR #50 Codex round 3 (ADR-068): each family-law fact assertion now declares `verified_by`, the sources whose review can verify it, and a legal proposition must list its own authority. A source verification record names the declared `source_id` it reviewed. A record of an undeclared source verifies nothing, and a record covers its claim only when its source is in that claim's `verified_by`. The stale current-state text was swept across the control files.
 - PR #50 Codex round 2 (ADR-067): a re-verified `CONTRADICTED_BY_SOURCE` now outranks an unrelated check's record problem, which stays in the reason, and an `UNKNOWN` assertion can never be covered into `VERIFIED_FACT`. The earned-status precedence is recorded as one rule.
 
 ## 2026-09-27 — Mistral Vibe platform files restored (PR #48); scope policy merged (PR #45)
