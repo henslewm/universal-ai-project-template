@@ -10,6 +10,8 @@ When that is unavailable, upload this compact active set to the Project (or a Li
 - `PROJECT_STATE.md`
 - `OPEN_LOOPS.md`
 - `DECISIONS.md`
+- `FACTS_AND_ASSUMPTIONS.md`
+- `RISK_REGISTER.md`
 - `SOURCE_INDEX.md`
 - `HANDOFF_CURRENT.md`
 - `CONNECTOR_PLAN.md`

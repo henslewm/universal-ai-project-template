@@ -14,7 +14,7 @@ Use Mistral Vibe (formerly Le Chat) for synthesis, research, drafting, and conne
 
 ## Startup
 
-Read `PROJECT_CHARTER.md`, `PROJECT_STATE.md`, `OPEN_LOOPS.md`, `DECISIONS.md`, `SOURCE_INDEX.md`, and `HANDOFF_CURRENT.md` before substantive work — through the GitHub connector when available. Prefer the newest repository versions over files uploaded to the Project or a Library.
+Read `PROJECT_CHARTER.md`, `PROJECT_STATE.md`, `OPEN_LOOPS.md`, `DECISIONS.md`, `FACTS_AND_ASSUMPTIONS.md`, `SOURCE_INDEX.md`, and `HANDOFF_CURRENT.md` before substantive work — through the GitHub connector when available. Prefer the newest repository versions over files uploaded to the Project or a Library.
 
 ## Work and closeout
 
