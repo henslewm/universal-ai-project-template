@@ -87,6 +87,32 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertTrue((outside / "secret.txt").exists(), "removing a link never touches its target")
         self.assertEqual(sync_skills.sync(check=True), [])
 
+    def test_a_linked_mirror_root_or_ancestor_is_refused_untouched(self):
+        # PR #61 round 5: a mirror root that is itself a link would send copies and prunes into its
+        # target. The sync refuses before touching anything, in both modes.
+        outside = self.root.parent / (self.root.name + "-outside-root")
+        outside.mkdir()
+        self.addCleanup(lambda: __import__("shutil").rmtree(outside, ignore_errors=True))
+        (outside / "keep.txt").write_text("outside\n", encoding="utf-8")
+        for linked in (self.root / ".agents/skills/complex-project-bootstrapper", self.root / ".claude/skills"):
+            with self.subTest(linked=linked.relative_to(self.root).as_posix()):
+                moved = linked.with_name(linked.name + "-real")
+                linked.rename(moved)
+                try:
+                    linked.symlink_to(outside, target_is_directory=True)
+                except (OSError, NotImplementedError):
+                    moved.rename(linked)
+                    self.skipTest("Symbolic links are unavailable on this host")
+                try:
+                    for check in (True, False):
+                        with self.assertRaisesRegex(ValueError, "Refusing to sync through a link"):
+                            sync_skills.sync(check=check)
+                    self.assertEqual(sorted(p.name for p in outside.iterdir()), ["keep.txt"])
+                finally:
+                    sync_skills.remove_link(linked)
+                    moved.rename(linked)
+        self.assertEqual(sync_skills.sync(check=True), [])
+
     def test_regenerated_caches_in_a_mirror_are_not_drift(self):
         # Running the suite executes scripts from the native mirrors, which leaves __pycache__
         # there; CI runs the payload check after the tests, so caches must not count as drift.

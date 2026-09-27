@@ -53,9 +53,25 @@ def remove_link(path: Path):
         os.rmdir(path)  # a Windows directory symlink or junction
 
 
+def refuse_linked_path(target: Path):
+    """The sync never reads, writes or deletes through a link: refuse a destination that is, or sits
+    beneath, a symbolic link between ROOT and itself."""
+    path = ROOT
+    for part in target.relative_to(ROOT).parts:
+        path = path / part
+        if path.is_symlink():
+            raise ValueError(f'Refusing to sync through a link: {path.relative_to(ROOT).as_posix()}')
+
+
 def sync(check: bool = False) -> list[str]:
     differences = []
     expected = set()
+    mirrors = [ROOT / native / SKILL.name for native in ('.agents/skills', '.claude/skills')]
+    asset = SKILL / 'assets/project-template'
+    # Checked once, before anything is copied, pruned or unlinked: every destination root and each
+    # directory above it is real, so no write or deletion can land outside the repository.
+    for destination in [SKILL / 'scripts', *mirrors, asset]:
+        refuse_linked_path(destination)
 
     def unlink_all(mirror: Path):
         # The copy never creates a link. A link in a mirror would be followed by the copy (writing
@@ -90,7 +106,6 @@ def sync(check: bool = False) -> list[str]:
                 if not check:
                     target.unlink()
 
-    mirrors = [ROOT / native / SKILL.name for native in ('.agents/skills', '.claude/skills')]
     for mirror in mirrors:
         unlink_all(mirror)
     for source in files_under(SKILL):
@@ -100,7 +115,6 @@ def sync(check: bool = False) -> list[str]:
     # converges instead of carrying an obsolete file into the payload for one more round.
     for mirror in mirrors:
         prune(mirror)
-    asset = SKILL / 'assets/project-template'
     unlink_all(asset)
     for source in files_under(ROOT):
         copy(source, asset / source.relative_to(ROOT))
@@ -112,7 +126,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Fail on payload drift without writing files')
     args = parser.parse_args()
-    differences = sync(args.check)
+    try:
+        differences = sync(args.check)
+    except ValueError as exc:
+        print(f'BOOTSTRAP PAYLOAD REFUSED: {exc}')
+        return 1
     if args.check and differences:
         print('BOOTSTRAP PAYLOAD DRIFT\n' + '\n'.join(differences))
         return 1
