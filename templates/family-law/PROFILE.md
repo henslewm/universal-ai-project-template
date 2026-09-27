@@ -41,7 +41,10 @@ validated:
   assertion exists.
 - `adverse_authority`: the strongest authority against the packet's own position, each citing a
   contract source. Required non-empty whenever any assertion is declared `LEGAL_PROPOSITION`.
-- `validation_levels`: every validation id mapped to exactly one rung of the ladder.
+- `validation_levels`: every validation id mapped to exactly one rung of the ladder. A packet
+  declaring any `LEGAL_PROPOSITION` must map at least one validation to `primary_source_verified`:
+  a citation-linked check proves the citation resolves, not that the authority says what the
+  proposition claims.
 - `fact_basis`: `UNVERIFIED_FACT` or `NOT_FACT_ASSERTING`. A contract cannot declare
   `VERIFIED_FACT`; it is earned, never authored. The block is closed — no undeclared key and no
   free text can carry that literal anywhere in it.

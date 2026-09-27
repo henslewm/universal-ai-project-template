@@ -171,6 +171,17 @@ class ContractRuleTests(unittest.TestCase):
         del contract["domain"]["adverse_authority"]
         self.assertTrue(any("adverse_authority" in e for e in errors_for(contract)))
 
+    def test_legal_proposition_requires_a_primary_source_rung(self):
+        # AC-ADVERSE, round 3 on _acceptance-demo-10: adverse authority alone let a legal
+        # proposition validate with only a citation-linked check and no reading of the authority.
+        contract = wp.read_json(EXAMPLES / "packets/FAM-04-issue-brief.contract.json")
+        self.assertEqual(errors_for(contract), [])
+        for check_id, level in list(contract["domain"]["validation_levels"].items()):
+            if level == "primary_source_verified":
+                del contract["domain"]["validation_levels"][check_id]
+                contract["validation"] = [v for v in contract["validation"] if v["id"] != check_id]
+        self.assertTrue(any("must declare a primary_source_verified validation" in e for e in errors_for(contract)))
+
     def test_rules_reach_packet_validation_and_acceptance_init(self):
         packet = make_packet(custody_contract())
         broken = copy.deepcopy(packet)

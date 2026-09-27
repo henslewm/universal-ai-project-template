@@ -60,6 +60,10 @@
     {
       "id": "AC-ADVERSE-CITED",
       "description": "The brief cites at least one adverse authority against its own proposition."
+    },
+    {
+      "id": "AC-PROPOSITION-SOURCE",
+      "description": "The legal proposition is checked against the primary text of fictional section 10-100 and the adverse case, not only linked to their citations."
     }
   ],
   "validation": [
@@ -81,6 +85,16 @@
           "sources = {'SRC-FAM10-CODE-10-100', 'SRC-FAM10-ADVERSE-CASE'}; cited = {'SRC-FAM10-CODE-10-100', 'SRC-FAM10-ADVERSE-CASE'}; adverse = ['SRC-FAM10-ADVERSE-CASE']; assert cited <= sources and adverse; print('citations linked, adverse authority present')"
         ]
       }
+    },
+    {
+      "id": "VAL-PROPOSITION-SOURCE",
+      "description": "A non-implementer reads fictional section 10-100 and the adverse case and confirms whether they support the brief's proposition as stated.",
+      "criterion_ids": [
+        "AC-PROPOSITION-SOURCE"
+      ],
+      "evidence_required": [
+        "A source verification record binding the reviewed authority, its outcome, and the reviewing operator."
+      ]
     }
   ],
   "complexity": "medium",
@@ -127,7 +141,8 @@
       }
     ],
     "validation_levels": {
-      "VAL-CITATION-LINKAGE": "citation_linked"
+      "VAL-CITATION-LINKAGE": "citation_linked",
+      "VAL-PROPOSITION-SOURCE": "primary_source_verified"
     },
     "template_child_issue": 10
   }

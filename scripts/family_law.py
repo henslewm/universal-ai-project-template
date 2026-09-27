@@ -172,6 +172,11 @@ def validate_contract_domain(contract: dict) -> list[str]:
     if propositions and not domain.get("adverse_authority"):
         errors.append("adverse_authority: a packet asserting a legal proposition must cite the strongest "
                       "authority against its own position")
+    # A citation that merely resolves is not a reading of the authority it names: a legal proposition
+    # rests on primary law, so it needs a primary-source rung as well as its adverse authority.
+    if propositions and not source_checks:
+        errors.append("validation_levels: a packet asserting a legal proposition must declare a "
+                      "primary_source_verified validation; a citation-linked check alone does not read the authority")
     return errors
 
 
