@@ -2,12 +2,16 @@
 
 ID = <git short sha | nogit>-src<hash>-<toolchain>
 
-Invariant: <hash> is a SHA-256 prefix over the relative path and bytes of every
-file in the build-input roots -- the sketch/src directory, lib/, include/,
-boards/, platformio.ini and partition CSVs in the project root -- read straight
-from disk, whether tracked, untracked or git-ignored. Only build outputs and VCS
-metadata (.pio, .git, build) are skipped. Git is never consulted for content, so
-the ID changes exactly when a build input changes; the commit is only a label.
+This is a human-readable LABEL, not the artifact identity. <hash> is a SHA-256
+prefix over every file in the project's source roots (sketch/src_dir, the
+configured lib/include/boards dirs, platformio.ini, root partition CSVs and the
+build scripts in scripts/*.py) read from disk, tracked or not. Compiler flags,
+board options and the installed core are NOT captured here.
+
+The authoritative identity is the ELF SHA-256 that elf2image embeds in the app
+image (--elf-sha256-offset 0xb0); the firmware prints it at runtime as
+elf_sha256=... and evidence compares it with the recorded ELF hash. That value
+changes with every build input by construction.
 
 PlatformIO: `extra_scripts = pre:scripts/pio_build_id.py` defines FIRMWARE_BUILD_ID
 (toolchain = pio-<env>, source root = src_dir).
@@ -25,9 +29,9 @@ import subprocess
 SKIP_DIRS = {".pio", ".git", "build", "__pycache__"}
 
 
-def build_inputs(project_dir, source_dir):
-    roots = [source_dir] + [os.path.join(project_dir, d) for d in ("lib", "include", "boards")]
+def build_inputs(project_dir, roots):
     files = [os.path.join(project_dir, "platformio.ini")] + sorted(glob.glob(os.path.join(project_dir, "*.csv")))
+    files += sorted(glob.glob(os.path.join(project_dir, "scripts", "*.py")))
     for root in roots:
         for directory, dirs, names in os.walk(root):
             dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
@@ -35,9 +39,9 @@ def build_inputs(project_dir, source_dir):
     return sorted({os.path.abspath(f) for f in files if os.path.isfile(f)})
 
 
-def build_id(project_dir, source_dir, toolchain):
+def build_id(project_dir, roots, toolchain):
     digest = hashlib.sha256()
-    for path in build_inputs(project_dir, source_dir):
+    for path in build_inputs(project_dir, roots):
         digest.update(os.path.relpath(path, project_dir).replace("\\", "/").encode() + b"\0")
         with open(path, "rb") as handle:
             digest.update(handle.read() + b"\0")
@@ -55,7 +59,8 @@ except NameError:
     env = None
 
 if env is not None:
-    ident = build_id(env.subst("$PROJECT_DIR"), env.subst("$PROJECT_SRC_DIR"), f"pio-{env['PIOENV']}")
+    roots = [env.subst(v) for v in ("$PROJECT_SRC_DIR", "$PROJECT_LIB_DIR", "$PROJECT_INCLUDE_DIR", "$PROJECT_BOARDS_DIR")]
+    ident = build_id(env.subst("$PROJECT_DIR"), roots, f"pio-{env['PIOENV']}")
     env.Append(CPPDEFINES=[("FIRMWARE_BUILD_ID", env.StringifyMacro(ident))])
     print(f"FIRMWARE_BUILD_ID={ident}")
 elif __name__ == "__main__":
@@ -64,4 +69,6 @@ elif __name__ == "__main__":
     parser.add_argument("--toolchain", default="cli")
     parser.add_argument("--project", default=os.getcwd())
     args = parser.parse_args()
-    print(build_id(os.path.abspath(args.project), os.path.abspath(args.sketch), args.toolchain))
+    project = os.path.abspath(args.project)
+    roots = [os.path.abspath(args.sketch)] + [os.path.join(project, d) for d in ("lib", "include", "boards")]
+    print(build_id(project, roots, args.toolchain))

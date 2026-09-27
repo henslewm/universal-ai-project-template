@@ -27,7 +27,11 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` next to it
 8. **Monitor.** Include `monitor_filters = esp32_exception_decoder, time` so crashes decode against the exact ELF.
 9. **Ignore output.** Add `.pio/` to `.gitignore`.
 10. **Keep builds equivalent.** Record the arduino-cli FQBN and `--build-property` values that produce the same configuration, and state which toolchain produced any flashed artifact. A PlatformIO ELF and an arduino-cli ELF are different artifacts.
-11. **Generate the build identifier.** Don't hard-code it. Inject a firmware build ID from build metadata (a SHA-256 prefix over every file in the build-input roots: the sketch/`src_dir`, `lib/`, `include/`, `boards/`, `platformio.ini` and partition CSVs, read from disk whether tracked, untracked or git-ignored. Only `.pio`, `.git` and `build` are skipped. The git commit is only a label, and the toolchain and environment are appended) through an `extra_scripts` pre-script, and through `--build-property compiler.cpp.extra_flags=-DFIRMWARE_BUILD_ID=...` for arduino-cli, so serial evidence binds to the exact artifact.
+11. **Bind evidence to the artifact itself.**
+    - The firmware prints the ELF SHA-256 that `elf2image --elf-sha256-offset 0xb0` embeds in the app image, `esp_app_get_description()->app_elf_sha256` (snippet below). arduino-cli and PlatformIO/pioarduino both set this offset.
+    - Evidence compares that runtime value with the recorded ELF hash. It changes with every input: sources, flags, board options, core and scripts.
+    - Also inject a readable `FIRMWARE_BUILD_ID` label, never hard-coded, from `pio_build_id.py`. It combines the git commit, a hash of the source roots from disk, and the toolchain.
+    - The label is a convenience, not proof of identity: a pre-build hash cannot see flags or the installed core.
 12. **Verify before relying on it.** `pio run -e <default>` must succeed. For hardware claims, upload, run the project's smoke test and record the build ID and ELF SHA-256. A successful compile is not hardware verification.
 
 ## Example
@@ -79,4 +83,22 @@ arduino-cli compile -b esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashMode=qio
 
 The single quotes keep the double quotes through arduino-cli's own argument splitter; without them, the build fails or the ID is lost. Verified on hardware in the downstream project described in issue #51.
 
-The example's `extra_scripts` line requires the build-ID pre-script. Copy [`templates/software-hardware/pio_build_id.py`](../templates/software-hardware/pio_build_id.py) to the project's `scripts/pio_build_id.py`. It injects `FIRMWARE_BUILD_ID = <git sha|nogit>-src<hash>-pio-<env>`, where `<hash>` covers every build-input file on disk. `python scripts/pio_build_id.py --sketch <folder> --toolchain cli` prints the same kind of ID for arduino-cli; the same inputs give the same hash under both toolchains. Without that file, remove the `extra_scripts` line, because PlatformIO fails before compiling if a pre-script is missing. The firmware declares `#ifndef FIRMWARE_BUILD_ID` / `#define FIRMWARE_BUILD_ID "unlabeled"`, so an uninjected build is visibly unlabeled.
+The example's `extra_scripts` line requires the build-ID pre-script. Copy [`templates/software-hardware/pio_build_id.py`](../templates/software-hardware/pio_build_id.py) to the project's `scripts/pio_build_id.py`. It injects the label `FIRMWARE_BUILD_ID = <git sha|nogit>-src<hash>-pio-<env>`, where `<hash>` covers the source roots (sketch/`src_dir`, the configured lib, include and boards dirs, `platformio.ini`, root partition CSVs and `scripts/*.py`) read from disk. `python scripts/pio_build_id.py --sketch <folder> --toolchain cli` prints the same label for arduino-cli. Without that file, remove the `extra_scripts` line, because PlatformIO fails before compiling if a pre-script is missing.
+
+Firmware side: the label has a visible fallback, and the runtime artifact identity is printed next to it:
+
+```cpp
+#include "esp_app_desc.h"
+#ifndef FIRMWARE_BUILD_ID
+#define FIRMWARE_BUILD_ID "unlabeled"
+#endif
+
+void printBuildIdentity() {
+  char elf[65];
+  const uint8_t* sha = esp_app_get_description()->app_elf_sha256;
+  for (int i = 0; i < 32; ++i) snprintf(elf + 2 * i, 3, "%02x", sha[i]);
+  Serial.printf("Build: %s core=%s elf_sha256=%s\n", FIRMWARE_BUILD_ID, ESP_ARDUINO_VERSION_STR, elf);
+}
+```
+
+Downstream, the printed `elf_sha256` equalled the SHA-256 of the flashed `firmware.elf` exactly.
