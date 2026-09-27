@@ -57,6 +57,36 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertFalse(any(path.exists() for path in stale))
         self.assertEqual(sync_skills.sync(check=True), [])
 
+    def test_links_in_a_mirror_are_removed_and_never_followed(self):
+        # A directory link in the payload would be dereferenced by the generator's copytree, and a
+        # file link at an expected path would be written through by the copy (PR #61 round 4).
+        outside = self.root.parent / (self.root.name + "-outside")
+        outside.mkdir()
+        self.addCleanup(lambda: __import__("shutil").rmtree(outside, ignore_errors=True))
+        (outside / "secret.txt").write_text("outside\n", encoding="utf-8")
+        (outside / "README.md").write_text("outside readme\n", encoding="utf-8")
+        asset = self.skill / "assets/project-template"
+        dir_link, file_link = asset / "linked-dir", asset / "README.md"
+        file_link.unlink()
+        try:
+            dir_link.symlink_to(outside, target_is_directory=True)
+            file_link.symlink_to(outside / "README.md")
+        except (OSError, NotImplementedError):
+            self.skipTest("Symbolic links are unavailable on this host")
+        (self.root / "README.md").write_text("# Template, changed\n", encoding="utf-8")
+        drift = sync_skills.sync(check=True)
+        for path in (dir_link, file_link):
+            self.assertIn(path.relative_to(self.root).as_posix(), drift)
+        self.assertTrue(dir_link.is_symlink() and file_link.is_symlink(), "--check must not write")
+        sync_skills.sync()
+        self.assertFalse(dir_link.exists() or dir_link.is_symlink())
+        self.assertFalse(file_link.is_symlink())
+        self.assertEqual(file_link.read_text(encoding="utf-8"), "# Template, changed\n")
+        self.assertEqual((outside / "README.md").read_text(encoding="utf-8"), "outside readme\n",
+                         "the copy must never write through a link")
+        self.assertTrue((outside / "secret.txt").exists(), "removing a link never touches its target")
+        self.assertEqual(sync_skills.sync(check=True), [])
+
     def test_regenerated_caches_in_a_mirror_are_not_drift(self):
         # Running the suite executes scripts from the native mirrors, which leaves __pycache__
         # there; CI runs the payload check after the tests, so caches must not count as drift.

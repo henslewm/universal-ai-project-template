@@ -36,9 +36,37 @@ def files_under(root: Path, every_file: bool = False):
                 yield Path(directory) / name
 
 
+def links_under(root: Path):
+    """Every symbolic link (file or directory) under `root`, outside PRUNE_SKIPPED; never followed."""
+    for directory, dirs, files in os.walk(root):
+        for name in sorted([*dirs, *files]):
+            if (Path(directory) / name).is_symlink():
+                yield Path(directory) / name
+        dirs[:] = sorted(name for name in dirs
+                         if name not in PRUNE_SKIPPED and not (Path(directory) / name).is_symlink())
+
+
+def remove_link(path: Path):
+    try:
+        path.unlink()
+    except OSError:
+        os.rmdir(path)  # a Windows directory symlink or junction
+
+
 def sync(check: bool = False) -> list[str]:
     differences = []
     expected = set()
+
+    def unlink_all(mirror: Path):
+        # The copy never creates a link. A link in a mirror would be followed by the copy (writing
+        # outside the mirror) or by the generator's copytree (shipping whatever it points at), so
+        # every link is drift, removed before anything is copied into the mirror.
+        if not mirror.is_dir():
+            return
+        for link in list(links_under(mirror)):
+            differences.append(link.relative_to(ROOT).as_posix())
+            if not check:
+                remove_link(link)
 
     def copy(source: Path, target: Path):
         expected.add(target)
@@ -57,12 +85,14 @@ def sync(check: bool = False) -> list[str]:
         if not mirror.is_dir():
             return
         for target in files_under(mirror, every_file=True):
-            if target not in expected:
+            if target not in expected and not target.is_symlink():  # links: see unlink_all
                 differences.append(target.relative_to(ROOT).as_posix())
                 if not check:
                     target.unlink()
 
     mirrors = [ROOT / native / SKILL.name for native in ('.agents/skills', '.claude/skills')]
+    for mirror in mirrors:
+        unlink_all(mirror)
     for source in files_under(SKILL):
         for mirror in mirrors:
             copy(source, mirror / source.relative_to(SKILL))
@@ -71,6 +101,7 @@ def sync(check: bool = False) -> list[str]:
     for mirror in mirrors:
         prune(mirror)
     asset = SKILL / 'assets/project-template'
+    unlink_all(asset)
     for source in files_under(ROOT):
         copy(source, asset / source.relative_to(ROOT))
     prune(asset)
