@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-27 — #23: worker reports are schema-checked in both entrypoints
+
+- `report_valid` now applies the controller's own result schema (`feedback.shape("result", ...)`) before it reads any nested field. `verify-report` therefore refuses what `ingest` already did: string Booleans, invalid outcomes, negative costs, and missing or extra nested fields. A refused report leaves the attempt pending.
+
 ## 2026-09-27 — #56: PlatformIO firmware snippet compiles as a `.cpp` module
 
 - The build-identity snippet in `docs/PLATFORMIO.md` now includes `Arduino.h` and `esp_arduino_version.h`. It is now split into a `build_identity.h`/`.cpp` module plus the `.ino` caller that includes the header. Arduino's `.ino` preprocessing (includes and prototypes) does not reach a `.cpp` file, so `Serial` and `ESP_ARDUINO_VERSION_STR` are declared explicitly, and `setup()` can see `printBuildIdentity()`.
