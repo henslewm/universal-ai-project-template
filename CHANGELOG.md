@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-27 — #23: worker reports are schema-checked in both entrypoints
+
+- `report_valid` now applies the controller's own result schema (`feedback.shape("result", ...)`) before it reads any nested field. `verify-report` therefore refuses what `ingest` already did: string Booleans, invalid outcomes, negative costs, and missing or extra nested fields. A refused report leaves the attempt pending.
+
 ## 2026-09-27 — PR #58 merged (ADR-070); PR #55 closed
 
 - PR #58 merged at `6c24d03`. Codex round 1 found a governing document could be listed in `worker_instructions`, and round 2 found a hard link or copy could reach the same text. Both were fixed by refusing any instruction whose content digest matches a governing document. Round 3 was clean. 419 tests pass.

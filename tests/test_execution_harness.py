@@ -659,6 +659,39 @@ class HarnessReportTests(HarnessBase):
         self.assertEqual(closed["outcome"], "FAIL")
         self.assertIsNone(harness.feedback.replay(self.ledger)[0]["pending"])
 
+    def test_both_entrypoints_refuse_reports_that_fail_the_result_schema(self):
+        # Issue #23: verify-report checked binding and coverage but never the result schema, so a
+        # truthy string such as passed="false" could pass a check. Both entrypoints now refuse it.
+        prepared = self.prepare()
+        destination = Path(prepared["destination"])
+        brief_path = destination / "brief.json"
+        before = harness.feedback.replay(self.ledger)[0]
+        cases = (
+            ("string-boolean", lambda r: r["validation"][0].update(passed="false")),
+            ("invalid-outcome", lambda r: r.update(outcome="MOSTLY_PASS")),
+            ("negative-cost", lambda r: r.update(api_cost_usd=-1)),
+            ("missing-nested", lambda r: r["validation"][0].pop("expected")),
+            ("extra-nested", lambda r: r["validation"][0].update(note="unexpected")),
+        )
+        for name, mutate in cases:
+            with self.subTest(case=name):
+                value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="PASS", passed=True)
+                mutate(value)
+                path = destination / f"report-{name}.json"
+                wp.write_new(path, json.dumps(value))
+                with self.assertRaises(ValueError):
+                    harness.verify_report(self.config, brief_path, path)
+                with self.assertRaises(ValueError):
+                    harness.ingest(self.ledger, self.config, path)
+        after = harness.feedback.replay(self.ledger)[0]
+        self.assertEqual(after["pending"], prepared["dispatch_id"], "a refused report must not close the attempt")
+        self.assertEqual(after["attempts"], before["attempts"])
+        # A well-formed report still verifies, and verification is not acceptance.
+        _, path = self.report(prepared, outcome="PASS", passed=True)
+        verified = harness.verify_report(self.config, brief_path, path)
+        self.assertTrue(verified["valid"])
+        self.assertFalse(verified["independent_acceptance"])
+
     def test_ingest_requires_a_reserved_dispatch(self):
         _, path = self.report({"dispatch_id": "a" * 64, "destination": str(self.base)})
         with self.assertRaisesRegex(ValueError, "No reserved dispatch"):

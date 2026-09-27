@@ -457,13 +457,16 @@ def dispatch(directory, config, router_config, request, root, destination):
 def report_valid(report, contract, dispatch_id, limits, size):
     require(size <= limits["report_max_bytes"], "Worker report exceeds its configured bound")
     feedback.exact(report, REPORT_FIELDS)
+    require(isinstance(report["evidence"], list) and report["evidence"], "A worker report requires evidence")
+    # The controller's own result schema, before any nested field is read: both `ingest` and
+    # `verify-report` must refuse a report whose nested types are wrong (`passed: "false"` is truthy).
+    feedback.shape("result", report)
     secret_free(report, "Worker report")
     require(report["dispatch_id"] == dispatch_id, "Report does not match the reserved dispatch")
     expected = [check["id"] for check in contract["validation"]]
     reported = [check["check_id"] for check in report["validation"]]
     require(len(set(reported)) == len(reported), "Duplicate validation id in the worker report")
     require(set(reported) == set(expected), "Report every contract validation check and no other id")
-    require(isinstance(report["evidence"], list) and report["evidence"], "A worker report requires evidence")
     if report["outcome"] == "PASS":
         require(all(check["passed"] for check in report["validation"]), "PASS requires every validation check to pass")
         require(report["scope_status"] == "within", "PASS requires scope_status within")
