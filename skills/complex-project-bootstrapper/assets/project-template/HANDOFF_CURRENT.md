@@ -2,7 +2,7 @@
 
 - **Prepared:** 2026-09-27 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `main`. PR #50 merged at `620fc9a`, PR #54 (#53, ADR-069) at `dff35e0` and PR #58 (lean worker startup, ADR-070) at `6c24d03` on 2026-09-27. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Branch:** `main`. PR #50 merged at `620fc9a`, PR #54 (#53, ADR-069) at `dff35e0`, PR #58 (lean worker startup, ADR-070) at `6c24d03`, PR #59 (#56) at `01cbcd9` and PR #60 (#23) at `dae4ab4` on 2026-09-27. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
 - **Scope:** Issue #10 (the complete high-conflict NC family-law template) is **closed** through merged PR #50. The next child under master #14 is #11.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #11](https://github.com/henslewm/universal-ai-project-template/issues/11). #10's completion comment and `docs/ISSUE_10_VALIDATION.md` are its full record, and ADR-059 through ADR-062 and ADR-065 through ADR-068 hold the decisions.
@@ -35,10 +35,19 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 ## Exact next action
 
-1. Triage the open issues with the maintainer, then select the next child under master #14 (#11 by sequence).
-2. Not ours:
-   - [PR #52](https://github.com/henslewm/universal-ai-project-template/pull/52) (ESP32 modular/PlatformIO rules) belongs to another session. Its head `d7ac1f3` has an unanswered Codex P2 (`pio_build_id.py` cross-drive `relpath`). Do not edit or merge it from here.
-   - [#46](https://github.com/henslewm/universal-ai-project-template/issues/46), [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) and [#49](https://github.com/henslewm/universal-ai-project-template/issues/49) remain open.
+The maintainer approved an open-issue triage on 2026-09-27, ranked by value per cost.
+- **Done:**
+  - #56 was fixed through PR #59 (`01cbcd9`).
+  - #23 was fixed through PR #60 (`dae4ab4`); worker reports are now schema-checked in both entrypoints, after a credential scan.
+  - #33 and #42 were closed as not planned.
+  - Overlapping wants were cross-linked: #31/#32; #38/#43 under #12; #36, #37, #40 and #41 blocked on #25.
+  - Refresh comments went onto #11, #13, #28, #29, #39, #44 and #49.
+- **Next, in order:**
+  1. **#49 (packaging defects).** This is the highest-value open item. First get the maintainer's decision on which CI a generated project inherits.
+  2. **#11** under master #14, on a normal branch from `main` (OL-021), then #12 → #13. Pull #43 and #38 into #12 as local-tier calibration runs.
+  3. **#25 (worker launcher).** Decide the execution boundary before any provider-runner want.
+
+PR #52 (the ESP32 rules) merged at `6c3c0ee`; its open Codex finding was #56, now fixed. #46 and #47 (Mistral) remain open.
 
 ## Branches (audited 2026-09-27)
 
@@ -65,7 +74,7 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 ## Verified state
 
-419 tests pass on Windows on `main` after the PR #58 merge (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). `main` is pushed. Confirm with `git status -sb` and `gh pr list`.
+420 tests pass on Windows on `main` after the PR #60 merge (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). `main` is pushed. Confirm with `git status -sb` and `gh pr list`.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 
