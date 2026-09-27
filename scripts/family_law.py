@@ -34,6 +34,8 @@ SOURCE_LEVELS = frozenset(LEVELS[-1:])
 WORKSTREAMS = tuple(SCHEMA["$defs"]["workstream"]["enum"])
 UNVERIFIED, VERIFIED, NOT_ASSERTING = "UNVERIFIED_FACT", "VERIFIED_FACT", "NOT_FACT_ASSERTING"
 CONTRADICTED = "CONTRADICTED_BY_SOURCE"
+# Fact statuses the profile treats as elevated risk: model review is part of their acceptance floor.
+ELEVATED_STATUSES = frozenset({"DISPUTED_FACT", "LEGAL_PROPOSITION"})
 DIGEST_PREFIX = "source-record:sha256="
 # Lines a primary_source_verified attestation must carry; each is derived from the bound record.
 # dispatch_id and artifact_sha256 bind the attestation to the ledger's current submission at
@@ -177,6 +179,15 @@ def validate_contract_domain(contract: dict) -> list[str]:
     if propositions and not source_checks:
         errors.append("validation_levels: a packet asserting a legal proposition must declare a "
                       "primary_source_verified validation; a citation-linked check alone does not read the authority")
+    # The profile's cost posture: a disputed fact or a legal proposition carries elevated risk, so
+    # its acceptance floor must include independent model review. A low-risk contract would
+    # otherwise be accepted on the deterministic gate alone.
+    elevated = sorted({i["fact_status"] for i in domain["fact_assertions"]} & ELEVATED_STATUSES)
+    if elevated:
+        import work_packet as wp  # lazily, as elsewhere in this module
+        if "model_review" not in wp.effective_gates(contract):
+            errors.append("risk: a packet asserting " + ", ".join(elevated) + " must carry at least medium risk "
+                          "(or a review block requiring model_review) so independent model review gates its acceptance")
     return errors
 
 

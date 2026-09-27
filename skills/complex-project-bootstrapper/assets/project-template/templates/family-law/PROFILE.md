@@ -85,8 +85,10 @@ one that refuses.
 
 Indexing, chronology, deadline arithmetic, citation linkage, and other bounded, deterministic work
 route to the local tiers first; objective failures and stakes, never preference, drive escalation.
-A packet asserting a disputed allegation or a legal proposition carries elevated risk so the
-acceptance floor adds independent model review and, at high stakes, the cross-family gate.
+A packet asserting a disputed fact (`DISPUTED_FACT`) or a legal proposition (`LEGAL_PROPOSITION`)
+carries elevated risk, so the acceptance floor adds independent model review and, at high stakes,
+the cross-family gate. `validate_contract_domain` refuses such a packet unless its effective gates
+include `model_review` (risk medium or above, or a review block that adds it).
 Primary-source reviews are operator actions and are never dispatched to a worker.
 
 ## GitHub ledger

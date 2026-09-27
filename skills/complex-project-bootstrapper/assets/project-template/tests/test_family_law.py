@@ -182,6 +182,20 @@ class ContractRuleTests(unittest.TestCase):
                 contract["validation"] = [v for v in contract["validation"] if v["id"] != check_id]
         self.assertTrue(any("must declare a primary_source_verified validation" in e for e in errors_for(contract)))
 
+    def test_elevated_fact_statuses_require_model_review_in_the_acceptance_floor(self):
+        # PR #50 round 1: a low-risk LEGAL_PROPOSITION packet was accepted on the deterministic
+        # gate alone, contrary to the profile's own statement that such packets carry elevated risk.
+        contract = wp.read_json(EXAMPLES / "packets/FAM-04-issue-brief.contract.json")
+        self.assertEqual(errors_for(contract), [])
+        contract["risk"] = "low"
+        self.assertTrue(any("must carry at least medium risk" in e for e in errors_for(contract)))
+        contract["review"] = {"required_gates": ["deterministic", "model_review"]}
+        self.assertFalse(any("must carry at least medium risk" in e for e in errors_for(contract)))
+        disputed = wp.read_json(EXAMPLES / "packets/FAM-02-support.contract.json")
+        disputed["risk"] = "low"
+        disputed["domain"]["fact_assertions"][0]["fact_status"] = "DISPUTED_FACT"
+        self.assertTrue(any("DISPUTED_FACT" in e and "medium risk" in e for e in errors_for(disputed)))
+
     def test_rules_reach_packet_validation_and_acceptance_init(self):
         packet = make_packet(custody_contract())
         broken = copy.deepcopy(packet)
@@ -279,7 +293,6 @@ class AttestationRuleTests(AcceptanceBase):
             with self.subTest(packet=path.name):
                 contract = local_argv(wp.read_json(path))
                 contract["dependencies"] = []
-                contract["risk"] = "low"
                 declared = [check["id"] for check in contract["validation"] if "command" in check]
                 self.assertTrue(declared)
                 ledger, _ = self.start(packet=make_packet(contract))

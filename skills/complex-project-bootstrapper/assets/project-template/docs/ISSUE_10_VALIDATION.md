@@ -35,6 +35,12 @@ The fifth dogfood criterion, `AC-SPLIT`, was met in every round. It requires reu
 - The deterministic gate re-executed `VAL-SUITE`: 399 tests OK, 81 required paths, 0 payload drift.
 - Round 1 (cross-family Codex, tier 3) returned `APPROVE`, finding every criterion met and both round-3 findings resolved. `accept` was recorded by the approving reviewer.
 
+## Pull request #50 — Codex review rounds
+
+- **Round 1 on `e93271d`:**
+  - P1 (actionable, fixed): `PROFILE.md` promised independent model review for elevated fact statuses, but a low-risk `LEGAL_PROPOSITION` packet was accepted on the deterministic gate alone. A packet asserting `DISPUTED_FACT` or `LEGAL_PROPOSITION` now needs `model_review` in its effective gates (ADR-066).
+  - P2 (fixed): `HANDOFF_CURRENT.md` still described the session-2 state.
+
 ## Offline validation — 2026-09-27
 
 On Windows with system Python 3.12.8 and `jsonschema==4.26.0`: `unittest discover -s tests -p "test_*.py"` ran 399 tests OK, 38 of them family-law; `scripts/validate_project.py` checked 81 required paths; `scripts/sync_skills.py --check` found 0 differing files.
