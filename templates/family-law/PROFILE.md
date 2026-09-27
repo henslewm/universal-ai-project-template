@@ -39,7 +39,8 @@ validated:
   `verified_by`, the contract sources whose primary-source review can verify it; the filing that
   makes an allegation is its provenance, not its proof. A `LEGAL_PROPOSITION` must list its own
   authority in `verified_by`, because that authority is what has to be read. Empty means the claim
-  is tracked and nothing declared can verify it. An empty `fact_assertions` list means the packet
+  is tracked and nothing declared can verify it. Each assertion's text is declared once: a record
+  names its claim by text, so two entries sharing text are refused. An empty `fact_assertions` list means the packet
   asserts no material fact and is `NOT_FACT_ASSERTING`.
 - `source_references`: contract sources the packet's claims rely on; required when any fact
   assertion exists.

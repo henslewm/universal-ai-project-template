@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-27 — #53: family-law assertion text is unique per contract (ADR-069)
+
+- `validate_contract_domain` refuses two `fact_assertions` entries with the same text. Coverage is keyed by claim text, so duplicates let one record cover an entry whose verifying source was never read (PR #50 round-4 finding).
+
 ## 2026-09-27 — Issue #10 closed: PR #50 merged
 
 - PR #50 merged at `620fc9a` after 4 Codex rounds. Round 4's one finding (coverage keyed by assertion text) was deferred to #53 at the maintainer's decision. #10 closed with a completion comment.

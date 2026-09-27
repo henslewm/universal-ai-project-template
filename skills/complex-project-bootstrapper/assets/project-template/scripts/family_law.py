@@ -147,6 +147,16 @@ def validate_contract_domain(contract: dict) -> list[str]:
         if level in SOURCE_LEVELS and has_command:
             errors.append(f"validation/{check['id']}: a {level} check must not declare a command; "
                           "a re-executed command is a structural check, not a review of the primary source")
+    # ADR-069: a record names its claim by text (claim_verified), and coverage is decided per text,
+    # so the text must identify exactly one declared assertion. Two entries sharing text with
+    # different verified_by would otherwise be covered together by one entry's record.
+    seen = {}
+    for index, item in enumerate(domain["fact_assertions"]):
+        if item["assertion"] in seen:
+            errors.append(f"fact_assertions/{index}: duplicates the assertion text of fact_assertions/"
+                          f"{seen[item['assertion']]}; each claim is declared once, with every source that "
+                          "can verify it in verified_by")
+        seen.setdefault(item["assertion"], index)
     for index, item in enumerate(domain["fact_assertions"]):
         if item["source_id"] not in sources:
             errors.append(f"fact_assertions/{index}: unknown source {item['source_id']}")

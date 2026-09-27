@@ -365,6 +365,16 @@ class AttestationRuleTests(AcceptanceBase):
                       report["reason"])
         self.assertEqual(report["highest_level_satisfied"], "structural")
 
+    def test_an_assertion_text_is_declared_once(self):
+        """ADR-069 (#53): coverage is keyed by claim text, so two entries sharing text with different
+        verified_by would be covered together by one entry's record."""
+        contract = wp.read_json(EXAMPLES / "packets/FAM-04-issue-brief.contract.json")
+        duplicate = dict(contract["domain"]["fact_assertions"][0], source_id="SRC-FAM10-ADVERSE-CASE",
+                         verified_by=["SRC-FAM10-ADVERSE-CASE"])
+        contract["domain"]["fact_assertions"].append(duplicate)
+        self.assertTrue(any("fact_assertions/1: duplicates the assertion text of fact_assertions/0" in e
+                            for e in errors_for(contract)))
+
     def test_a_legal_proposition_must_be_verifiable_by_its_own_authority(self):
         contract = wp.read_json(EXAMPLES / "packets/FAM-04-issue-brief.contract.json")
         self.assertEqual(errors_for(contract), [])
