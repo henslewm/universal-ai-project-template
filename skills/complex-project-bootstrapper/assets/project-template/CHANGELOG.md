@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-27 — #56: PlatformIO firmware snippet compiles as a `.cpp` module
+
+- The build-identity snippet in `docs/PLATFORMIO.md` now includes `Arduino.h` and `esp_arduino_version.h`. It says it belongs in its own `.cpp` module, where Arduino's `.ino` preprocessing does not apply, so `Serial` and `ESP_ARDUINO_VERSION_STR` are now declared.
+
 ## 2026-09-27 — PR #58 merged (ADR-070); PR #55 closed
 
 - PR #58 merged at `6c24d03`. Codex round 1 found a governing document could be listed in `worker_instructions`, and round 2 found a hard link or copy could reach the same text. Both were fixed by refusing any instruction whose content digest matches a governing document. Round 3 was clean. 419 tests pass.

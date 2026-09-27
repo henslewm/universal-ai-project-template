@@ -79,9 +79,11 @@ arduino-cli compile -b esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashMode=qio
 
 To add an optional label with arduino-cli, append `--build-property "compiler.cpp.extra_flags='-DFIRMWARE_BUILD_ID=\"<label>\"'"`. The single quotes are needed to keep the double quotes through arduino-cli's argument splitter. Verified on hardware in the downstream project described in issue #51.
 
-Firmware side: print the runtime artifact identity (plus the optional label, with a visible fallback):
+Firmware side: print the runtime artifact identity (plus the optional label, with a visible fallback). Put this in its own `.cpp` module; the `.ino` holds only `setup()` and `loop()`. A `.cpp` file gets none of Arduino's automatic `.ino` preprocessing, so it includes the Arduino declarations itself: `Serial` comes from `Arduino.h`, and `ESP_ARDUINO_VERSION_STR` from `esp_arduino_version.h`.
 
 ```cpp
+#include <Arduino.h>
+#include "esp_arduino_version.h"
 #include "esp_app_desc.h"
 #ifndef FIRMWARE_BUILD_ID
 #define FIRMWARE_BUILD_ID "unlabeled"
