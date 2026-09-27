@@ -33,11 +33,9 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 ## Exact next action
 
-1. **New session: the rescued worker-startup work,** draft [PR #55](https://github.com/henslewm/universal-ai-project-template/pull/55), branch `codex/automatic-worker-startup`, local worktree `../uapt-worker-startup`. Follow the checklist in the PR body:
-   1. Merge `main`, which conflicts in 12 paths: the six control files and their payload mirrors.
-   2. Renumber the branch's `ADR-060` to ADR-070, `OL-019` to OL-022, and check `R-015`.
-   3. Confirm with the maintainer that the edits to `MASTER_INSTRUCTIONS.md`, `AGENTS.md` and `AUTONOMY_CONTROL_PLANE.md` are wanted.
-   4. Sync, test and validate, then mark the PR ready for Codex.
+1. **Lean worker startup (ADR-070),** branch `worker-startup-lean`, worktree `../uapt-worker-startup-lean`. It replaces draft [PR #55](https://github.com/henslewm/universal-ai-project-template/pull/55): the maintainer rejected that design on 2026-09-27 because its full governance bundle would refuse every local-model dispatch. `docs/WORKER_STARTUP_VALIDATION.md` holds the measurements.
+   1. Push, open the PR and mark it ready for Codex, each only on the maintainer's go-ahead. Follow ADR-063 finding discipline.
+   2. After it merges, and only on the maintainer's go-ahead, close PR #55 with a pointer to the replacement (OL-020).
 2. Then select #11 under master #14.
 3. Not ours:
    - [PR #52](https://github.com/henslewm/universal-ai-project-template/pull/52) (ESP32 modular/PlatformIO rules) belongs to another session. Its head `d7ac1f3` has an unanswered Codex P2 (`pio_build_id.py` cross-drive `relpath`). Do not edit or merge it from here.
@@ -47,7 +45,8 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 - **Keep:**
   - `main`
-  - `codex/automatic-worker-startup` (PR #55)
+  - `codex/automatic-worker-startup` (PR #55, superseded by ADR-070; close after the replacement merges)
+  - `worker-startup-lean` (ADR-070)
   - `issue-51-modular-platformio-rules` (PR #52)
 - **To delete** (the maintainer authorized it; this session's permission guard blocked it). Every branch below has its content on `main` or offers nothing:
   - `issue-9-software-hardware-domain` was squash-merged as `d873ec5`, and its tree is identical.

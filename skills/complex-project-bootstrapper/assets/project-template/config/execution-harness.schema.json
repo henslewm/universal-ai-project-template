@@ -27,6 +27,12 @@
           "minimum": 0,
           "maximum": 1000000,
           "description": "Tokens reserved for the run's own growth after the first prompt: tool results, file reads, command output and repeated iterations. The capacity check covers the opening prompt only, so without this reserve a dispatch that fits at the first turn can still exhaust the window later. Calibrate it from observed runs of comparable packets."
+        },
+        "startup_max_chars": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 200000,
+          "description": "Cap on instruction text embedded in a worker brief: the bounded worker rules plus the contract's worker_instructions. Defaults to 12000. Governing documents are recorded by digest only and do not count. Exceeding it refuses the dispatch before a reservation is spent."
         }
       }
     },

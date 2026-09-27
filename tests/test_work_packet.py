@@ -146,6 +146,19 @@ class ContractTests(unittest.TestCase):
         contract["domain"]["custom"] = "Not in the contract"
         self.assertTrue(any("Additional properties" in e for e in work_packet.validate_contract(contract, PROFILE)))
 
+    def test_worker_instructions_are_optional_relative_paths(self):
+        contract = fixture()
+        self.assertNotIn("worker_instructions", contract, "existing contracts stay valid without it")
+        for value in ([], ["AGENTS.md"], ["src/module/AGENTS.md", "docs/interface.md"]):
+            with self.subTest(value=value):
+                contract["worker_instructions"] = value
+                self.assertEqual(work_packet.validate_contract(contract, PROFILE), [])
+        for value in (["../outside.md"], ["/etc/passwd"], ["C:/x.md"], ["a/./b.md"], ["x|y.md"],
+                      [""], ["same.md", "same.md"], [f"doc-{index}.md" for index in range(9)], "AGENTS.md"):
+            with self.subTest(value=value):
+                contract["worker_instructions"] = value
+                self.assertTrue(work_packet.validate_contract(contract, PROFILE))
+
     def test_validate_contract_requires_an_explicit_registered_profile(self):
         # A caller that does not say which profile it validates for would skip that profile's
         # domain rules silently; there is no default and None is refused.
