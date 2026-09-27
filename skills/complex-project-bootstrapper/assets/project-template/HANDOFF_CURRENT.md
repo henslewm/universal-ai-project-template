@@ -38,11 +38,9 @@ Round 3's report exists at `_acceptance-demo-10\review-3\review-report.json` wit
 
 ## Exact next action
 
-Session 3 (2026-09-27) fixed AC-ADVERSE (`cecd714`, ADR-065) and moved review to a fresh ledger, `_acceptance-demo-10b`, at dogfood contract revision 2, which puts the closeout records in scope. `_acceptance-demo-10` is preserved unchanged as provisional evidence. Continue on `-10b`:
+`_acceptance-demo-10b` was **accepted** on 2026-09-27: 5 events, head `472d2a60`, contract revision 2, the deterministic gate passed, and a cross-family (Codex) approval with no waiver. The record is `docs/ISSUE_10_VALIDATION.md`. `_acceptance-demo-10` is preserved as provisional history.
 
-1. Obtain an approving cross-family review. Answer only actionable findings (ADR-063).
-2. Run `accept`, then write `docs/ISSUE_10_VALIDATION.md`.
-3. Open the PR and run the Codex review loop to a clean result before asking for merge authorization.
+Open the PR for `issue-10-family-law-domain` and run the Codex review loop to a clean result on the current head. Answer only actionable findings (ADR-063). Merge only on the maintainer's explicit go-ahead, then close #10 with a completion comment and continue master #14.
 
 ## What #9 and PR #35 left you (background, unchanged)
 

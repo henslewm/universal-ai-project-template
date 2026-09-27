@@ -4,6 +4,7 @@
 
 - A family-law packet declaring a `LEGAL_PROPOSITION` must now map at least one validation to `primary_source_verified`; adverse authority alone no longer suffices. FAM-04 declares the rung, `PROFILE.md` states the rule, and a regression covers it (399 tests).
 - The dogfood contract's `scope.allowed` now admits the standing closeout records required by the closeout protocol. It is re-reviewed on a fresh ledger, `_acceptance-demo-10b`, and `_acceptance-demo-10` is preserved as provisional.
+- `_acceptance-demo-10b` was accepted: the deterministic gate passed, and a cross-family Codex review approved all five criteria. `docs/ISSUE_10_VALIDATION.md` records the whole review history.
 
 ## 2026-09-27 — Mistral Vibe platform files restored (PR #48); scope policy merged (PR #45)
 
