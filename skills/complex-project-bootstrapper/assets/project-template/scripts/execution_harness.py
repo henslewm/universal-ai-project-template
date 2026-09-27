@@ -458,10 +458,12 @@ def report_valid(report, contract, dispatch_id, limits, size):
     require(size <= limits["report_max_bytes"], "Worker report exceeds its configured bound")
     feedback.exact(report, REPORT_FIELDS)
     require(isinstance(report["evidence"], list) and report["evidence"], "A worker report requires evidence")
+    # Scan before the schema: a schema error quotes the rejected value, and that message reaches
+    # stderr and logs, so credential-like material must be refused before it can be echoed.
+    secret_free(report, "Worker report")
     # The controller's own result schema, before any nested field is read: both `ingest` and
     # `verify-report` must refuse a report whose nested types are wrong (`passed: "false"` is truthy).
     feedback.shape("result", report)
-    secret_free(report, "Worker report")
     require(report["dispatch_id"] == dispatch_id, "Report does not match the reserved dispatch")
     expected = [check["id"] for check in contract["validation"]]
     reported = [check["check_id"] for check in report["validation"]]

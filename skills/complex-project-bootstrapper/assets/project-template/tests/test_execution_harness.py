@@ -683,6 +683,22 @@ class HarnessReportTests(HarnessBase):
                     harness.verify_report(self.config, brief_path, path)
                 with self.assertRaises(ValueError):
                     harness.ingest(self.ledger, self.config, path)
+        # A credential in a schema-invalid field is refused as a credential, never echoed back in a
+        # schema error message that would reach stderr and logs (PR #60 Codex round 1).
+        token = "ghp_" + "A" * 36
+        for name, mutate in (("token-boolean", lambda r: r["validation"][0].update(passed=token)),
+                             ("token-list", lambda r: r.update(cost_evidence=[token]))):
+            with self.subTest(case=name):
+                value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="PASS", passed=True)
+                mutate(value)
+                path = destination / f"report-{name}.json"
+                wp.write_new(path, json.dumps(value))
+                for call in (lambda: harness.verify_report(self.config, brief_path, path),
+                             lambda: harness.ingest(self.ledger, self.config, path)):
+                    with self.assertRaises(ValueError) as caught:
+                        call()
+                    self.assertIn("credential-like", str(caught.exception))
+                    self.assertNotIn(token, str(caught.exception))
         after = harness.feedback.replay(self.ledger)[0]
         self.assertEqual(after["pending"], prepared["dispatch_id"], "a refused report must not close the attempt")
         self.assertEqual(after["attempts"], before["attempts"])
