@@ -165,18 +165,22 @@ def startup_valid(startup, contract, config):
     require(isinstance(startup, dict), "Worker brief 1.1 requires its startup block")
     feedback.exact(startup, {"role", "steps", "rules", "governance", "documents"})
     require(startup["role"] == "worker", "Startup role must be worker")
-    require(startup["steps"] == list(STARTUP_STEPS), "Startup steps must be the harness's own steps")
+    # Shape, not today's wording: a brief prepared before the steps or the governing-document list
+    # changed must stay verifiable. The digests are the integrity guarantee.
+    steps = startup["steps"]
+    require(isinstance(steps, list) and bool(steps) and all(isinstance(step, str) and step.strip() for step in steps),
+            "Startup steps must be a nonempty array of nonblank strings")
     size = embedded_valid(startup["rules"], "Bounded worker rules")
     require(startup["rules"]["path"] == WORKER_RULES_PATH, "Startup rules must be the bounded worker rules")
     governance = startup["governance"]
-    require(isinstance(governance, list)
-            and [item.get("path") if isinstance(item, dict) else None for item in governance]
-            == list(GOVERNANCE_DOCUMENTS),
-            "Startup governance must reference each governing document in order")
+    require(isinstance(governance, list) and bool(governance), "Startup governance must be a nonempty array")
     for item in governance:
+        require(isinstance(item, dict), "Governance reference must be an object")
         feedback.exact(item, {"path", "sha256"})
+        require(startup_path(item["path"]) == item["path"], "Governance reference path must be canonical")
         require(isinstance(item["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) is not None,
                 "Governance reference sha256 must be a lowercase SHA256 digest")
+    require(len({item["path"] for item in governance}) == len(governance), "Duplicate governance reference")
     documents = startup["documents"]
     require(isinstance(documents, list)
             and [item.get("path") if isinstance(item, dict) else None for item in documents]

@@ -485,6 +485,14 @@ class HarnessStartupTests(HarnessBase):
                 wp.write_new(path, json.dumps(changed))
                 with self.assertRaisesRegex(ValueError, expected):
                     harness.verify_report(self.config, path, report_path)
+        # A brief prepared before the steps were reworded or a governing document was added stays
+        # verifiable: the digests carry integrity, not today's wording.
+        earlier = copy.deepcopy(document)
+        earlier["startup"]["steps"] = ["An earlier wording of the startup step."]
+        earlier["startup"]["governance"] = earlier["startup"]["governance"][:2]
+        path = self.base / "brief-earlier.json"
+        wp.write_new(path, json.dumps(earlier))
+        self.assertTrue(harness.verify_report(self.config, path, report_path)["valid"])
         legacy = copy.deepcopy(document)
         legacy.pop("startup")
         legacy["schema_version"] = "1.0"

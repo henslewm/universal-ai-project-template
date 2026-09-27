@@ -37,7 +37,10 @@ For the example software-hardware contract with 1,000 reserved output tokens:
 The brief figure includes the rules. They are counted once, because the example argv now passes only
 `{brief}`. The 8,192-token binding was already infeasible on `main`: 7,000 + 4,000 exceeds it before any brief.
 That binding is unchanged here. The 517-token margin shows the capacity is tight. Keep the rules and
-any `worker_instructions` short.
+any `worker_instructions` short. The margin assumes 1,000 reserved output tokens. On a 16k window,
+Cline's overhead plus the growth reserve leaves about 5,400 tokens for the brief and the output
+together, even with no startup block. A packet that reserves 4,000 output tokens therefore needs
+a larger served window whatever this change does.
 
 ## Checks
 
@@ -50,7 +53,7 @@ any `worker_instructions` short.
 
 - `python -m unittest discover -s tests -p "test_*.py"`: 418 tests passed, 407 on `main` plus 11 new.
 - `python scripts/validate_project.py`: 81 required paths passed, exit code 0.
-- `python scripts/sync_skills.py`, then `--check`: 0 files differed. In a Git worktree, `sync_skills.py` also copies the worktree's `.git` pointer file into the payload. That file is not ignored, so it was deleted before committing. This is a pre-existing packaging limitation (#49), not part of this change.
+- `python scripts/sync_skills.py`, then `--check`: in this Git worktree, `--check` reports drift on exactly one path, `skills/complex-project-bootstrapper/assets/project-template/.git`. That is the worktree's `.git` pointer file, which `sync_skills.py` copies into the payload. It is not ignored, so it was deleted and never committed. Every tracked payload file matches. In a normal clone, as CI uses, `.git` is a directory, is excluded, and the check passes. This is a pre-existing packaging limitation (#49), not part of this change.
 - The template is intentionally unactivated. Bootstrap validation reports a missing `config/bootstrap.json`, and this work proceeds as authorized template maintenance.
 
 These are synthetic local runs. No provider was called, and the digests prove delivery, not comprehension.
