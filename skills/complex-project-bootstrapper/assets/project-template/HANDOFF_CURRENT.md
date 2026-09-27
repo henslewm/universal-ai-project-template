@@ -49,21 +49,13 @@ The maintainer approved an open-issue triage on 2026-09-27, ranked by value per 
 
 PR #52 (the ESP32 rules) merged at `6c3c0ee`; its open Codex finding was #56, now fixed. #46 and #47 (Mistral) remain open.
 
-## Branches (audited 2026-09-27)
+## Branches (audited 2026-09-27, after the PR #60 merge)
 
-- **Keep:**
-  - `main`
-  - `issue-51-modular-platformio-rules` (PR #52)
-- **Now also deletable:** `codex/automatic-worker-startup` (PR #55, closed and superseded) and `worker-startup-lean` (PR #58, merged). Add them to the deletion command below.
-- **To delete** (the maintainer authorized it; this session's permission guard blocked it). Every branch below has its content on `main` or offers nothing:
-  - `issue-9-software-hardware-domain` was squash-merged as `d873ec5`, and its tree is identical.
-  - The `family-law` and `civil-rights-nc` commits match the profiles already on `main`.
-  - `release/v1.1.0` is an obsolete release-patch probe.
-
-  Close PR #1 first, then run the deletion:
+- The pre-rewrite branch cleanup is done, and PR #1 is closed.
+- **Keep:** `main`.
+- **To delete** (the maintainer authorized cleanup; the permission guard blocked this session's delete). Five of these have 0 commits outside `main`. `codex/automatic-worker-startup` has one: PR #55's superseded rescue commit, which stays reachable as `refs/pull/55/head`.
   ```
-  gh pr close 1 -c "Obsolete pre-rewrite v1.1.0 release-patch probe; superseded by main."
-  git push origin --delete x dont-use software-hardware software-hardware-final family-law-profile architecture/autonomous-domain-templates family-law civil-rights-nc release/v1.1.0 issue-2-bootstrap-gate issue-3-work-packet-contract issue-4-model-router issue-5-bounded-feedback issue-6-github-ledger issue-7-cline-harness issue-8-acceptance-gates issue-8-codex-findings issue-9-software-hardware-domain issue-9-postmerge-review issue-10-family-law-domain issue-53-unique-assertion-text scope-policy-review-findings mistral-vibe-support
+  git push origin --delete codex/automatic-worker-startup esp014-skip-in-place-when-generated issue-23-report-schema issue-51-modular-platformio-rules issue-56-platformio-snippet worker-startup-lean
   git fetch --prune
   ```
 - **`platformio.ini`** in the repository root is the maintainer's ESP32-S3 dev config, and it is deliberately untracked. Committed here, `sync_skills.py` would ship it into every generated project. It would also contradict PR #52's rule that a project's `platformio.ini` is generated from `esptool flash-id`. Keep it untracked, move it to the ESP32 project, or, if it should ship as an example, add it as `templates/software-hardware/platformio.example.ini`. While it sits here untracked, `sync_skills.py --check` reports drift, and `sync_skills.py` copies it into the payload; delete that payload copy before committing.
