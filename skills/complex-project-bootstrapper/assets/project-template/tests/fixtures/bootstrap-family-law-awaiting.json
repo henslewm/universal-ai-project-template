@@ -46,9 +46,16 @@
     "Consequential external legal action"
   ],
   "domain": {
-    "posture": "Fictional NC family-law research matter; source: synthetic docket fixture.",
+    "case_identity": "Fictional NC district court, synthetic county; synthetic case number FAM-SYN-0001; two fictional parties; source: synthetic docket fixture.",
+    "controlling_orders": "One fictional temporary custody order in effect; source: synthetic docket fixture.",
     "objectives_and_deadlines": "Organize synthetic records for research; no actual deadline or pending filing.",
-    "evidence": "Synthetic docket and order fixtures; preserve originals and distinguish allegations from verified facts."
+    "discovery": "No discovery served or outstanding in this synthetic matter.",
+    "evidence": "Synthetic docket and order fixtures; preserve originals and distinguish allegations from verified facts.",
+    "financial_support": "No real income, expense or support figures; synthetic placeholder inputs only.",
+    "parenting_custody": "No real parenting-time or safety inputs; synthetic placeholder inputs only.",
+    "adverse_facts": "None entered; synthetic fixture asserts no adverse fact.",
+    "appellate_preservation": "No objection or appeal posture in this synthetic matter.",
+    "reserved_actions": "No filing, service, or external communication is authorized from this synthetic fixture."
   },
   "approval": {
     "approved": false,

@@ -2,11 +2,10 @@
 
 - **Prepared:** 2026-09-27 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** main
-- **Latest accepted merge:** `a35b89dcfaaba0f113c403535558078a18a9ee1f` (PR #45, scope policy, ADR-063), after PR #48 (Mistral Vibe platform files) at `59f194e`. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
-- **Scope:** #9 and its follow-up are closed. The active child per master #14's ordered list is #10 (complete high-conflict NC family-law template), in progress on branch `issue-10-family-law-domain`.
+- **Branch:** `issue-10-family-law-domain`, open as [PR #50](https://github.com/henslewm/universal-ai-project-template/pull/50) against `main`. `main` (PRs #45 and #48; ADR-063 and ADR-064) was merged in at `a638098`. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Scope:** Issue #10 (complete high-conflict NC family-law template) is accepted through its dogfood at `_acceptance-demo-10b` and is in PR review. It is not merged or closed.
 
-Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10). Issues #2 through #9 are closed through merged PRs #15 to #34; #9's post-merge follow-up is merged through PR #35. Read each child's completion comment for the limitations it carried forward rather than assuming a closed issue left nothing behind.
+Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #10](https://github.com/henslewm/universal-ai-project-template/issues/10) and PR #50. `docs/ISSUE_10_VALIDATION.md` is the full record, and ADR-059 through ADR-062 and ADR-065 through ADR-068 hold the decisions.
 
 ## What merged on 2026-09-27
 
@@ -14,35 +13,37 @@ Start from repository instructions and live [master #14](https://github.com/hens
 
 **PR #48: Mistral Vibe platform files.** These are restored but not yet wired in. [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) tracks the authority order, `validate_project.py` required paths, README and bootstrapper. [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) tracks verifying the product claims and the maintainer's master #14 scope decision. Neither blocks #10.
 
-## What PR #35 left you (post-#9 follow-up, ADR-058)
+## Before doing anything else: check for another agent on this repo
 
-An independent review of merged `main` after PR #34 found two real defects, answered on branch `issue-9-postmerge-review` as ADR-056 (hardware-evidence `validation_id` binding) and ADR-057 (a fix to the sample adapter's zero-timeout `receive()`). PR #35's own review then found ADR-057's fix was incomplete (P2): making the body's first port contact unconditional whenever `timeout_s == 0` reopened the ADR-042 late-arrival hazard from the other direction, and never fixed a pre-existing bug where a port handing back an already-fully-buffered frame in small chunks still timed out. The reviewer's own reproduction proved this could not be fixed by further wall-clock/deadline tuning: no two of a port's own read calls, however fast, can be assumed to have happened at the same instant. The fix (ADR-058) extends the sample's `Port` protocol with `available()`, sampled once per zero-timeout `receive()` as a fixed byte budget for the whole call. A second review round then found the `available()` sample itself ran outside the `_wire()` close-on-failure guard (fixed) and a stale documented test count (fixed). Both the Codex bot and an independent reviewer reported the final head (`cb2f3b9`) clean before merge; all three finding threads on the PR were replied to with their fixing commits.
+On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout and collided with the control-file edits. Its commit was reverted (ADR-062). Before writing, run a process check (for example `Get-CimInstance Win32_Process | Where-Object CommandLine -match 'codex|claude'`) and confirm any running agent's working directory is elsewhere.
 
-This is the third time this generic class of bug (a deadline/timing invariant patched per-symptom instead of by its true invariant) has recurred in this repository (ADR-024, the ADR-031→042 series, and now ADR-057→058) — R-012 held again. If #10 or any later domain module adds its own timing- or ordering-sensitive polling logic, look for the actual invariant up front rather than patching the specific reproduction a reviewer hands you.
+## Review state
 
-## What #9 left you
-
-`docs/ISSUE_9_VALIDATION.md` is the full record. The repeat dogfood at `_acceptance-demo-9b` was accepted 2026-09-14 (11 events, cross-family approval, no waiver) after ADR-026 to ADR-029. PR #34's Codex review then ran 23 rounds before a clean result ("Didn't find any major issues") and the merge above; decisions ADR-041 through ADR-055 record every round.
-
-Three things there matter beyond #9 specifically, all in the generic acceptance controller rather than the software-hardware domain module:
-
-First, binding an operator attestation to "the evidence it describes" is not one check but several, and each one the review found was a real gap, not a false positive: the contract revision and exact hash (ADR-043/044), the submitted result's `dispatch_id` and the artifact's identity (ADR-047/049/054 — a reference-kind artifact can carry a fixed empty-content digest regardless of what it references, so identity has to bind the reference itself, not only `sha256`), and the observation's own timestamp bounded on both sides by the ledger's current submission and the attestation event (ADR-046/052). A resubmission clearing prior attestations is necessary but not sufficient; each of these dimensions can be forgotten independently, and each was.
-
-Second, "a stored record replays marked, not raised" (ADR-032, from #8) needed one more corollary: replaying a shortfall-marked attestation as satisfying the deterministic gate is right for preserving an *already-accepted* ledger's history, but wrong for justifying a *new* acceptance decision today (ADR-053). `acceptable()` now distinguishes the two by the existing `stored` flag `apply()` already threads through every event.
-
-Third, R-012 (stop for diagnosis when a review class recurs) held again: the submission-binding class above surfaced across five separate rounds (16, 18, 20, 21, 22) before every dimension was closed, each time because the fix answered the specific finding rather than the general shape of "what does this evidence actually prove." When #10's domain rules add their own evidence-binding logic, ask up front what a resubmission, a stale timestamp, and a not-yet-decided acceptance can each independently forge, rather than waiting for each to surface separately.
-
-## Verified state
-
-On `main` at `a35b89d`, 361 tests pass on Windows and repository validation passes 81 required paths. Both GitHub `validate` checks and a Codex review of each merged head were green before merge.
+- **`_acceptance-demo-10` (contract revision 1): provisional history.** Three rounds ran: AC-DECOMPOSITION fixed in `f47a43d`; AC-PROVENANCE and AC-ADVERSE fixed in `29422ca`; then round 3's AC-ADVERSE and scope findings, dispatched and not ingested (ADR-061). Both round-3 findings are resolved by ADR-065.
+- **`_acceptance-demo-10b` (contract revision 2): ACCEPTED.** 5 events, head `472d2a60`, deterministic gate passed, and a cross-family Codex approval with no waiver.
+- **PR #50, Codex round 1 on `e93271d`:**
+  - P1 (actionable, fixed): the profile promises model review for elevated fact statuses, but a low-risk `LEGAL_PROPOSITION` packet was accepted on the deterministic gate alone. A packet asserting `DISPUTED_FACT` or `LEGAL_PROPOSITION` must now have `model_review` in its effective gates.
+  - P2 (fixed): this handoff was stale.
+- **PR #50, Codex round 2 on `7bb558e`:** two P1s in `family_law.status`, both fixed (ADR-067). A verified contradiction now outranks an unrelated record problem, and an `UNKNOWN` assertion can never be covered. 
+- **PR #50, Codex round 3 on `8845668`:**
+  - P1 (actionable, fixed, ADR-068): a source verification record was bound to its claim only by text, so a record of an unrelated source could verify a legal proposition. Assertions now declare `verified_by`, the sources whose review can verify them, and a legal proposition must list its own authority. Each record names its `source_id`. An undeclared source verifies nothing, and a record covers a claim only when its `source_id` is in that claim's `verified_by`.
+  - P2 (fixed): stale current-state text, swept across all the control files.
 
 ## Exact next action
 
-Continue #10 on `issue-10-family-law-domain` from master #14 and #10 only, plus these durable documents. That branch is 8 commits ahead of and 14 behind `main` (checked 2026-09-27). Merge `main` into it before opening its PR. Expect overlaps in `CHANGELOG.md`, `DECISIONS.md` and the four ADR-063 instruction files, because the branch's own tip commit carries an earlier scope-policy version. ADR-059 to ADR-062 are reserved for that branch. The construction branch `issue-9-software-hardware-domain` remains until the later authorized cleanup; do not delete it outside that cleanup.
+Read Codex round 4 on PR #50's current head. The maintainer authorized this one round and no more. If it is clean, ask the maintainer for the merge go-ahead. If it has actionable findings (ADR-063), do not start round 5. Instead ask the maintainer to merge as is, and open a detailed GitHub issue for each remaining finding, with its file and line, trigger, evidence and classification. After merge, close #10 with a completion comment and continue master #14.
 
-## Limitations carried forward (outside #9; maintainer's call under master #14)
+## What #9 and PR #35 left you (background, unchanged)
 
-OL-016 (template-packaging defects: generated projects inherit a payload-drift CI check they cannot pass; `sync_skills.py` never detects an obsolete payload file; development decision history ships into fresh projects) remains open from #8's closure, unaddressed by #9.
+`docs/ISSUE_9_VALIDATION.md` is the full record of #9's own acceptance and 23-round Codex review (ADR-041–ADR-055). Its lessons — evidence-binding is several checks, not one, and R-012 (stop for diagnosis when a review class recurs) — are exactly what round 3 is: the third recurrence of a real gap in this domain's provenance/scope machinery, following rounds 1 and 2. Expect this pattern to continue; look for the actual invariant rather than patching only what round 3 found.
+
+## Verified state
+
+406 tests pass on Windows after PR #50 round 3 (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). The branch is pushed and open as PR #50. Confirm the head and CI with `gh pr view 50`.
+
+## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
+
+OL-016 (template-packaging defects) is now tracked as [#49](https://github.com/henslewm/universal-ai-project-template/issues/49) (maintainer decision 2026-09-27); it is outside #10.
 
 ## Environment and tooling notes
 
@@ -50,6 +51,8 @@ The template is deliberately unactivated: `python scripts/validate_bootstrap.py 
 
 This checkout has no repository virtualenv and must not gain one; `%TEMP%\uaipt-venv` has lost its `pyvenv.cfg` and no longer runs (as of 2026-09-27); the system `python` (3.12.8) has `jsonschema==4.26.0` and runs the suite. Run the Windows suite with `unittest discover -s tests -p "test_*.py"` from the repository root — plain `discover` finds nothing. Under WSL, discover each suite individually (`discover -s tests -p test_acceptance.py`, etc.); importing by dotted module name fails because `tests/` is not a package. `scripts/sync_skills.py` (without `--check`) mirrors the tree into the distribution payload; `--check` is what CI enforces.
 
+The Codex CLI (`codex exec`) is available locally and was used directly for round 2's and round 3's cross-family review, run non-interactively with `-C <review-dir> -s read-only --skip-git-repo-check` and the prompt on stdin — this is a genuinely independent model, not a simulated one. Do not confuse a one-shot `codex exec` review dispatch with a persistent unattended `codex.exe --ask-for-approval never` session — check for the latter before assuming sole ownership of this working tree (see above).
+
 ## Boundaries
 
-The acceptance controller enforces independence against recorded declarations it cannot authenticate; a misdeclared reviewer family defeats the cross-family gate, and the record makes that auditable rather than invisible (R-010). The deterministic gate executes only architect-committed contract commands and does not sandbox them: a project that must withstand an adversarial declared command runs the gate inside an isolation primitive of its own. Whether the declared commands genuinely exercise the criteria is an architect-quality question. Acceptance justifies but does not perform merge, publication, or closure — this handoff records that #9's merge was the maintainer's own explicit decision, not one the acceptance ledger made for them. No credential belongs in configuration, packets, reports, ledgers or logs. Model-performance calibration remains #12. Do not edit the locked master, and do not delete construction branches outside the later authorized cleanup.
+The acceptance controller enforces independence against recorded declarations it cannot authenticate; a misdeclared reviewer family defeats the cross-family gate, and the record makes that auditable rather than invisible (R-010). The deterministic gate executes only architect-committed contract commands and does not sandbox them. A source verification record is an operator's declaration the controller cannot authenticate; the digest makes it auditable, not true. Acceptance justifies but does not perform merge, publication, or closure. No credential, restricted case fact, or real party/case identity belongs in this repository's examples, fixtures, configuration, packets, reports, ledgers or logs — every family-law example in this template is deliberately fictional and declares `domain.synthetic: true`. Model-performance calibration remains #12. Do not edit the locked master, and do not delete construction branches outside the later authorized cleanup.

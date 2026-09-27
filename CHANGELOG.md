@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-27 — Issue #10 session 3: AC-ADVERSE fixed; repeat review at contract revision 2 (ADR-065)
+
+- A family-law packet declaring a `LEGAL_PROPOSITION` must now map at least one validation to `primary_source_verified`; adverse authority alone no longer suffices. FAM-04 declares the rung, `PROFILE.md` states the rule, and a regression covers it (399 tests).
+- The dogfood contract's `scope.allowed` now admits the standing closeout records required by the closeout protocol. It is re-reviewed on a fresh ledger, `_acceptance-demo-10b`, and `_acceptance-demo-10` is preserved as provisional.
+- `_acceptance-demo-10b` was accepted: the deterministic gate passed, and a cross-family Codex review approved all five criteria. `docs/ISSUE_10_VALIDATION.md` records the whole review history.
+- PR #50 Codex round 1: a packet asserting `DISPUTED_FACT` or `LEGAL_PROPOSITION` must now have `model_review` in its acceptance floor, as `PROFILE.md` already stated (ADR-066). The handoff is updated to the accepted state.
+- PR #50 Codex round 3 (ADR-068): each family-law fact assertion now declares `verified_by`, the sources whose review can verify it, and a legal proposition must list its own authority. A source verification record names the declared `source_id` it reviewed. A record of an undeclared source verifies nothing, and a record covers its claim only when its source is in that claim's `verified_by`. The stale current-state text was swept across the control files.
+- PR #50 Codex round 2 (ADR-067): a re-verified `CONTRADICTED_BY_SOURCE` now outranks an unrelated check's record problem, which stays in the reason, and an `UNKNOWN` assertion can never be covered into `VERIFIED_FACT`. The earned-status precedence is recorded as one rule.
+
 ## 2026-09-27 — Mistral Vibe platform files restored (PR #48); scope policy merged (PR #45)
 
 - Restored the additive Mistral Vibe (Le Chat) platform files lost when `main` was rewritten: `MASTER_MISTRAL.md`, `.mistral/PROJECT_INSTRUCTIONS.md`, `.mistral/PROJECT_KNOWLEDGE.md` and `instructions/profiles/mistral_high_synthesis_INSTRUCTIONS.md`, with their payload mirrors. Their startup and offline lists now include `FACTS_AND_ASSUMPTIONS.md`, and the offline set includes `RISK_REGISTER.md`. They are not yet wired into the authority order, validator, README or bootstrapper (#46), and their product claims are unverified (#47).
@@ -13,6 +22,20 @@
 - A finding must also state the affected behavior, the conditions that trigger it, and the evidence for it, with severity by actual impact; a bare assertion that something is a defect is not a finding.
 - `MASTER_CLAUDE_CODE.md` and `.claude/rules/02-git-and-change-control.md` point at that section as the single definition rather than paraphrasing it, and the two standalone reviewer briefs (`.claude/agents/reviewer.md`, `.codex/agents/reviewer.toml`) carry the complete test, since a delegated reviewer receives the brief without the master files. The `sync_skills.py` payload mirror carries all of it so newly generated projects inherit the boundary.
 - Instruction text only, no code changed. Also ported to `esp32-ble-motors` and `shopmonkey_pricefileupdate_landNsea`.
+
+## 2026-09-18 — Issue #10 session 2: repeat-dogfood acceptance run, one defect still open (ADR-060, ADR-061, ADR-062)
+
+- Ran the repeat-dogfood on `_acceptance-demo-10` (outside this repository). Round 1 (same-family) found `AC-DECOMPOSITION` overclaimed — only one of four example packets' commands ran through the gate; fixed by a regression running all four (commit `f47a43d`). Round 2 (cross-family Codex) rejected on `AC-PROVENANCE`/`AC-ADVERSE`: a supporting record could verify an unrelated claim, and the default attestation-only `status` path could earn `VERIFIED_FACT` without checking the bound record's revision/contract hash against the ledger. Fixed via ADR-060 (commit `29422ca`); post-fix checks passed cleanly (398 tests, 0 payload diffs).
+- Round 3 (cross-family Codex, the third and last review this task's budget permits) rejected again, this time not yet corrected: `AC-ADVERSE` is still unmet because a `LEGAL_PROPOSITION` assertion never actually requires a `primary_source_verified` validation to exist, and a scope finding (this session's own closeout-doc edits fall outside the packet's declared scope) could not even be ingested as written. See ADR-061. `_acceptance-demo-10`'s ledger stops at event 12 with the review budget (3 of 3) spent and no `ACCEPT`.
+- Discovered and stopped a second, unattended Codex CLI session independently working Issue #10 in the same checkout; its edits collided with this session's control-file updates and it committed a conflicting "checkpoint" (`d2c67dd`) before it could be stopped. That commit was discarded via `git revert` (`95446eb`; the branch was unpushed, so nothing external was affected). See ADR-062.
+- Also fixed: `scripts/sync_skills.py --check` was failing on drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/`; resolved by rerunning `sync_skills.py` (no tracked file changed).
+
+## 2026-09-16 — Issue #10 session 1: family-law domain mechanism (ADR-059)
+
+- Delivered the family-law domain mechanism on `issue-10-family-law-domain`, reusing #9's acceptance-controller split (machine-runnable command vs. non-implementer attestation bound to a digest-referenced evidence record): `config/domains/family-law.schema.json`, `scripts/family_law.py`, registered in `work_packet.DOMAIN_MODULES`. `fact_basis` may declare only `UNVERIFIED_FACT`/`NOT_FACT_ASSERTING`; `VERIFIED_FACT` is earned in the ledger, never authored. `adverse_authority` is required whenever a fact assertion is declared `LEGAL_PROPOSITION` -- new, no software-hardware precedent. `status` reports a third earned outcome beyond hardware's pass/fail mirror, `CONTRADICTED_BY_SOURCE`, when a bound primary source contradicts the claim it was consulted to check.
+- `DOMAIN_FIELDS["family-law"]` expanded from 3 thin fields to the 10 the charter requires, kept synchronized across the validator, `config/bootstrap.schema.json`, and the intake reference from the start.
+- Added a fictional four-packet worked decomposition (`examples/family-law/`) and `tests/test_family_law.py` (33 tests). Three generic fixtures/tests updated because `family-law` is now a registered domain profile rather than the stock unregistered example.
+- Design approved by Winston and posted as a comment on Issue #10 before implementation. The repeat-dogfood acceptance run, PR, and Codex review loop are deferred to a follow-up session.
 
 ## 2026-09-15 — Issue #9 follow-up: PR #35 P2 answered (ADR-058)
 

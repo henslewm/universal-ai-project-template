@@ -88,7 +88,14 @@
       "evidence_required": [
         "Manifest-to-index comparison with identifier counts.",
         "Exact-label comparison and repeated-output equality result."
-      ]
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "manifest = ['FAM-SYN-001', 'FAM-SYN-002', 'FAM-SYN-003']; index = sorted(manifest); assert index == sorted(manifest) and len(index) == 3; print('index stable')"
+        ]
+      }
     }
   ],
   "context_scope": [
@@ -101,7 +108,14 @@
   ],
   "domain": {
     "synthetic": true,
-    "record_set": "FAM-SYN-DEMO",
-    "legal_authority_status": "No legal authority asserted."
+    "workstream": "evidence",
+    "fact_basis": "NOT_FACT_ASSERTING",
+    "fact_assertions": [],
+    "source_references": [
+      "SRC-FAM-MANIFEST"
+    ],
+    "validation_levels": {
+      "VAL-INDEX": "structural"
+    }
   }
 }

@@ -946,7 +946,7 @@ class LedgerTests(unittest.TestCase):
         state = self.client.read()[0]
         first, second = task_row("A", 2), task_row("B", 3)
         contract = copy.deepcopy(wp.current(second["packet"])["contract"])
-        second["packet"] = wp.create("B", "family-law", contract, "Architect", "Synthetic profile mismatch", timestamp())
+        second["packet"] = wp.create("B", "civil-rights-nc", contract, "Architect", "Synthetic profile mismatch", timestamp())
         for task_id, row in (("A", first), ("B", second)):
             state["tasks"][task_id] = row
             state["outbox"].append(ledger.entry_for(task_id, row))
@@ -1158,7 +1158,7 @@ class AuthorityAndAdapterTests(unittest.TestCase):
         client.initialize(self.directory)
         row = task_row()
         contract = copy.deepcopy(wp.current(row["packet"])["contract"])
-        row["packet"] = wp.create("TASK-001", "family-law", contract, "Architect", "Synthetic profile mismatch", timestamp())
+        row["packet"] = wp.create("TASK-001", "civil-rights-nc", contract, "Architect", "Synthetic profile mismatch", timestamp())
         self.assertNotEqual(row["packet"]["domain_profile"], approved)
         before = list(api.mutations)
         with self.assertRaisesRegex(ValueError, "Packet profile differs"):

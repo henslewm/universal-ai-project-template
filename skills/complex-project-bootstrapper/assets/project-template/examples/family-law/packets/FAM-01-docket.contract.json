@@ -1,0 +1,137 @@
+{
+  "title": "Fictional matter docket and deadline tracker",
+  "parent": {
+    "objective": "Maintain a source-pinned docket and deadline index for the fictional Doe v. Doe matter so every downstream workstream cites a stable procedural baseline.",
+    "milestone": "Docket baseline complete and deadline arithmetic verified"
+  },
+  "goal": "Build a chronological docket index from the fictional filing manifest and verify every computed deadline against its triggering event and the applicable rule.",
+  "non_goals": [
+    "Advise on strategy, relief, or admissibility.",
+    "File, serve, or change any real case record."
+  ],
+  "scope": {
+    "allowed": [
+      "Index the embedded fictional filing manifest.",
+      "Compute and check deadline arithmetic against the manifest's stated rule periods."
+    ],
+    "prohibited": [
+      "Introduce real people, cases, court orders, or legal authorities.",
+      "Assert case facts beyond the filing manifest's own labels."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Fictional filing manifest",
+      "description": "FAM10-DKT-001: fictional complaint filed 2026-01-06; FAM10-DKT-002: fictional answer filed 2026-01-27; FAM10-DKT-003: fictional temporary custody order entered 2026-02-10. All fictional; establish no real case fact."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Docket index",
+      "description": "Chronological rows with docket id, event, date, and triggering rule period where applicable."
+    },
+    {
+      "name": "Deadline verification record",
+      "description": "Recomputed deadline for each triggering event compared against the manifest's stated value."
+    }
+  ],
+  "interface": {
+    "name": "fictional_docket_index",
+    "version": "1.0",
+    "description": "Input filing manifest; output index rows and a deadline-arithmetic verification record."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "All manifest entries are invented solely for this worked example.",
+    "Filing date order determines index order."
+  ],
+  "sources": [
+    {
+      "id": "SRC-FAM10-MANIFEST",
+      "reference": "The three fictional filing entries embedded in this contract's inputs.",
+      "authority": "Synthetic fixture manifest only; no real docket or court record."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-COMPLETE",
+      "description": "The index contains exactly one row for each manifest entry, in filing-date order."
+    },
+    {
+      "id": "AC-DEADLINE-MATH",
+      "description": "Every recomputed deadline matches the manifest's stated triggering rule period exactly."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-STRUCTURE",
+      "description": "Recompute the index from the manifest and check row count and ordering.",
+      "criterion_ids": [
+        "AC-COMPLETE"
+      ],
+      "evidence_required": [
+        "Manifest-to-index comparison with row count and ordering."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "manifest = [('FAM10-DKT-001', '2026-01-06'), ('FAM10-DKT-002', '2026-01-27'), ('FAM10-DKT-003', '2026-02-10')]; ordered = sorted(manifest, key=lambda row: row[1]); assert ordered == manifest and len(ordered) == 3; print('docket index stable')"
+        ]
+      }
+    },
+    {
+      "id": "VAL-DEADLINE",
+      "description": "Recompute the answer deadline (21 days from complaint filing) and check it against the manifest.",
+      "criterion_ids": [
+        "AC-DEADLINE-MATH"
+      ],
+      "evidence_required": [
+        "Recomputed date compared to the manifest's stated filing date for the answer."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "import datetime; filed = datetime.date(2026, 1, 6); due = filed + datetime.timedelta(days=21); answered = datetime.date(2026, 1, 27); assert due == answered, (due, answered); print('deadline arithmetic verified')"
+        ]
+      }
+    }
+  ],
+  "complexity": "low",
+  "risk": "low",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "low",
+    "reviewer_tier": 2
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    2
+  ],
+  "context_scope": [
+    "This contract and the embedded fictional filing manifest.",
+    "The derived docket index and its deadline verification record."
+  ],
+  "architecture_boundaries": [
+    "Keep originals distinct from the derived index.",
+    "Make no legal determination and perform no external writes."
+  ],
+  "domain": {
+    "synthetic": true,
+    "workstream": "docket_procedure",
+    "fact_basis": "NOT_FACT_ASSERTING",
+    "fact_assertions": [],
+    "source_references": [
+      "SRC-FAM10-MANIFEST"
+    ],
+    "validation_levels": {
+      "VAL-STRUCTURE": "structural",
+      "VAL-DEADLINE": "structural"
+    },
+    "template_child_issue": 10
+  }
+}
