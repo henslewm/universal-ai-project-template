@@ -4,4 +4,4 @@
 - Treat each module's header as its contract; change the header only when the contract changes.
 - Add new behavior to its owning module or a new module; keep an Arduino `.ino` to `setup()`/`loop()`.
 - Update `MODULES.md` in the same change whenever a module, public function or ownership changes.
-- Firmware: bump a build identifier for every flashed build and record the ELF hash in evidence.
+- Firmware: never hard-code the build identifier; inject it from git SHA, toolchain and environment at build time (see `docs/PLATFORMIO.md`), and record the ELF hash of every flashed build in evidence.

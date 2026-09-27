@@ -13,7 +13,7 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` next to it
 3. **Memory from the observed chip.**
    - `board_build.arduino.memory_type`: `qio_opi` for octal PSRAM (ESP32-S3 R8/R16 parts, esptool shows "Embedded PSRAM 8MB (AP_3v3)"); `qio_qspi` for quad or no PSRAM.
    - Add `-DBOARD_HAS_PSRAM` only when PSRAM exists.
-   - Set `board_upload.flash_size`, `board_upload.maximum_size` and `board_build.partitions` from the detected flash size.
+   - Set `board_upload.flash_size` and `board_build.partitions` from the detected flash size. Set `board_upload.maximum_size` to the **application partition** size in that partition table (e.g. `app0` = `0x640000` = 6553600 in `default_16MB.csv`), never the physical flash size.
 4. **Serial and ports.**
    - Set `-DARDUINO_USB_CDC_ON_BOOT=1` only when the console is the chip's native USB (ESP32-S3/C3 USB-Serial/JTAG, VID:PID `303A:1001`).
    - Select ports by hardware ID (`upload_port = hwgrep://303A:1001`), not COM numbers.
@@ -27,7 +27,8 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` next to it
 8. **Monitor.** Include `monitor_filters = esp32_exception_decoder, time` so crashes decode against the exact ELF.
 9. **Ignore output.** Add `.pio/` to `.gitignore`.
 10. **Keep builds equivalent.** Record the arduino-cli FQBN and `--build-property` values that produce the same configuration, and state which toolchain produced any flashed artifact. A PlatformIO ELF and an arduino-cli ELF are different artifacts.
-11. **Verify before relying on it.** `pio run -e <default>` must succeed. For hardware claims, upload, run the project's smoke test and record the build ID and ELF SHA-256. A successful compile is not hardware verification.
+11. **Generate the build identifier.** Don't hard-code it. Inject a firmware build ID from build metadata (git short SHA, `-dirty` when the tree has changes, toolchain, environment) through an `extra_scripts` pre-script, and through `--build-property compiler.cpp.extra_flags=-DFIRMWARE_BUILD_ID=...` for arduino-cli, so serial evidence binds to the exact artifact.
+12. **Verify before relying on it.** `pio run -e <default>` must succeed. For hardware claims, upload, run the project's smoke test and record the build ID and ELF SHA-256. A successful compile is not hardware verification.
 
 ## Example
 
@@ -42,11 +43,12 @@ src_dir = firmware/MySketch
 platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.312-1/platform-espressif32.zip
 board = esp32-s3-devkitc-1
 framework = arduino
+extra_scripts = pre:scripts/pio_build_id.py   ; injects FIRMWARE_BUILD_ID
 board_build.arduino.memory_type = qio_opi
 board_build.flash_mode = qio
 board_build.f_flash = 80000000L
 board_upload.flash_size = 16MB
-board_upload.maximum_size = 16777216
+board_upload.maximum_size = 6553600   ; app0 of default_16MB.csv
 board_build.partitions = default_16MB.csv
 build_flags =
     -DBOARD_HAS_PSRAM
@@ -67,3 +69,7 @@ build_flags = ${env.build_flags} -DCORE_DEBUG_LEVEL=0
 ```
 
 Equivalent arduino-cli: `esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashMode=qio,FlashSize=16M --build-property build.partitions=default_16MB --build-property upload.maximum_size=6553600`. Verified on hardware in the downstream project described in issue #51.
+
+A minimal `scripts/pio_build_id.py`:
+
+
