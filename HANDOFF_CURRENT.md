@@ -2,7 +2,7 @@
 
 - **Prepared:** 2026-09-27 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `main`. PR #50 merged at `620fc9a` on 2026-09-27. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Branch:** `main`. PR #50 merged at `620fc9a` and PR #54 (#53, ADR-069) at `dff35e0` on 2026-09-27. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
 - **Scope:** Issue #10 (the complete high-conflict NC family-law template) is **closed** through merged PR #50. The next child under master #14 is #11.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #11](https://github.com/henslewm/universal-ai-project-template/issues/11). #10's completion comment and `docs/ISSUE_10_VALIDATION.md` are its full record, and ADR-059 through ADR-062 and ADR-065 through ADR-068 hold the decisions.
@@ -33,20 +33,34 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 ## Exact next action
 
-1. Select #11 under master #14, one child at a time.
-2. Separately, when the maintainer chooses:
-   - [#53](https://github.com/henslewm/universal-ai-project-template/issues/53): the family-law duplicate-assertion coverage gap. Write the invariant as an ADR first (R-012).
-   - [#52](https://github.com/henslewm/universal-ai-project-template/pull/52): ESP32 modular/PlatformIO rules, owned by another session. After #50 it needs a rebase or merge of `main`.
-   - The unreviewed `codex/automatic-worker-startup` branch (see "Branches" below).
-   - [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) and [#47](https://github.com/henslewm/universal-ai-project-template/issues/47): Mistral wiring and verification.
-   - [#49](https://github.com/henslewm/universal-ai-project-template/issues/49): packaging defects.
+1. **New session: the rescued worker-startup work,** draft [PR #55](https://github.com/henslewm/universal-ai-project-template/pull/55), branch `codex/automatic-worker-startup`, local worktree `../uapt-worker-startup`. Follow the checklist in the PR body:
+   1. Merge `main`, which conflicts in 12 paths: the six control files and their payload mirrors.
+   2. Renumber the branch's `ADR-060` to ADR-070, `OL-019` to OL-022, and check `R-015`.
+   3. Confirm with the maintainer that the edits to `MASTER_INSTRUCTIONS.md`, `AGENTS.md` and `AUTONOMY_CONTROL_PLANE.md` are wanted.
+   4. Sync, test and validate, then mark the PR ready for Codex.
+2. Then select #11 under master #14.
+3. Not ours:
+   - [PR #52](https://github.com/henslewm/universal-ai-project-template/pull/52) (ESP32 modular/PlatformIO rules) belongs to another session. Its head `d7ac1f3` has an unanswered Codex P2 (`pio_build_id.py` cross-drive `relpath`). Do not edit or merge it from here.
+   - [#46](https://github.com/henslewm/universal-ai-project-template/issues/46), [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) and [#49](https://github.com/henslewm/universal-ai-project-template/issues/49) remain open.
 
-## Branches (audited 2026-09-27 after the #50 merge)
+## Branches (audited 2026-09-27)
 
-- **Merged:** every `issue-*` construction branch, `scope-policy-review-findings`, `mistral-vibe-support` and `issue-10-family-law-domain` have their content on `main`. `issue-9-software-hardware-domain` shows commits "ahead" only because PR #34 was squash-merged; its tip tree equals `d873ec5`. No branch is deleted: construction branches wait for the later authorized cleanup.
-- **`codex/automatic-worker-startup`:** about 1,000 lines of unreviewed Codex work from 2026-09-18 (automatic worker-startup governance in the execution harness; see its `docs/WORKER_STARTUP_VALIDATION.md`). It was found **uncommitted** in the worktree at `_acceptance-demo-10/review-2/worker-startup`. It was committed as-is (`d1daa59`) and pushed so it is not lost. It has no PR and has not been reviewed, re-tested or merged. It is based on `3eeba90`, an ancestor of `main`. The maintainer decides whether it proceeds.
-- **Pre-rewrite branches from 2026-09-11** (`family-law`, `civil-rights-nc`, `family-law-profile`, `software-hardware`, `software-hardware-final`, `architecture/autonomous-domain-templates`, `x`, `dont-use`) and **`release/v1.1.0`** (open PR #1, "probe", 2026-09-01) predate the `main` rewrite. `family-law`, `civil-rights-nc` and `release/v1.1.0` each carry one or two commits not on `main` (early domain-profile docs and a release stage). These are for the maintainer's cleanup decision and are not work in progress.
-- **Untracked `platformio.ini`** in the repository root was left by the ESP32 session. It is not committed. `sync_skills.py --check` reports it as payload drift until it is removed.
+- **Keep:**
+  - `main`
+  - `codex/automatic-worker-startup` (PR #55)
+  - `issue-51-modular-platformio-rules` (PR #52)
+- **To delete** (the maintainer authorized it; this session's permission guard blocked it). Every branch below has its content on `main` or offers nothing:
+  - `issue-9-software-hardware-domain` was squash-merged as `d873ec5`, and its tree is identical.
+  - The `family-law` and `civil-rights-nc` commits match the profiles already on `main`.
+  - `release/v1.1.0` is an obsolete release-patch probe.
+
+  Close PR #1 first, then run the deletion:
+  ```
+  gh pr close 1 -c "Obsolete pre-rewrite v1.1.0 release-patch probe; superseded by main."
+  git push origin --delete x dont-use software-hardware software-hardware-final family-law-profile architecture/autonomous-domain-templates family-law civil-rights-nc release/v1.1.0 issue-2-bootstrap-gate issue-3-work-packet-contract issue-4-model-router issue-5-bounded-feedback issue-6-github-ledger issue-7-cline-harness issue-8-acceptance-gates issue-8-codex-findings issue-9-software-hardware-domain issue-9-postmerge-review issue-10-family-law-domain issue-53-unique-assertion-text scope-policy-review-findings mistral-vibe-support
+  git fetch --prune
+  ```
+- **`platformio.ini`** in the repository root is the maintainer's ESP32-S3 dev config, and it is deliberately untracked. Committed here, `sync_skills.py` would ship it into every generated project. It would also contradict PR #52's rule that a project's `platformio.ini` is generated from `esptool flash-id`. Keep it untracked, move it to the ESP32 project, or, if it should ship as an example, add it as `templates/software-hardware/platformio.example.ini`. While it sits here untracked, `sync_skills.py --check` reports drift, and `sync_skills.py` copies it into the payload; delete that payload copy before committing.
 
 ## What #9 and PR #35 left you (background, unchanged)
 
@@ -54,7 +68,7 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 ## Verified state
 
-406 tests pass on Windows on `main` after the PR #50 merge (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). `main` is pushed. Confirm with `git status -sb` and `gh pr list`.
+407 tests pass on Windows on `main` after the PR #54 merge (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). `main` is pushed. Confirm with `git status -sb` and `gh pr list`.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 

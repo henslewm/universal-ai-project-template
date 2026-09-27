@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-27 — Post-#10 housekeeping
+
+- PR #54 (#53, ADR-069) merged at `dff35e0` after a clean Codex review.
+- The rescued worker-startup work is in draft PR #55, and its worktree moved to `../uapt-worker-startup`.
+- Obsolete branches were identified for deletion. The command is in the handoff for the maintainer to run.
+
 ## 2026-09-27 — #53: family-law assertion text is unique per contract (ADR-069)
 
 - `validate_contract_domain` refuses two `fact_assertions` entries with the same text. Coverage is keyed by claim text, so duplicates let one record cover an entry whose verifying source was never read (PR #50 round-4 finding).
