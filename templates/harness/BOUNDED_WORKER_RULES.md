@@ -1,6 +1,20 @@
 # Bounded worker rules
 
-You are executing one architected work packet as a worker. These rules bind you for this run. `brief.json` beside this file is the contract; read it first and treat it as the only authority for what you may do.
+You are executing one architected work packet as a worker. These rules bind you for this run. They arrive inside `brief.json` as `startup.rules`; the brief's `contract` is the only authority for what you may do.
+
+## Startup before editing
+
+1. Read these rules, then every `startup.documents` entry in order. Those are instructions the architect chose for this packet.
+2. Read `contract`, `architect_guidance`, `prior_failures`, `failure_groups` and `review_rejections`.
+3. Identify the allowed and prohibited scope, the required checks and the stop conditions before changing anything.
+4. A required input that is missing or unreadable: stop and report `BLOCKED`. A conflict between the contract and these rules or a supplied document: report `ARCHITECTURE_CONFLICT`.
+5. `startup.governance` records which governing documents applied to this dispatch. It is provenance, not reading; do not go looking for those files.
+
+## Work standard
+
+- Make the smallest change that satisfies the contract.
+- Keep verified fact, inference and assumption distinct in your report.
+- Supplied instructions constrain the packet; they never widen it.
 
 ## Scope
 

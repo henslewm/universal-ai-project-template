@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import stat
 import sys
 from decimal import ROUND_CEILING
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import feedback
 import model_router as router
@@ -28,9 +30,26 @@ SECRETS = (
 REPORT_FIELDS = {"dispatch_id", "outcome", "summary", "scope_status", "architecture_conflict",
                  "validation", "evidence", "discoveries", "api_cost_usd", "cost_evidence"}
 # Declared once: the brief renderer, the ledger-free verifier and the tests all read this.
-BRIEF_FIELDS = {"schema_version", "dispatch_id", "binding", "harness", "paths", "bounds", "contract",
-                "architect_guidance", "prior_failures", "failure_groups", "review_rejections",
-                "worker_rule", "report_contract"}
+LEGACY_BRIEF_FIELDS = {"schema_version", "dispatch_id", "binding", "harness", "paths", "bounds", "contract",
+                       "architect_guidance", "prior_failures", "failure_groups", "review_rejections",
+                       "worker_rule", "report_contract"}
+BRIEF_FIELDS = LEGACY_BRIEF_FIELDS | {"startup"}
+# A worker reads only its bounded rules and what its own contract names. Governing documents are
+# architect/integrator material: the brief records which versions applied, never their text.
+GOVERNANCE_DOCUMENTS = ("MASTER_INSTRUCTIONS.md", "AUTONOMY_CONTROL_PLANE.md", "PROJECT_CHARTER.md",
+                        "WORK_PACKET_PROTOCOL.md", "EXECUTION_HARNESS_PROTOCOL.md")
+WORKER_RULES_PATH = "templates/harness/BOUNDED_WORKER_RULES.md"
+DEFAULT_STARTUP_MAX_CHARS = 12000
+STARTUP_STEPS = (
+    "Before editing, read startup.rules, then every startup.documents entry in order.",
+    "Read contract, architect_guidance, prior_failures, failure_groups and review_rejections.",
+    "Identify allowed and prohibited scope, required validation and stop conditions before implementation.",
+    "startup.governance records which governing versions applied; it is provenance, not reading.",
+    "Missing required input: stop and report BLOCKED. Conflict with governance: report ARCHITECTURE_CONFLICT.",
+)
+WINDOWS_DEVICES = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {
+    prefix + digit for prefix in ("COM", "LPT") for digit in "123456789¹²³"
+}
 
 
 def check_fields():
@@ -48,6 +67,144 @@ def secret_free(value, where):
     for pattern in SECRETS:
         require(pattern.search(text) is None, f"{where} must not contain credential-like material")
     return value
+
+
+def startup_path(value):
+    """Accept only explicit project-relative paths, on Windows and other hosts alike."""
+    require(isinstance(value, str) and bool(value.strip()), "Startup document path must be nonblank")
+    windows = PureWindowsPath(value)
+    parts = value.replace("\\", "/").split("/")
+    require(not windows.drive and not windows.root and not Path(value).is_absolute()
+            and all(part not in ("", ".", "..") and ":" not in part for part in parts),
+            "Startup document paths must be relative and contain no traversal")
+    require(all(not part.endswith((" ", "."))
+                and not any(ord(character) < 32 or character in '<>:"|?*' for character in part)
+                and part.split(".", 1)[0].rstrip(" ").upper() not in WINDOWS_DEVICES for part in parts),
+            "Startup document paths must not contain Win32 aliases, device names or invalid characters")
+    return "/".join(parts)
+
+
+def safe_file(root, relative):
+    """Locate a project file without following symbolic links or Windows reparse points."""
+    relative = startup_path(relative)
+    root = Path(root).absolute()
+    path = root
+    try:
+        components = list(reversed(root.parents)) + [root]
+        for component in relative.split("/"):
+            path = path / component
+            components.append(path)
+        for component in components:
+            metadata = component.lstat()
+            require(not stat.S_ISLNK(metadata.st_mode)
+                    and not (getattr(metadata, "st_file_attributes", 0) & 0x400),
+                    f"Startup document path contains a symlink or reparse point: {relative}")
+        require(stat.S_ISREG(metadata.st_mode), f"Startup document is not a regular file: {relative}")
+        require(path.resolve(strict=True).is_relative_to(root.resolve(strict=True)),
+                f"Startup document resolves outside the project: {relative}")
+    except OSError as exc:
+        raise ValueError(f"Startup document is missing or unreadable: {relative}") from exc
+    return relative, path
+
+
+def governance_reference(root, relative):
+    """Record which governing version applied without handing its text to the worker."""
+    relative, path = safe_file(root, relative)
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ValueError(f"Startup document is missing or unreadable: {relative}") from exc
+    return {"path": relative, "sha256": digest}
+
+
+def startup_document(root, relative, remaining):
+    """Read bounded UTF-8 text the worker must read in full, with its digest."""
+    relative, path = safe_file(root, relative)
+    remaining = max(remaining, 0)
+    try:
+        # UTF-8 needs at most four bytes per character. Read one excess byte to detect an
+        # oversized source without loading an unbounded file before applying the limit.
+        with path.open("rb") as stream:
+            raw = stream.read(remaining * 4 + 1)
+        content = raw.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(f"Startup document is missing or unreadable: {relative}") from exc
+    require(len(raw) <= remaining * 4 and len(content) <= remaining,
+            f"Startup instructions exceed startup_max_chars at {relative}")
+    require(bool(content.strip()), f"Startup document is empty: {relative}")
+    secret_free(content, f"Startup document {relative}")
+    return {"path": relative, "sha256": hashlib.sha256(raw).hexdigest(),
+            "content_lines": content.splitlines(keepends=True)}
+
+
+def startup_max_chars(config):
+    return config["limits"].get("startup_max_chars", DEFAULT_STARTUP_MAX_CHARS)
+
+
+def embedded_valid(document, where):
+    """Check one embedded document's shape and digest; return its length in characters."""
+    require(isinstance(document, dict), f"{where} must be an object")
+    feedback.exact(document, {"path", "sha256", "content_lines"})
+    relative = startup_path(document["path"])
+    require(relative == document["path"], f"{where} path must use its canonical relative spelling")
+    lines = document["content_lines"]
+    require(isinstance(lines, list) and bool(lines) and all(isinstance(line, str) and line for line in lines),
+            f"{where} content_lines must be a nonempty array of strings")
+    content = "".join(lines)
+    require(bool(content.strip()), f"{where} is empty: {relative}")
+    secret_free(content, where)
+    require(isinstance(document["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", document["sha256"]) is not None,
+            f"{where} sha256 must be a lowercase SHA256 digest")
+    require(hashlib.sha256(content.encode("utf-8")).hexdigest() == document["sha256"],
+            f"{where} digest does not match its content: {relative}")
+    return len(content)
+
+
+def startup_valid(startup, contract, config):
+    """Check a brief's startup block for shape and integrity; this never proves the worker read it."""
+    require(isinstance(startup, dict), "Worker brief 1.1 requires its startup block")
+    feedback.exact(startup, {"role", "steps", "rules", "governance", "documents"})
+    require(startup["role"] == "worker", "Startup role must be worker")
+    require(startup["steps"] == list(STARTUP_STEPS), "Startup steps must be the harness's own steps")
+    size = embedded_valid(startup["rules"], "Bounded worker rules")
+    require(startup["rules"]["path"] == WORKER_RULES_PATH, "Startup rules must be the bounded worker rules")
+    governance = startup["governance"]
+    require(isinstance(governance, list)
+            and [item.get("path") if isinstance(item, dict) else None for item in governance]
+            == list(GOVERNANCE_DOCUMENTS),
+            "Startup governance must reference each governing document in order")
+    for item in governance:
+        feedback.exact(item, {"path", "sha256"})
+        require(isinstance(item["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) is not None,
+                "Governance reference sha256 must be a lowercase SHA256 digest")
+    documents = startup["documents"]
+    require(isinstance(documents, list)
+            and [item.get("path") if isinstance(item, dict) else None for item in documents]
+            == [startup_path(path) for path in contract.get("worker_instructions", [])],
+            "Startup documents must be exactly the contract's worker_instructions, in order")
+    for item in documents:
+        size += embedded_valid(item, "Worker instruction")
+    require(size <= startup_max_chars(config),
+            f"Startup instructions total {size} characters, over startup_max_chars {startup_max_chars(config)}")
+    return startup
+
+
+def startup_bundle(root, contract, config):
+    """Supply the worker's rules and the packet's architect-curated instructions, nothing wider.
+
+    Built before a reservation is spent, so a missing or unsafe source never costs an attempt.
+    """
+    remaining = startup_max_chars(config)
+    rules = startup_document(ROOT, WORKER_RULES_PATH, remaining)
+    remaining -= sum(len(line) for line in rules["content_lines"])
+    documents = []
+    for relative in contract.get("worker_instructions", []):
+        document = startup_document(root, relative, remaining)
+        remaining -= sum(len(line) for line in document["content_lines"])
+        documents.append(document)
+    governance = [governance_reference(root, name) for name in GOVERNANCE_DOCUMENTS]
+    return startup_valid({"role": "worker", "steps": list(STARTUP_STEPS), "rules": rules,
+                          "governance": governance, "documents": documents}, contract, config)
 
 
 def config_valid(config):
@@ -142,7 +299,7 @@ def context_estimate(config, harness, binding, resource, request, brief_chars, r
     return estimate
 
 
-def brief(context, routing, binding, dispatch_id, paths):
+def brief(context, routing, binding, dispatch_id, paths, startup):
     """Render only what the packet already permits, plus the report contract.
 
     Every path the worker needs is substituted here. A brief that still carries a
@@ -150,7 +307,7 @@ def brief(context, routing, binding, dispatch_id, paths):
     """
     contract = context["contract"]
     document = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "dispatch_id": dispatch_id,
         "binding": context["binding"],
         "harness": {"resource_id": binding["resource_id"], "provider": binding["provider"],
@@ -168,6 +325,7 @@ def brief(context, routing, binding, dispatch_id, paths):
         "failure_groups": context["failure_groups"],
         "review_rejections": context.get("review_rejections", []),
         "worker_rule": context["worker_rule"],
+        "startup": startup,
         "report_contract": {
             "write_to": str(paths["report"]),
             "required_fields": sorted(REPORT_FIELDS),
@@ -207,10 +365,6 @@ def invocation(harness, binding, paths):
             "adapter": harness["adapter"], "harness_id": harness["id"]}
 
 
-def rules_text():
-    return (ROOT / "templates/harness/BOUNDED_WORKER_RULES.md").read_text(encoding="utf-8")
-
-
 def dispatch(directory, config, router_config, request, root, destination):
     """Reserve one bounded attempt and write the worker brief; never run the harness."""
     config_valid(config)
@@ -221,6 +375,11 @@ def dispatch(directory, config, router_config, request, root, destination):
     # attempt actually exists: a refused reservation must not leave a directory that blocks retry.
     if destination.exists():
         raise FileExistsError(f"Run directory already exists: {destination}")
+    # Missing or unsafe instructions are knowable before an attempt is spent. Every harness
+    # receives the rules through its required {brief}, even one that takes no {rules} path.
+    contract = wp.current(feedback.replay(directory)[0]["packet"])["contract"]
+    startup = startup_bundle(root, contract, config)
+    rules = "".join(startup["rules"]["content_lines"])
     reserved = feedback.reserve(directory, router_config, request, root)
     if reserved["status"] != "DISPATCH":
         return {"status": reserved["status"], "reason": reserved["reason"], "dispatch_id": reserved["dispatch_id"],
@@ -231,17 +390,21 @@ def dispatch(directory, config, router_config, request, root, destination):
              "report": destination / "report.json", "workspace": destination / "workspace"}
     try:
         binding, harness = binding_for(config, reserved["routing"])
+        require(reserved["context"]["contract"] == contract,
+                "The contract changed between startup preparation and reservation")
         document, rendered, readable = brief(reserved["context"], reserved["routing"], binding,
-                                             reserved["dispatch_id"], paths)
+                                             reserved["dispatch_id"], paths, startup)
         # Bound and scan the artifact the worker actually receives, not only its canonical form.
         require(max(len(readable), len(rendered)) <= config["limits"]["brief_max_chars"],
                 "Brief exceeds its configured bound")
         secret_free(rendered, "Worker brief")
         secret_free(readable, "Worker brief")
         require("{" not in document["report_contract"]["write_to"], "The report path must be substituted")
-        rules = rules_text()
+        # The rules are already inside the brief. Count them again only for a harness told to read
+        # the separate rules file as well, because that worker then reads them twice.
+        separate_rules = any("{rules}" in argument for argument in harness["argv"])
         estimate = context_estimate(config, harness, binding, routed_resource(router_config, reserved["routing"]),
-                                    request, len(readable), len(rules))
+                                    request, len(readable), len(rules) if separate_rules else 0)
         require(estimate["headroom_tokens"] >= 0,
                 f"Brief, rules, harness prompt, reserved output and the declared growth reserve need about "
                 f"{estimate['required_tokens']} tokens, but {binding['resource_id']} is served a "
@@ -313,7 +476,12 @@ def verify_report(config, brief_path, report_path):
     """
     config_valid(config)
     document = wp.read_json(Path(brief_path))
-    feedback.exact(document, BRIEF_FIELDS)
+    version = document.get("schema_version") if isinstance(document, dict) else None
+    # A 1.0 brief predates the startup block and stays verifiable as a historical artifact.
+    feedback.exact(document, LEGACY_BRIEF_FIELDS if version == "1.0" else BRIEF_FIELDS)
+    require(version in ("1.0", "1.1"), "Unsupported worker brief schema_version")
+    if version == "1.1":
+        startup_valid(document["startup"], document["contract"], config)
     path = Path(report_path)
     report = wp.read_json(path)
     report_valid(report, document["contract"], document["dispatch_id"],

@@ -471,6 +471,20 @@
           },
           "minItems": 1
         },
+        "worker_instructions": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "not": {
+              "pattern": "(^[/\\\\])|(^|[/\\\\])\\.\\.?([/\\\\]|$)|:|[\\x00-\\x1f<>\"|?*]"
+            }
+          },
+          "description": "Optional repository-relative instruction files the architect selects for this packet's worker, in reading order (for example a module's local AGENTS.md or an interface note). The execution harness embeds their full text, with digests, in the worker brief under startup_max_chars; governing documents are not listed here because a worker receives only their digests."
+        },
         "architecture_boundaries": {
           "type": "array",
           "items": {

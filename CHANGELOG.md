@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-27 — Lean automatic worker startup (ADR-070)
+
+- Every new worker brief (schema `1.1`) embeds the bounded worker rules and only the instruction files its contract's new optional `worker_instructions` names, capped by `limits.startup_max_chars` (default 12000). Governing documents travel as path-plus-digest references, not text.
+- Missing, unsafe, credential-like or oversized sources refuse dispatch before an attempt is reserved. The rules are counted once in the capacity check, and the example Cline argv passes only `{brief}`. Exact legacy `1.0` briefs remain verifiable.
+- This supersedes draft PR #55, whose full governance bundle (~71k characters) would have refused every local-model dispatch. A regression now checks that the real rules fit the example 16384-token local binding.
+
 ## 2026-09-27 — Post-#10 housekeeping
 
 - PR #54 (#53, ADR-069) merged at `dff35e0` after a clean Codex review.
