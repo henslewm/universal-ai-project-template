@@ -38,10 +38,11 @@ Round 3's report exists at `_acceptance-demo-10\review-3\review-report.json` wit
 
 ## Exact next action
 
-1. Fix `AC-ADVERSE` in `scripts/family_law.py` and `examples/family-law/packets/FAM-04-issue-brief.contract.json`, plus regressions, and rerun the full suite.
-2. Resolve the scope question above (widen `scope.allowed` via a contract revision, or narrow the next reviewed diff).
-3. `reviews_used` is already at `max_review_attempts` (3) — a fourth review dispatch needs either a contract revision (which can raise the budget) or a recorded architect decision under the existing budget. Check `ACCEPTANCE_PROTOCOL.md` and `scripts/acceptance.py`'s `decide`/`waive-cross-family` commands for the supported path; do not simply re-run `prepare-review` without resolving this first, since `_acceptance-demo-10`'s config currently refuses it.
-4. Once a further review is obtained and returns `APPROVE`, run `accept`, write `docs/ISSUE_10_VALIDATION.md` (does not exist yet — no analog to `docs/ISSUE_9_VALIDATION.md` has been created for #10), then open the PR and run the Codex review loop to a clean result before asking for merge authorization.
+Session 3 (2026-09-27) fixed AC-ADVERSE (`cecd714`, ADR-065) and moved review to a fresh ledger, `_acceptance-demo-10b`, at dogfood contract revision 2, which puts the closeout records in scope. `_acceptance-demo-10` is preserved unchanged as provisional evidence. Continue on `-10b`:
+
+1. Obtain an approving cross-family review. Answer only actionable findings (ADR-063).
+2. Run `accept`, then write `docs/ISSUE_10_VALIDATION.md`.
+3. Open the PR and run the Codex review loop to a clean result before asking for merge authorization.
 
 ## What #9 and PR #35 left you (background, unchanged)
 
