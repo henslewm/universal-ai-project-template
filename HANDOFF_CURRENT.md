@@ -2,7 +2,7 @@
 
 - **Prepared:** 2026-09-27 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `main`. PR #50 merged at `620fc9a` and PR #54 (#53, ADR-069) at `dff35e0` on 2026-09-27. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
+- **Branch:** `main`. PR #50 merged at `620fc9a`, PR #54 (#53, ADR-069) at `dff35e0` and PR #58 (lean worker startup, ADR-070) at `6c24d03` on 2026-09-27. Confirm the current head with `git log --oneline -1` rather than trusting a figure here.
 - **Scope:** Issue #10 (the complete high-conflict NC family-law template) is **closed** through merged PR #50. The next child under master #14 is #11.
 
 Start from repository instructions and live [master #14](https://github.com/henslewm/universal-ai-project-template/issues/14), then [Issue #11](https://github.com/henslewm/universal-ai-project-template/issues/11). #10's completion comment and `docs/ISSUE_10_VALIDATION.md` are its full record, and ADR-059 through ADR-062 and ADR-065 through ADR-068 hold the decisions.
@@ -10,6 +10,8 @@ Start from repository instructions and live [master #14](https://github.com/hens
 ## What merged on 2026-09-27
 
 **PR #45: scope policy (ADR-063).** A review finding is actionable only when it names a concrete defect the change introduced or exposed, or a demonstrable failure of an explicit applicable requirement, with its behavior, trigger and evidence. `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" is the single definition. Apply it to every later review round.
+
+**PR #58: lean automatic worker startup (ADR-070).** Every new worker brief carries the bounded worker rules, only the instruction files the contract's `worker_instructions` names, and digest-only references to the governing documents. A governing document's text is never embedded, whether it is reached by name, alias, hard link or copy. It fits the example 16384-token local binding with 517 tokens of headroom (`docs/WORKER_STARTUP_VALIDATION.md`). Codex reviewed it over three rounds: two P2s, both fixed, then clean on `7f00ab6`. It supersedes PR #55, which the maintainer closed.
 
 **PR #48: Mistral Vibe platform files.** These are restored but not yet wired in. [#46](https://github.com/henslewm/universal-ai-project-template/issues/46) tracks the authority order, `validate_project.py` required paths, README and bootstrapper. [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) tracks verifying the product claims and the maintainer's master #14 scope decision. Neither blocks #11.
 
@@ -33,11 +35,8 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 ## Exact next action
 
-1. **Lean worker startup (ADR-070),** branch `worker-startup-lean`, worktree `../uapt-worker-startup-lean`. It replaces draft [PR #55](https://github.com/henslewm/universal-ai-project-template/pull/55): the maintainer rejected that design on 2026-09-27 because its full governance bundle would refuse every local-model dispatch. `docs/WORKER_STARTUP_VALIDATION.md` holds the measurements.
-   1. Push, open the PR and mark it ready for Codex, each only on the maintainer's go-ahead. Follow ADR-063 finding discipline.
-   2. After it merges, and only on the maintainer's go-ahead, close PR #55 with a pointer to the replacement (OL-020).
-2. Then select #11 under master #14.
-3. Not ours:
+1. Triage the open issues with the maintainer, then select the next child under master #14 (#11 by sequence).
+2. Not ours:
    - [PR #52](https://github.com/henslewm/universal-ai-project-template/pull/52) (ESP32 modular/PlatformIO rules) belongs to another session. Its head `d7ac1f3` has an unanswered Codex P2 (`pio_build_id.py` cross-drive `relpath`). Do not edit or merge it from here.
    - [#46](https://github.com/henslewm/universal-ai-project-template/issues/46), [#47](https://github.com/henslewm/universal-ai-project-template/issues/47) and [#49](https://github.com/henslewm/universal-ai-project-template/issues/49) remain open.
 
@@ -45,9 +44,8 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 - **Keep:**
   - `main`
-  - `codex/automatic-worker-startup` (PR #55, superseded by ADR-070; close after the replacement merges)
-  - `worker-startup-lean` (ADR-070)
   - `issue-51-modular-platformio-rules` (PR #52)
+- **Now also deletable:** `codex/automatic-worker-startup` (PR #55, closed and superseded) and `worker-startup-lean` (PR #58, merged). Add them to the deletion command below.
 - **To delete** (the maintainer authorized it; this session's permission guard blocked it). Every branch below has its content on `main` or offers nothing:
   - `issue-9-software-hardware-domain` was squash-merged as `d873ec5`, and its tree is identical.
   - The `family-law` and `civil-rights-nc` commits match the profiles already on `main`.
@@ -67,7 +65,7 @@ On 2026-09-18 an unattended Codex CLI session worked #10 in this same checkout a
 
 ## Verified state
 
-407 tests pass on Windows on `main` after the PR #54 merge (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). `main` is pushed. Confirm with `git status -sb` and `gh pr list`.
+419 tests pass on Windows on `main` after the PR #58 merge (`unittest discover -s tests -p "test_*.py"` from the repo root, system `python` 3.12.8). `python scripts/validate_project.py` passes 81 required paths. `python scripts/sync_skills.py --check` reports 0 differing files (a drift in the gitignored `.claude/settings.local.json` mirror under `skills/complex-project-bootstrapper/assets/project-template/` was found and fixed this session by rerunning `sync_skills.py`; nothing tracked changed). `main` is pushed. Confirm with `git status -sb` and `gh pr list`.
 
 ## Limitations carried forward (outside #9/#10; maintainer's call under master #14)
 

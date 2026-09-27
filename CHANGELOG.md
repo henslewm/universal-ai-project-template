@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-27 — PR #58 merged (ADR-070); PR #55 closed
+
+- PR #58 merged at `6c24d03`. Codex round 1 found a governing document could be listed in `worker_instructions`, and round 2 found a hard link or copy could reach the same text. Both were fixed by refusing any instruction whose content digest matches a governing document. Round 3 was clean. 419 tests pass.
+- PR #55 was closed unmerged with a pointer to #58 (OL-020 closed).
+
 ## 2026-09-27 — Lean automatic worker startup (ADR-070)
 
 - Every new worker brief (schema `1.1`) embeds the bounded worker rules and only the instruction files its contract's new optional `worker_instructions` names, capped by `limits.startup_max_chars` (default 12000). Governing documents travel as path-plus-digest references, not text.
