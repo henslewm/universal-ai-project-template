@@ -1,63 +1,52 @@
 """Firmware build identifier: PlatformIO pre-script and arduino-cli helper.
 
-ID = <git short sha>[-dirty<hash>]-<toolchain>
+ID = <git short sha | nogit>-src<hash>-<toolchain>
 
-<hash> is a SHA-256 prefix over `git diff HEAD --binary` plus the path and
-bytes of every untracked, non-ignored file, so any change that can affect the
-build (sketch sources, lib/, include/, partitions, platformio.ini, scripts)
-yields a different ID, and a clean tree yields the bare commit. Outside Git the
-ID is "nogit-<hash of the source directories and platformio.ini>".
+Invariant: <hash> is a SHA-256 prefix over the relative path and bytes of every
+file in the build-input roots -- the sketch/src directory, lib/, include/,
+boards/, platformio.ini and partition CSVs in the project root -- read straight
+from disk, whether tracked, untracked or git-ignored. Only build outputs and VCS
+metadata (.pio, .git, build) are skipped. Git is never consulted for content, so
+the ID changes exactly when a build input changes; the commit is only a label.
 
 PlatformIO: `extra_scripts = pre:scripts/pio_build_id.py` defines FIRMWARE_BUILD_ID
-(toolchain = pio-<env>).
-arduino-cli (PowerShell, from the project root):
-    $id = python scripts/pio_build_id.py cli
+(toolchain = pio-<env>, source root = src_dir).
+arduino-cli (PowerShell, project root; pass the sketch folder):
+    $id = python scripts/pio_build_id.py --sketch firmware/BLEScanner_WORKING_v7 --toolchain cli
     arduino-cli compile ... --build-property "compiler.cpp.extra_flags='-DFIRMWARE_BUILD_ID=`"$id`"'"
 (the single quotes keep the double quotes through arduino-cli's own argument splitter)
 """
+import argparse
+import glob
 import hashlib
 import os
 import subprocess
-import sys
+
+SKIP_DIRS = {".pio", ".git", "build", "__pycache__"}
 
 
-def _git(project_dir, *args):
-    return subprocess.run(["git", *args], cwd=project_dir, capture_output=True, check=True).stdout
-
-
-def _hash_paths(project_dir, roots):
-    files = []
+def build_inputs(project_dir, source_dir):
+    roots = [source_dir] + [os.path.join(project_dir, d) for d in ("lib", "include", "boards")]
+    files = [os.path.join(project_dir, "platformio.ini")] + sorted(glob.glob(os.path.join(project_dir, "*.csv")))
     for root in roots:
-        if os.path.isfile(root):
-            files.append(root)
         for directory, dirs, names in os.walk(root):
-            dirs.sort()
+            dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
             files += [os.path.join(directory, name) for name in sorted(names)]
+    return sorted({os.path.abspath(f) for f in files if os.path.isfile(f)})
+
+
+def build_id(project_dir, source_dir, toolchain):
     digest = hashlib.sha256()
-    for path in files:
+    for path in build_inputs(project_dir, source_dir):
         digest.update(os.path.relpath(path, project_dir).replace("\\", "/").encode() + b"\0")
         with open(path, "rb") as handle:
             digest.update(handle.read() + b"\0")
-    return digest.hexdigest()[:8]
-
-
-def build_id(project_dir, toolchain, fallback_roots):
     try:
-        sha = _git(project_dir, "rev-parse", "--short=10", "HEAD").decode().strip()
-        diff = _git(project_dir, "diff", "HEAD", "--binary")
-        untracked = sorted(p for p in _git(project_dir, "ls-files", "--others",
-                                           "--exclude-standard", "-z").split(b"\0") if p)
-        source = sha
-        if diff or untracked:
-            digest = hashlib.sha256(diff)
-            for rel in untracked:
-                digest.update(rel + b"\0")
-                with open(os.path.join(project_dir, os.fsdecode(rel)), "rb") as handle:
-                    digest.update(handle.read() + b"\0")
-            source += "-dirty" + digest.hexdigest()[:8]
+        label = subprocess.run(["git", "rev-parse", "--short=10", "HEAD"], cwd=project_dir,
+                               capture_output=True, text=True, check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
-        source = "nogit-" + _hash_paths(project_dir, [r for r in fallback_roots if os.path.exists(r)])
-    return f"{source}-{toolchain}"
+        label = "nogit"
+    return f"{label}-src{digest.hexdigest()[:8]}-{toolchain}"
 
 
 try:
@@ -66,13 +55,13 @@ except NameError:
     env = None
 
 if env is not None:
-    project = env.subst("$PROJECT_DIR")
-    roots = [env.subst(v) for v in ("$PROJECT_SRC_DIR", "$PROJECT_LIB_DIR", "$PROJECT_INCLUDE_DIR")]
-    ident = build_id(project, f"pio-{env['PIOENV']}", roots + [os.path.join(project, "platformio.ini")])
+    ident = build_id(env.subst("$PROJECT_DIR"), env.subst("$PROJECT_SRC_DIR"), f"pio-{env['PIOENV']}")
     env.Append(CPPDEFINES=[("FIRMWARE_BUILD_ID", env.StringifyMacro(ident))])
     print(f"FIRMWARE_BUILD_ID={ident}")
 elif __name__ == "__main__":
-    project = os.getcwd()
-    toolchain = sys.argv[1] if len(sys.argv) > 1 else "cli"
-    print(build_id(project, toolchain,
-                   [os.path.join(project, p) for p in ("src", "lib", "include", "platformio.ini")]))
+    parser = argparse.ArgumentParser(description="Print the firmware build ID for a non-PlatformIO build.")
+    parser.add_argument("--sketch", required=True, help="sketch/source folder that is compiled")
+    parser.add_argument("--toolchain", default="cli")
+    parser.add_argument("--project", default=os.getcwd())
+    args = parser.parse_args()
+    print(build_id(os.path.abspath(args.project), os.path.abspath(args.sketch), args.toolchain))
