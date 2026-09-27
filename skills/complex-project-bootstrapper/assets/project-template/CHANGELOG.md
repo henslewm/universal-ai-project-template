@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-27 — Triage decisions: exit codes (ADR-072) and launcher boundary (ADR-073)
+
+- ADR-072 (#32): exit codes are 0 OK, 1 handled refusal, 2 not-OK outcome (usage error, domain stop/hold, or unreadable bootstrap file, told apart by the JSON `status`), 130 interrupted. Nothing is reclassified; implementation stays under #32 and #31.
+- ADR-073 (#25): the only launcher is an operator-run `launch` command for one reserved attempt, with a scoped runtime credential environment. `dispatch` stays preparation-only and no controller launches. This unblocks #36, #37, #40 and #41.
+- #49's CI decision stands as ADR-071 (one workflow; the payload check skips without a payload), recorded in PR #61.
+
 ## 2026-09-27 — #23: worker reports are schema-checked in both entrypoints
 
 - `report_valid` now applies the controller's own result schema (`feedback.shape("result", ...)`) before it reads any nested field. `verify-report` therefore refuses what `ingest` already did: string Booleans, invalid outcomes, negative costs, and missing or extra nested fields. A refused report leaves the attempt pending.
