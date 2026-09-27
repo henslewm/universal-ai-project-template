@@ -51,7 +51,10 @@ class SyncSkillsTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("stale\n", encoding="utf-8")
         drift = sync_skills.sync(check=True)
-        self.assertEqual(sorted(drift), sorted(path.relative_to(self.root).as_posix() for path in stale))
+        # Files are compared exactly; their now-obsolete directories are also reported (with a
+        # trailing slash), which the directory test covers.
+        self.assertEqual(sorted(entry for entry in drift if not entry.endswith("/")),
+                         sorted(path.relative_to(self.root).as_posix() for path in stale))
         self.assertTrue(all(path.exists() for path in stale), "--check must not write")
         sync_skills.sync()
         self.assertFalse(any(path.exists() for path in stale))
@@ -111,6 +114,31 @@ class SyncSkillsTests(unittest.TestCase):
                 finally:
                     sync_skills.remove_link(linked)
                     moved.rename(linked)
+        self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_obsolete_directories_are_pruned_even_when_empty(self):
+        # PR #61 round 6: an empty obsolete directory yields no file, so it survived pruning and the
+        # generator's copytree then shipped it. So did one emptied by the file prune itself.
+        asset = self.skill / "assets/project-template"
+        native = self.root / ".claude/skills/complex-project-bootstrapper"
+        (asset / "old-docs/nested").mkdir(parents=True)
+        (native / "empty").mkdir()
+        (asset / "gone").mkdir()
+        (asset / "gone/stale.md").write_text("stale\n", encoding="utf-8")
+        (asset / "gone/__pycache__").mkdir()
+        (asset / "gone/__pycache__/x.pyc").write_text("cache\n", encoding="utf-8")
+        drift = sync_skills.sync(check=True)
+        for expected in ("skills/complex-project-bootstrapper/assets/project-template/old-docs/",
+                         ".claude/skills/complex-project-bootstrapper/empty/",
+                         "skills/complex-project-bootstrapper/assets/project-template/gone/"):
+            self.assertIn(expected, drift)
+        self.assertNotIn("skills/complex-project-bootstrapper/assets/project-template/old-docs/nested/", drift,
+                         "the topmost obsolete directory is reported once")
+        self.assertTrue((asset / "old-docs/nested").is_dir(), "--check must not write")
+        sync_skills.sync()
+        for path in (asset / "old-docs", native / "empty", asset / "gone"):
+            self.assertFalse(path.exists())
+        self.assertTrue((asset / "README.md").exists() and (native / "SKILL.md").exists(), "produced content stays")
         self.assertEqual(sync_skills.sync(check=True), [])
 
     def test_regenerated_caches_in_a_mirror_are_not_drift(self):

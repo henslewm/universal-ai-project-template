@@ -105,6 +105,23 @@ def sync(check: bool = False) -> list[str]:
                 differences.append(target.relative_to(ROOT).as_posix())
                 if not check:
                     target.unlink()
+        # The same invariant for directories: one the copy produced lies above an expected file.
+        # Any other directory is obsolete, including one left empty by the pruning above; the
+        # topmost is reported, and removed with whatever regenerated caches remain inside it.
+        produced = {parent for target in expected if target.is_relative_to(mirror)
+                    for parent in target.parents if parent.is_relative_to(mirror)}
+        obsolete = []
+        for directory, dirs, _ in os.walk(mirror):
+            dirs[:] = sorted(name for name in dirs if name not in PRUNE_SKIPPED)
+            for name in list(dirs):
+                path = Path(directory) / name
+                if path not in produced:
+                    obsolete.append(path)
+                    dirs.remove(name)  # the topmost obsolete directory covers everything below
+        for path in obsolete:
+            differences.append(path.relative_to(ROOT).as_posix() + '/')
+            if not check:
+                shutil.rmtree(path)
 
     for mirror in mirrors:
         unlink_all(mirror)
