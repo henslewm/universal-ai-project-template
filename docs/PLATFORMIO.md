@@ -79,9 +79,29 @@ arduino-cli compile -b esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashMode=qio
 
 To add an optional label with arduino-cli, append `--build-property "compiler.cpp.extra_flags='-DFIRMWARE_BUILD_ID=\"<label>\"'"`. The single quotes are needed to keep the double quotes through arduino-cli's argument splitter. Verified on hardware in the downstream project described in issue #51.
 
-Firmware side: print the runtime artifact identity (plus the optional label, with a visible fallback). Put this in its own `.cpp` module; the `.ino` holds only `setup()` and `loop()`. A `.cpp` file gets none of Arduino's automatic `.ino` preprocessing, so it includes the Arduino declarations itself: `Serial` comes from `Arduino.h`, and `ESP_ARDUINO_VERSION_STR` from `esp_arduino_version.h`.
+Firmware side: print the runtime artifact identity, plus the optional label with a visible fallback. The `.ino` holds only `setup()` and `loop()`, so the printer lives in its own module, `build_identity.h` plus `build_identity.cpp`. Arduino's automatic `.ino` preprocessing (includes and generated prototypes) does not reach a `.cpp` file. So the module includes the Arduino declarations itself (`Serial` from `Arduino.h`, `ESP_ARDUINO_VERSION_STR` from `esp_arduino_version.h`), and the `.ino` includes the module's header to call it.
 
 ```cpp
+// build_identity.h
+#pragma once
+void printBuildIdentity();
+```
+
+```cpp
+// MySketch.ino
+#include "build_identity.h"
+
+void setup() {
+  Serial.begin(115200);
+  printBuildIdentity();
+}
+
+void loop() {}
+```
+
+```cpp
+// build_identity.cpp
+#include "build_identity.h"
 #include <Arduino.h>
 #include "esp_arduino_version.h"
 #include "esp_app_desc.h"
