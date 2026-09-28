@@ -66,6 +66,18 @@ def verify_prepared(rundir, expected):
             "invocation.json differs from what the current configuration prepares for this attempt")
 
 
+def require_unreported(rundir):
+    require(not os.path.lexists(rundir / "report.json"),
+            "The run directory already holds report.json; ingest it instead of launching again")
+
+
+def remaining_seconds(deadline):
+    """Seconds left before the reservation's absolute deadline in the ledger; refuses once it passed."""
+    remaining = (feedback.instant(deadline) - current_time()).total_seconds()
+    require(remaining > 0, "The reservation's deadline has passed; record the attempt with abandon")
+    return remaining
+
+
 def prepared_run(directory, config, rundir, root, timeout=None):
     """Check every launch precondition and return what the launch needs; write nothing."""
     harness.config_valid(config)
@@ -116,12 +128,10 @@ def prepared_run(directory, config, rundir, root, timeout=None):
     require(estimate["headroom_tokens"] >= 0,
             f"The prepared run needs about {estimate['required_tokens']} tokens, but the current configuration "
             f"serves a {estimate['served_context_window']}-token window; record the attempt with abandon")
-    require(not os.path.lexists(rundir / "report.json"),
-            "The run directory already holds report.json; ingest it instead of launching again")
+    require_unreported(rundir)
     require(not os.path.lexists(rundir / MARKER),
             f"The run directory was already launched ({MARKER} exists); record the attempt with ingest or abandon")
-    remaining = (feedback.instant(attempt["deadline"]) - current_time()).total_seconds()
-    require(remaining > 0, "The reservation's deadline has passed; record the attempt with abandon")
+    remaining = remaining_seconds(attempt["deadline"])
     return {"dispatch_id": state["pending"], "argv": plan["argv"], "names": plan["required_environment"],
             "environment": child_environment(plan["required_environment"]), "deadline": attempt["deadline"],
             "bound": remaining if timeout is None else min(float(timeout), remaining), "rundir": rundir,
@@ -172,6 +182,7 @@ def launch(directory, config, rundir, root, timeout=None):
     run = prepared_run(directory, config, rundir, root, timeout)
     marker = run["rundir"] / MARKER
     timed_out = interrupted = False
+    bound = run["bound"]
     with Interrupts() as interrupts:
         interrupts.holding = True
         # Exclusive creation is the guard: this run directory launches once. It holds names only.
@@ -184,6 +195,8 @@ def launch(directory, config, rundir, root, timeout=None):
         try:
             # Checked again once the marker is held, so a change after the precondition check is caught.
             verify_prepared(run["rundir"], run["expected"])
+            require_unreported(run["rundir"])
+            remaining_seconds(run["deadline"])
         except (ValueError, OSError):
             marker.unlink()  # Nothing ran, so the run directory is not spent.
             raise
@@ -199,7 +212,10 @@ def launch(directory, config, rundir, root, timeout=None):
                     interrupts.holding = False
                     if interrupts.pending:
                         raise KeyboardInterrupt
-                    timed_out = wait_within(process, run["bound"])
+                    # Measured from the absolute deadline again, so start-up time counts against it.
+                    left = (feedback.instant(run["deadline"]) - current_time()).total_seconds()
+                    bound = max(0.0, left if timeout is None else min(float(timeout), left))
+                    timed_out = wait_within(process, bound)
                 finally:
                     interrupts.holding = True  # The teardown in own() completes before any interrupt acts.
         except KeyboardInterrupt:
@@ -217,7 +233,7 @@ def launch(directory, config, rundir, root, timeout=None):
               else "REPORT_WRITTEN" if present else "NO_REPORT")
     return {"status": status, "dispatch_id": run["dispatch_id"], "started": True,
             "harness_exit_code": process.returncode, "tree_stopped": True, "report_present": present,
-            "next_action": "ingest" if present else "abandon", "bound_seconds": round(run["bound"], 3),
+            "next_action": "ingest" if present else "abandon", "bound_seconds": round(bound, 3),
             "environment_names": run["names"], "recorded_in_ledger": False, "independent_acceptance": False}
 
 

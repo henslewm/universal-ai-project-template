@@ -349,6 +349,62 @@ class LauncherRunTests(LauncherBase):
         self.assertIsNone(self.observed(), "a run directory changed after the check must not start the harness")
         self.assertFalse((rundir / "launch.json").exists(), "nothing ran, so the run directory is not spent")
 
+    def test_a_report_or_expiry_after_the_check_is_caught_before_the_start(self):
+        # PR #70 Codex round 3: report absence and the deadline are rechecked once the marker is held.
+        checked = launcher.prepared_run
+        for name, expected in (("report", "already holds report.json"), ("expiry", "deadline has passed")):
+            with self.subTest(case=name):
+                self.ledger = self.fresh_ledger(f"ledger-{name}")
+                prepared = self.prepare(f"run-{name}")
+                rundir = Path(prepared["destination"])
+                self.mode("report")
+
+                def changed_after_check(*args, **kwargs):
+                    run = checked(*args, **kwargs)
+                    if name == "report":
+                        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet)
+                        wp.write_new(rundir / "report.json", json.dumps(value))
+                    else:
+                        late = mock.patch.object(launcher, "current_time",
+                                                 return_value=launcher.current_time() + timedelta(days=1))
+                        late.start()
+                        self.addCleanup(late.stop)
+                    return run
+
+                with self.environment(), mock.patch.object(launcher, "prepared_run", changed_after_check):
+                    code, out, err = self.run_cli(rundir)
+                self.assertEqual(code, 1, out)
+                self.assertIn(expected, err)
+                self.assertIsNone(self.observed(), "the harness must not start")
+                self.assertFalse((rundir / "launch.json").exists(), "nothing ran, so the run directory is not spent")
+                mock.patch.stopall()
+
+    def test_the_wait_is_anchored_to_the_reservation_deadline(self):
+        # PR #70 Codex round 3: time spent starting the harness counts against the deadline.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("hang")
+        deadline = feedback.instant(feedback.replay(self.ledger)[0]["attempts"][-1]["deadline"])
+        tree = launcher.acceptance.ProcessTree
+        original = tree.launch
+
+        def slow_start(*args, **kwargs):
+            process = original(*args, **kwargs)
+            late = mock.patch.object(launcher, "current_time", return_value=deadline - timedelta(seconds=1))
+            late.start()
+            self.addCleanup(late.stop)
+            return process
+
+        started = time.monotonic()
+        with self.environment(), mock.patch.object(tree, "launch", slow_start):
+            code, out, err = self.run_cli(rundir, "--timeout-seconds", "20")
+        mock.patch.stopall()
+        self.assertEqual(code, 2, err)
+        outcome = json.loads(out)
+        self.assertEqual(outcome["status"], "TIMED_OUT")
+        self.assertLessEqual(outcome["bound_seconds"], 1.5)
+        self.assertLess(time.monotonic() - started, 12, "the wait must end at the reservation deadline")
+
     def test_a_run_directory_changed_during_the_run_is_reported_not_trusted(self):
         prepared = self.prepare()
         rundir = Path(prepared["destination"])
