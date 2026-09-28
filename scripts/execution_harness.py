@@ -11,6 +11,7 @@ import sys
 from decimal import ROUND_CEILING
 from pathlib import Path, PureWindowsPath
 
+import cli_exit
 import feedback
 import model_router as router
 import work_packet as wp
@@ -590,4 +591,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

@@ -9,6 +9,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+import cli_exit
 from validate_bootstrap import validate as validate_bootstrap
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -186,4 +187,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

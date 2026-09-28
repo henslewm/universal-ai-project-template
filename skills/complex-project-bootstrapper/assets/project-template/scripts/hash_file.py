@@ -8,6 +8,8 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
+import cli_exit
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -29,4 +31,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

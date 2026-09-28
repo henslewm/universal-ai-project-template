@@ -7,6 +7,8 @@ import os
 import shutil
 from pathlib import Path
 
+import cli_exit
+
 ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / 'skills/complex-project-bootstrapper'
 # 'Claude outputs' is where the Claude desktop app saves session artifacts when the working
@@ -34,7 +36,7 @@ def sync(check: bool = False) -> list[str]:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
 
-    for name in ('bootstrap_project.py', 'bootstrap_gate.py', 'validate_bootstrap.py', 'validate_project.py'):
+    for name in ('bootstrap_project.py', 'bootstrap_gate.py', 'validate_bootstrap.py', 'validate_project.py', 'cli_exit.py'):
         copy(ROOT / 'scripts' / name, SKILL / 'scripts' / name)
     for source in files_under(SKILL):
         for native in ('.agents/skills', '.claude/skills'):
@@ -58,4 +60,4 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

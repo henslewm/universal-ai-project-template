@@ -118,6 +118,37 @@ Use [`WORK_PACKET_PROTOCOL.md`](WORK_PACKET_PROTOCOL.md) to define bounded tasks
 └── tests/
 ```
 
+## CLI exit codes
+
+Every `scripts/*.py` command follows one exit-code policy (ADR-072). Adopting it changed no command's existing code.
+
+| Code | Meaning |
+|---|---|
+| 0 | Success, or an outcome the command reports in its output. A command can exit 0 on a hold, as the table below shows, so read its JSON `status`. |
+| 1 | A handled refusal: invalid input found after argument parsing, a failed validation, or a refused operation. The reason is printed. A missing `jsonschema` also exits 1, with the install instruction. |
+| 2 | A not-OK outcome from one of three sources. An argparse usage error prints usage on stderr and nothing on stdout. A domain stop or hold prints JSON with `status`, or with `valid: false`. `validate_bootstrap.py` exits 2 when it cannot read or parse its file. Tell them apart by stdout, never by the code alone. |
+| 130 | Interrupted (Ctrl+C) after the command has started. No traceback is printed. |
+
+| Command | 0 | 1 | 2 (besides usage errors) |
+|---|---|---|---|
+| `acceptance.py` | JSON result with any other `status` | `Acceptance refused: …` | JSON `status` `ESCALATION_REQUIRED`, `ARCHITECTURE_CONFLICT` or `USER_REJECTED` |
+| `bootstrap_gate.py` | `Bootstrap state: …` | `BOOTSTRAP BLOCKED: …` (stdout) | — |
+| `bootstrap_project.py` | Project generated | `BOOTSTRAP BLOCKED: …`, or a stated reason such as an unrecognized template, a non-empty destination, invalid intake or a generated project that failed validation | Its `parser.error` refusals: no `--interactive` or `--answers`, existing bootstrap state, an initialized project, malformed answers, no canonical profile |
+| `execution_harness.py` | JSON result. A hold other than `BLOCKED` (such as `NEEDS_DECISION`, `NEEDS_ARCHITECT` or `HARNESS_UNAVAILABLE`) also exits 0 | `Execution harness refused: …` | JSON `status` `BLOCKED` |
+| `family_law.py`, `software_hardware.py` | JSON result | `Domain rule refused: …` | — |
+| `feedback.py` | JSON result. `next` exits 0 only for `DISPATCH`; every other command exits 0 whatever state it records | `Feedback control refused: …` | `next` with any other `status`, a recorded hold such as `BLOCKED`, `NEEDS_ARCHITECT` or `NEEDS_DECISION` |
+| `github_ledger.py` | JSON result | `GitHub ledger refused: …`, including GitHub unavailable and incomplete evidence | JSON `valid: false`: drift found by `audit`, listed in `errors` |
+| `hash_file.py` | File metadata | — | `Not a file` (an argparse error) |
+| `model_router.py` | `validate-config`, `verify`, and `route` when `ROUTED` | `Model routing failed: …` | `route` JSON `status` `STOP`; the record is still saved |
+| `sync_skills.py` | Synchronized, or verified with `--check` | `BOOTSTRAP PAYLOAD DRIFT` with `--check` | — |
+| `validate_bootstrap.py` | `BOOTSTRAP VALID` | `BOOTSTRAP INVALID` with reasons, or `--require-active` on a path that is not a project's `config/bootstrap.json` | `BOOTSTRAP INVALID: <read error>`: the file is missing, unreadable or not JSON |
+| `validate_project.py` | `VALIDATION PASSED` | `VALIDATION FAILED` | — (it takes no arguments) |
+| `work_packet.py` | Valid, rendered or recorded | `WORK PACKET INVALID: …` | — |
+
+An interrupt stops work without undoing it. Every command routes through `scripts/cli_exit.py`, which reports the interrupt and exits 130; it never writes, repairs or removes a ledger, report or evidence file. Records written before the interrupt stay, so check `status` before retrying. An event being appended to an acceptance or feedback ledger, and a new file being created by the packet, routing, acceptance, harness or GitHub-ledger commands, is finished before the interrupt takes effect. The bootstrap commands give no such guarantee: an interrupted `bootstrap_project.py` can leave a partly generated destination, which holds no approval and must be removed before generating again, and an interrupted `bootstrap_gate.py review` can leave approval revoked until review is run again.
+
+During `acceptance.py run-checks`, the check's owner ends its whole process tree before the interrupt is reported. No checks are recorded, unless the interrupt arrived while the finished results were being written. If the tree cannot be confirmed stopped, the run is refused (exit 1) instead of reported as cancelled. A further Ctrl+C during that teardown waits until the teardown finishes, which is bounded. On Windows, Ctrl+C also reaches a check that shares the console; the owner still ends whatever remains through the check's job object. Stopping a process never records an outcome: a dispatched attempt is still closed only with `execution_harness.py abandon` (ADR-011), and acceptance still needs its gates. An unexpected exception exits 1 with a traceback; that is a defect report, not a refusal.
+
 ## Operating rule
 
 **GitHub holds durable state; chats perform work.** A chat is not the record unless its decisions, sources, and next actions are written back to the repository.

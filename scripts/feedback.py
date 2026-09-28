@@ -11,6 +11,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import cli_exit
 import model_router as router
 import validate_bootstrap as bootstrap
 import work_packet as wp
@@ -510,11 +511,12 @@ def append(directory, kind, data, timestamp=None, previous_state=None):
     next_state = apply(copy.deepcopy(state), event)
     event["hash"] = router.digest(event)
     serialized = json.dumps(event, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-    with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
-        output.write(serialized)
-        output.flush()
-        os.fsync(output.fileno())
-    sync_directory(directory)
+    with cli_exit.interrupts_held():  # Ctrl+C never leaves an event cut short (#31).
+        with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
+            output.write(serialized)
+            output.flush()
+            os.fsync(output.fileno())
+        sync_directory(directory)
     return next_state
 
 
@@ -663,4 +665,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

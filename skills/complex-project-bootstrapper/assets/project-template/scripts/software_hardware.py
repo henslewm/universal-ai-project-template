@@ -16,6 +16,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import cli_exit
+
 try:
     from jsonschema import Draft202012Validator, FormatChecker
 except ImportError:
@@ -496,4 +498,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

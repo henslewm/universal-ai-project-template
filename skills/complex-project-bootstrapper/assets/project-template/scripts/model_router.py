@@ -10,6 +10,7 @@ import sys
 from decimal import Decimal, DecimalException, localcontext
 from pathlib import Path
 
+import cli_exit
 import work_packet as wp
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -307,4 +308,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

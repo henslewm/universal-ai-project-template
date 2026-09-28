@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""The one Ctrl+C policy for every scripts/*.py command line (ADR-072; README "CLI exit codes").
+
+A CLI returns 0 for success, 1 for a handled refusal and 2 for a not-OK outcome itself; this
+module adds only what is shared: an interrupt returns 130 without a traceback, and the few
+steps an interrupt must not cut in half hold it until they finish.
+"""
+from __future__ import annotations
+
+import contextlib
+import signal
+import sys
+import threading
+
+INTERRUPTED = 130
+
+
+def run(main, *args):
+    """Call a CLI entry point, returning its exit code, or INTERRUPTED on Ctrl+C.
+
+    Owned work is stopped by its owner while the interrupt propagates: a check's process tree
+    is ended and confirmed stopped by `acceptance.ProcessTree.own`, which refuses the run
+    instead when it cannot confirm that. So an interrupt that reaches here has already been
+    through that teardown. This reports and returns; it never writes, repairs or removes a
+    ledger, report or evidence file.
+    """
+    try:
+        return main(*args)
+    except KeyboardInterrupt:
+        print("Interrupted. Records written before the interrupt are kept; "
+              "check the ledger or output status before retrying.", file=sys.stderr)
+        return INTERRUPTED
+
+
+@contextlib.contextmanager
+def interrupts_held():
+    """Hold a Ctrl+C that arrives inside the block and raise it once the block completes.
+
+    For the few steps an interrupt must not split: a launched check reaching its owner, the
+    owner confirming the check's tree stopped, and a ledger event or new output file being
+    written whole. Yields the list of held signals, so the block can see whether one arrived.
+    If the block raises, that exception propagates and a held interrupt is dropped with it, so
+    a refusal is never masked. Python raises KeyboardInterrupt only in the main thread and
+    installs handlers only there; elsewhere, or when SIGINT is not Python's default handler
+    (ignored, or replaced by an embedding program), the block runs unchanged.
+    """
+    held = []
+    if (threading.current_thread() is not threading.main_thread()
+            or signal.getsignal(signal.SIGINT) is not signal.default_int_handler):
+        yield held
+        return
+    previous = signal.signal(signal.SIGINT, lambda signum, frame: held.append(signum))
+    try:
+        yield held
+    finally:
+        signal.signal(signal.SIGINT, previous)
+    if held:
+        raise KeyboardInterrupt

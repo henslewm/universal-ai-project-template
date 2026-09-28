@@ -221,4 +221,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    import cli_exit  # Only the command line needs it; the library stays dependency-free.
+
+    raise SystemExit(cli_exit.run(main))

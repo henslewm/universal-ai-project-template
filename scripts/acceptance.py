@@ -15,6 +15,7 @@ import threading
 import time
 from pathlib import Path
 
+import cli_exit
 import execution_harness as harness
 import feedback
 import model_router as router
@@ -519,11 +520,12 @@ def append(directory, kind, data, timestamp=None, previous_state=None):
     next_state = apply(copy.deepcopy(state), event)
     event["hash"] = router.digest(event)
     serialized = json.dumps(event, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-    with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
-        output.write(serialized)
-        output.flush()
-        os.fsync(output.fileno())
-    feedback.sync_directory(directory)
+    with cli_exit.interrupts_held():  # Ctrl+C never leaves an event cut short (#31).
+        with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
+            output.write(serialized)
+            output.flush()
+            os.fsync(output.fileno())
+        feedback.sync_directory(directory)
     return next_state
 
 
@@ -552,6 +554,9 @@ def stream_digest(stdout_hex, stderr_hex):
 # After a check ends or is terminated, its pipes are drained for at most this long; a
 # descendant that still holds them after that is killed with the whole tree, not waited on.
 DRAIN_GRACE_SECONDS = 5
+# A running check is waited on in slices this long: on Windows one long wait cannot see Ctrl+C
+# until it returns, so a check that ignores the interrupt would hold the controller to its timeout.
+WAIT_SLICE_SECONDS = 0.2
 PROC_ROOT = Path("/proc")
 
 
@@ -669,15 +674,25 @@ class ProcessTree:
         can outlive it, and the caller learns whether the tree was confirmed stopped. An error
         raised by the teardown itself propagates: it is never converted into a check result,
         because a tree that could not be confirmed stopped must refuse the run, not fail the check.
+        Ctrl+C is one more exit (#31): the teardown holds a further interrupt until it has
+        finished, and an interrupt leaves as a cancellation only once the tree is confirmed
+        stopped; otherwise the run refuses, as it would on any other exit.
         """
         tree = cls(process)  # Refuses, with the suspended check killed, if it cannot be isolated.
         tree.stopped = None
+        interrupted = False
         try:
             yield tree
+        except KeyboardInterrupt:
+            interrupted = True
+            raise
         finally:
-            if process.poll() is None:
-                tree.kill()
-            tree.stopped = tree.close()
+            with cli_exit.interrupts_held() as held:
+                if process.poll() is None:
+                    tree.kill()
+                tree.stopped = tree.close()
+                require(tree.stopped or not (interrupted or held),
+                        "Interrupted, but the check's process tree could not be confirmed stopped; refusing")
 
     def _windows_resume(self):
         import ctypes
@@ -862,24 +877,34 @@ def bounded_capture(argv, cwd, timeout, bound):
     # Only a launch failure is a check result. Once the check exists, an OSError from owning or
     # tearing it down propagates and refuses the run (Codex P1, round 16): converting it into a
     # failed-check record would let the digest run over a tree never confirmed stopped.
-    try:
-        process = ProcessTree.launch(argv, cwd)
-    except OSError as exc:
-        message = str(exc).encode("utf-8")
-        text = message.decode("utf-8")
-        return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
-                "output_truncated": len(text) > bound,
-                "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
-    with ProcessTree.own(process) as tree:
-        readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
-                   threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
-        for reader in readers:
-            reader.start()
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            tree.kill()
+    with contextlib.ExitStack() as owned:
+        # Launch, ownership and draining are one step for Ctrl+C (#31): an interrupt while the
+        # check starts is held until its owner holds the tree, so no launched check is left unowned.
+        with cli_exit.interrupts_held():
+            try:
+                process = ProcessTree.launch(argv, cwd)
+            except OSError as exc:
+                message = str(exc).encode("utf-8")
+                text = message.decode("utf-8")
+                return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
+                        "output_truncated": len(text) > bound,
+                        "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(),
+                                                       hashlib.sha256(message).hexdigest())}
+            tree = owned.enter_context(ProcessTree.own(process))
+            readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
+                       threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
+            for reader in readers:
+                reader.start()
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                process.wait(timeout=max(0.0, min(WAIT_SLICE_SECONDS, deadline - time.monotonic())))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    timed_out = True
+                    tree.kill()
+                    break
         # A descendant that inherited the pipes — whether the check timed out or exited normally
         # and left it behind — would hold the readers open forever. The drain is bounded; a reader
         # still alive after the grace period means the tree is killed and the check is recorded
@@ -1417,4 +1442,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

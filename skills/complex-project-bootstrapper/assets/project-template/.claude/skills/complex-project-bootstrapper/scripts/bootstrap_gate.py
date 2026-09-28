@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import cli_exit
 from validate_bootstrap import (DOMAIN_FIELDS, PROFILES, activation_errors,
                                 architecture_fingerprint, document_hashes, validate)
 
@@ -162,4 +163,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))
