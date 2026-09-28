@@ -1224,6 +1224,15 @@ class VerifyAndCliTests(AcceptanceBase):
         self.assertIn("[OK]", plain.stderr)
         self.assertNotIn("\x1b[", plain.stderr)
 
+    def test_verify_review_is_never_styled_as_success(self):
+        # Codex review of PR #67: a schema-valid verify-review is not an acceptance
+        # decision, so it must classify the same way as validate-config's opposite
+        # number (execution_harness.verify_report) -- pending, not success.
+        kind, _ = acceptance.status_style("verify-review", {"valid": True, "acceptance_granted": False})
+        self.assertEqual(kind, "pending")
+        kind, _ = acceptance.status_style("verify-review", {"valid": False})
+        self.assertEqual(kind, "refusal")
+
     def test_refusal_is_styled_on_stderr_and_stdout_stays_empty(self):
         argv = [sys.executable, str(ROOT / "scripts/acceptance.py"),
                 "--config", str(ROOT / "does-not-exist.json"), "validate-config"]

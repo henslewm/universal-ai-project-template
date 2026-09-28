@@ -1295,9 +1295,13 @@ def status_style(command, result):
     """
     if command == "abandon-review":
         return cli_colors.ABANDONED, "review closed with a recorded reason; no verdict was recorded"
-    if command in {"validate-config", "verify-review"}:
+    if command == "validate-config":
         return cli_colors.SUCCESS if result.get("valid", True) else cli_colors.REFUSAL, \
             "schema-valid" if result.get("valid", True) else "schema validation failed"
+    if command == "verify-review":
+        if not result.get("valid", True):
+            return cli_colors.REFUSAL, "schema validation failed"
+        return cli_colors.PENDING, "review report is schema-valid; this proves the contract holds, it does not accept the work"
     status = result.get("status")
     if status == "ACCEPTED":
         return cli_colors.SUCCESS, "every required acceptance gate passed"
