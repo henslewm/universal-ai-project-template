@@ -13,17 +13,20 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import validate_project  # noqa: E402
 
+# Matches scripts/sync_skills.py's EXCLUDED: caches, local venvs, and the
+# nested payload mirror under 'assets', none of which validate_project.py
+# requires. Independent of Git metadata so this also exercises the checkout
+# shape a --no-git generated project or a source-archive extraction has.
+EXCLUDED_DIR_NAMES = {".git", "__pycache__", ".pytest_cache", ".venv", "venv", "dist", "build", "assets"}
 
-def tracked_copy(destination: Path) -> None:
-    """Copy only Git-tracked files into destination, mirroring a clean checkout."""
-    listing = subprocess.run(
-        ["git", "ls-files"], cwd=ROOT, text=True, capture_output=True, check=True
-    ).stdout.splitlines()
-    for rel in listing:
-        source = ROOT / rel
-        target = destination / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
+
+def repository_copy(destination: Path) -> None:
+    """Copy the repository tree into destination without relying on Git."""
+
+    def ignore(_directory: str, names: list[str]) -> set[str]:
+        return {name for name in names if name in EXCLUDED_DIR_NAMES}
+
+    shutil.copytree(ROOT, destination, ignore=ignore)
 
 
 class MistralWiringTests(unittest.TestCase):
@@ -49,11 +52,11 @@ class MistralWiringTests(unittest.TestCase):
     def test_validator_refuses_a_checkout_missing_the_mistral_master(self) -> None:
         # Before this fix, REQUIRED omitted MASTER_MISTRAL.md, so deleting it from a
         # checkout passed validation. Prove the enforcement is real: build a disposable
-        # tracked-files checkout, delete the master there, and show the validator now
-        # refuses it by name.
+        # checkout, delete the master there, and show the validator now refuses it by
+        # name.
         with tempfile.TemporaryDirectory() as temp:
             destination = Path(temp) / "checkout"
-            tracked_copy(destination)
+            repository_copy(destination)
             (destination / "MASTER_MISTRAL.md").unlink()
             result = subprocess.run(
                 [sys.executable, str(destination / "scripts/validate_project.py")],
