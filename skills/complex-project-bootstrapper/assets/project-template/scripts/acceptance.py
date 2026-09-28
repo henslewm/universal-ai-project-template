@@ -654,9 +654,13 @@ class ProcessTree:
         return cls.CREATE_SUSPENDED if os.name == "nt" else 0
 
     @classmethod
-    def launch(cls, argv, cwd):
-        """Start a check. This is the only step whose OSError means "the check could not run"."""
-        return subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+    def launch(cls, argv, cwd, *, env=None, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+        """Start a check. This is the only step whose OSError means "the check could not run".
+
+        The operator launcher (ADR-073) starts a harness through the same owner, passing its scoped
+        environment and its own streams; the session and suspended-creation flags stay defined here.
+        """
+        return subprocess.Popen(argv, cwd=cwd, env=env, stdin=stdin, stdout=stdout, stderr=stderr, shell=False,
                                 start_new_session=os.name != "nt", creationflags=cls.creation_flags())
 
     @classmethod

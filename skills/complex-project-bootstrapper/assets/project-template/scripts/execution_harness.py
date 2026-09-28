@@ -375,6 +375,14 @@ def brief(context, routing, binding, dispatch_id, paths, startup):
     return document, wp.canonical(document), json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
+def run_paths(destination):
+    """The run-directory layout, defined once for dispatch and the operator launcher."""
+    destination = Path(destination)
+    return {"rundir": destination, "brief": destination / "brief.json",
+            "rules": destination / "BOUNDED_WORKER_RULES.md",
+            "report": destination / "report.json", "workspace": destination / "workspace"}
+
+
 def invocation(harness, binding, paths):
     values = {"provider": binding["provider"], "model": binding["model"],
               "rules": str(paths["rules"]), "brief": str(paths["brief"]),
@@ -406,9 +414,7 @@ def dispatch(directory, config, router_config, request, root, destination):
         return {"status": reserved["status"], "reason": reserved["reason"], "dispatch_id": reserved["dispatch_id"],
                 "prepared": False, "destination": str(destination)}
     destination.mkdir(parents=True, exist_ok=False)
-    paths = {"rundir": destination, "brief": destination / "brief.json",
-             "rules": destination / "BOUNDED_WORKER_RULES.md",
-             "report": destination / "report.json", "workspace": destination / "workspace"}
+    paths = run_paths(destination)
     try:
         binding, harness = binding_for(config, reserved["routing"])
         require(reserved["context"]["contract"] == contract,

@@ -59,7 +59,7 @@ Cline is replaceable. Any harness that accepts a brief path and writes a report 
 - The harness configuration is valid and enabled.
 - The project's `config/bootstrap.json` validates as `ACTIVE` for the packet's profile, which is the check `validate_bootstrap.py --require-active` makes, and its architecture fingerprint equals the ledger's INIT anchor.
 - The ledger has a pending reservation. RUNDIR's `brief.json` names that dispatch and the ledger's current task binding, and the paths it records resolve to RUNDIR.
-- RUNDIR's `invocation.json` is exactly what the current configuration prepares for the reserved resource's binding. An edited invocation, or a binding changed since dispatch, is not run.
+- RUNDIR's `invocation.json` is exactly what the current configuration prepares for the reserved resource's binding. An edited invocation is not run, and neither is one that a configuration change since dispatch would prepare differently.
 - RUNDIR holds no `report.json` and no `launch.json`.
 - The reservation's deadline has not passed.
 - Every variable the binding's `credential_env` names is set and nonempty in the launcher's own environment.
