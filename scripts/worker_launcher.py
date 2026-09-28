@@ -44,12 +44,24 @@ def child_environment(names, source=None):
     return environment
 
 
+def dispatch_record(directory, sequence, head, dispatch_id):
+    """The ledger's DISPATCH plan for the pending reservation, from the event replay just verified."""
+    event = wp.read_json(Path(directory) / f"{sequence:08d}.json")
+    claimed = event.pop("hash", None)
+    require(claimed == head and feedback.router.digest(event) == head,
+            "The feedback ledger changed while the launch was being checked")
+    plan = event["data"].get("plan") if event.get("kind") == "DISPATCH" else None
+    require(isinstance(plan, dict) and plan["routing"]["decision"]["decision_id"] == dispatch_id,
+            "The pending reservation is not the ledger's latest dispatch")
+    return plan
+
+
 def prepared_run(directory, config, rundir, root, timeout=None):
     """Check every launch precondition and return what the launch needs; write nothing."""
     harness.config_valid(config)
     require(config["enabled"], "Execution harness dispatch is disabled")
     require(timeout is None or timeout > 0, "--timeout-seconds must be positive")
-    state = feedback.replay(directory)[0]
+    state, sequence, head = feedback.replay(directory)
     require(state["pending"], "No reserved dispatch is awaiting a launch")
     attempt = state["attempts"][-1]
     try:
@@ -61,8 +73,6 @@ def prepared_run(directory, config, rundir, root, timeout=None):
     brief = wp.read_json(rundir / "brief.json")
     require(isinstance(brief, dict) and brief.get("dispatch_id") == state["pending"],
             "The run directory was not prepared for the pending dispatch")
-    require(brief.get("binding") == feedback.binding(state["packet"]),
-            "The run directory's brief is bound to a different task revision")
     recorded = brief.get("paths")
     require(isinstance(recorded, dict) and isinstance(recorded.get("brief"), str),
             "The brief does not record its run directory")
@@ -74,6 +84,17 @@ def prepared_run(directory, config, rundir, root, timeout=None):
     bindings = [item for item in config["bindings"] if item["resource_id"] == attempt["resource_id"]]
     require(len(bindings) == 1, f"No harness binding for reserved resource {attempt['resource_id']}")
     selected = next(item for item in config["harnesses"] if item["id"] == bindings[0]["harness_id"])
+    # The whole brief is what dispatch renders from the ledger's own record of this reservation, so an
+    # edited contract, context or startup text never reaches the worker (PR #70 Codex round 1).
+    reserved = dispatch_record(directory, sequence, head, state["pending"])
+    startup = harness.startup_bundle(root, reserved["context"]["contract"], config)
+    readable = harness.brief(reserved["context"], reserved["routing"], bindings[0], state["pending"],
+                             paths, startup)[2]
+    require((rundir / "brief.json").read_bytes().decode("utf-8") == readable,
+            "brief.json differs from what dispatch renders for this reservation, its binding and its startup sources")
+    require((rundir / "BOUNDED_WORKER_RULES.md").read_bytes().decode("utf-8")
+            == "".join(startup["rules"]["content_lines"]),
+            "BOUNDED_WORKER_RULES.md differs from the bounded worker rules")
     plan = harness.invocation(selected, bindings[0], paths)
     require(wp.read_json(rundir / "invocation.json") == plan,
             "invocation.json differs from what the current configuration prepares for this attempt")

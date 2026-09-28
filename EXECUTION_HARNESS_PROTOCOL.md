@@ -58,8 +58,9 @@ Cline is replaceable. Any harness that accepts a brief path and writes a report 
 
 - The harness configuration is valid and enabled.
 - The project's `config/bootstrap.json` validates as `ACTIVE` for the packet's profile, which is the check `validate_bootstrap.py --require-active` makes, and its architecture fingerprint equals the ledger's INIT anchor.
-- The ledger has a pending reservation. RUNDIR's `brief.json` names that dispatch and the ledger's current task binding, and the paths it records resolve to RUNDIR.
-- RUNDIR's `invocation.json` is exactly what the current configuration prepares for the reserved resource's binding. An edited invocation is not run, and neither is one that a configuration change since dispatch would prepare differently.
+- The ledger has a pending reservation, and it is the ledger's latest DISPATCH event. The paths RUNDIR's `brief.json` records resolve to RUNDIR.
+- RUNDIR's `brief.json` is byte for byte what dispatch renders from that event's recorded contract, worker context and routing, the reserved resource's current binding and the current startup sources. Its `BOUNDED_WORKER_RULES.md` is the brief's rules. An edited contract, context or startup text is therefore refused, and so is a change since dispatch to the binding's provider or model, the worker rules, a worker instruction or a governing document.
+- RUNDIR's `invocation.json` is exactly what the current configuration prepares for that binding, so an edited invocation, or a harness command or argument changed in the configuration alone, is refused. Nothing immutable records the prepared invocation, though: the feedback ledger records the routing, not the harness configuration. An operator who changes the configuration's command and edits `invocation.json` to match is therefore run as configured. The configuration is the operator's authority (ADR-010), and binding the invocation to dispatch would need a ledger format change.
 - RUNDIR holds no `report.json` and no `launch.json`.
 - The reservation's deadline has not passed.
 - Every variable the binding's `credential_env` names is set and nonempty in the launcher's own environment.
