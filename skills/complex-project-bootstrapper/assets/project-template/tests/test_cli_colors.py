@@ -103,6 +103,36 @@ class StatusLineTests(unittest.TestCase):
         self.assertEqual(out.getvalue(), "")
         self.assertIn("[OK] done", err.getvalue())
 
+    def test_write_status_never_falls_through_to_stdout_when_stderr_is_absent(self):
+        # With fd 2 closed at startup Python sets sys.stderr to None, and print(file=None)
+        # writes to stdout -- which would corrupt the JSON result there.
+        out = io.StringIO()
+        old_stdout, old_stderr = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = out, None
+        try:
+            cli_colors.write_status(cli_colors.SUCCESS, "done")
+        finally:
+            sys.stdout, sys.stderr = old_stdout, old_stderr
+        self.assertEqual(out.getvalue(), "")
+
+    def test_write_status_is_best_effort_on_an_unwritable_stream(self):
+        # ADR-072: a stderr that cannot be written must never change a command's exit code.
+        class Broken:
+            def isatty(self):
+                return False
+
+            def write(self, _text):
+                raise OSError("No space left on device")
+
+            def flush(self):
+                raise OSError("No space left on device")
+
+        for error in (OSError, ValueError):
+            with self.subTest(error=error.__name__):
+                stream = Broken()
+                stream.write = lambda _text, error=error: (_ for _ in ()).throw(error("closed"))
+                cli_colors.write_status(cli_colors.REFUSAL, "refused", stream=stream)
+
 
 if __name__ == "__main__":
     unittest.main()

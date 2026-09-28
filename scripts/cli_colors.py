@@ -130,6 +130,15 @@ def status_line(kind: str, message: str, *, enabled: bool | None = None, stream=
 
 
 def write_status(kind: str, message: str, *, stream=None, enabled: bool | None = None) -> None:
-    """Print one status line to `stream` (default stderr). Never writes to stdout."""
+    """Print one status line to `stream` (default stderr), best-effort. Never writes to stdout.
+
+    A closed stderr is None, and print(file=None) would write to stdout; an unwritable one
+    must not change the command's exit code (ADR-072), so both are silently skipped.
+    """
     stream = sys.stderr if stream is None else stream
-    print(status_line(kind, message, enabled=enabled, stream=stream), file=stream)
+    if stream is None:
+        return
+    try:
+        print(status_line(kind, message, enabled=enabled, stream=stream), file=stream)
+    except (OSError, ValueError):
+        pass
