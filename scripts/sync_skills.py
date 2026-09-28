@@ -34,6 +34,12 @@ def files_under(root: Path, every_file: bool = False):
         dirs[:] = sorted(name for name in dirs
                          if name not in skipped and not is_junction(Path(directory) / name))
         for name in sorted(files):
+            # A symlinked file is never a legitimate copy source, wherever under `root` it is
+            # found: files_under(ROOT) walks the whole repository, including the native mirror
+            # directories that unlink_all reports but, under --check, does not yet remove, so a
+            # link left there must not be picked up here and read through as if it were content.
+            if (Path(directory) / name).is_symlink():
+                continue
             # EXCLUDED names are excluded as files too: in a git worktree or submodule `.git`
             # is a pointer file, and it must never become payload.
             if every_file or (name not in EXCLUDED and not name.endswith(('.pyc', '.zip'))

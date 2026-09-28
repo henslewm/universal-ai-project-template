@@ -297,6 +297,33 @@ class SyncSkillsTests(unittest.TestCase):
             drift = sync_skills.sync(check=True)
         self.assertIn("skills/complex-project-bootstrapper/assets/project-template/README.md", drift)
 
+    def test_a_native_mirror_file_link_is_never_read_as_an_asset_source(self):
+        # PR #61 round 13: files_under(ROOT) walks the whole repository, which includes the
+        # native mirror directories -- unlink_all reports a link there under --check but does not
+        # yet remove it, so the later files_under(ROOT)/asset copy pass could pick that same link
+        # up as a "source" and read through it via the fast path's source.read_bytes().
+        outside = self.root.parent / (self.root.name + "-outside-source-read")
+        outside.mkdir()
+        self.addCleanup(lambda: __import__("shutil").rmtree(outside, ignore_errors=True))
+        secret = outside / "unreadable.md"
+        secret.write_text("outside\n", encoding="utf-8")
+        native = self.root / ".agents/skills/complex-project-bootstrapper/SKILL.md"
+        native.unlink()
+        try:
+            native.symlink_to(secret)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symbolic links are unavailable on this host")
+        original = Path.read_bytes
+
+        def guarded(path):
+            if Path(path).resolve() == secret.resolve():
+                raise AssertionError("check mode read through a link used as a copy source")
+            return original(path)
+
+        with mock.patch.object(Path, "read_bytes", guarded):
+            drift = sync_skills.sync(check=True)
+        self.assertIn(native.relative_to(self.root).as_posix(), drift)
+
     def test_a_hard_linked_target_is_replaced_not_written_through(self):
         # A mirror file sharing its inode with another name must not change that other file (#62).
         target = self.skill / "assets/project-template/README.md"
