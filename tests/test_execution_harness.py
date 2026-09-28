@@ -20,6 +20,7 @@ from test_model_router import make_packet, resource
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+import cli_colors
 import execution_harness as harness
 
 wp = harness.wp
@@ -770,6 +771,30 @@ class HarnessCliColorTests(unittest.TestCase):
         self.assertEqual(out.getvalue(), "")
         self.assertIn("[REFUSED]", err.getvalue())
         self.assertIn("Execution harness refused:", err.getvalue())
+
+    def test_a_blocked_or_stalled_dispatch_is_a_refusal_not_pending(self):
+        # Codex review of PR #67: BLOCKED/NEEDS_ARCHITECT/ARCHITECTURE_HOLD need
+        # reconciliation or architect action, not "in progress" pending styling.
+        for status in ("BLOCKED", "NEEDS_ARCHITECT", "ARCHITECTURE_HOLD"):
+            with self.subTest(status=status):
+                kind, _ = harness.status_style("dispatch", {"status": status})
+                self.assertEqual(kind, cli_colors.REFUSAL)
+        kind, _ = harness.status_style("dispatch", {"status": "PREPARED"})
+        self.assertEqual(kind, cli_colors.PENDING)
+
+    def test_every_non_pass_report_outcome_is_a_refusal(self):
+        # Codex review of PR #67: BLOCKED/NEEDS_ESCALATION/ARCHITECTURE_CONFLICT/
+        # PROVIDER_UNAVAILABLE are adverse worker outcomes, not merely unaccepted ones.
+        for outcome in ("FAIL", "BLOCKED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT", "PROVIDER_UNAVAILABLE"):
+            with self.subTest(outcome=outcome):
+                kind, _ = harness.status_style("verify-report", {"outcome": outcome})
+                self.assertEqual(kind, cli_colors.REFUSAL)
+                kind, _ = harness.status_style("ingest", {"outcome": outcome})
+                self.assertEqual(kind, cli_colors.REFUSAL)
+        kind, _ = harness.status_style("verify-report", {"outcome": "PASS"})
+        self.assertEqual(kind, cli_colors.PENDING)
+        kind, _ = harness.status_style("ingest", {"outcome": "PASS"})
+        self.assertEqual(kind, cli_colors.PENDING)
 
 
 if __name__ == "__main__":

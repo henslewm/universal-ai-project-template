@@ -547,6 +547,13 @@ def abandon(directory, config, reason):
             "evidence_preserved": True, "independent_acceptance": False}
 
 
+# Every non-PASS report outcome (config/feedback.schema.json) is an adverse worker
+# result, not merely an unaccepted one, and a dispatch stopped at one of these
+# ledger statuses needs reconciliation or architect action, not "in progress."
+_REFUSAL_OUTCOMES = {"FAIL", "BLOCKED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT", "PROVIDER_UNAVAILABLE"}
+_REFUSAL_DISPATCH_STATUSES = {"BLOCKED", "NEEDS_ARCHITECT", "ARCHITECTURE_HOLD"}
+
+
 def status_style(command, result):
     """Classify a command's result into a human status kind and an explicit message.
 
@@ -562,16 +569,16 @@ def status_style(command, result):
         status = result.get("status")
         if status == "PREPARED":
             return cli_colors.PENDING, "prepared for an operator-run harness; not executed, not accepted"
-        if status == "HARNESS_UNAVAILABLE":
-            return cli_colors.REFUSAL, result.get("reason", "harness preparation refused")
+        if status == "HARNESS_UNAVAILABLE" or status in _REFUSAL_DISPATCH_STATUSES:
+            return cli_colors.REFUSAL, result.get("reason", f"reservation stopped at {status}")
         return cli_colors.PENDING, f"reservation stopped at {status}; nothing was dispatched"
     if command == "ingest":
-        if result.get("outcome") == "FAIL":
-            return cli_colors.REFUSAL, "worker report recorded as FAIL"
+        if result.get("outcome") in _REFUSAL_OUTCOMES:
+            return cli_colors.REFUSAL, f"worker report recorded as {result.get('outcome')}"
         return cli_colors.PENDING, "worker report recorded in the ledger; independent acceptance is separate"
     if command == "verify-report":
-        if result.get("outcome") == "FAIL":
-            return cli_colors.REFUSAL, "report failed its own contract's validation"
+        if result.get("outcome") in _REFUSAL_OUTCOMES:
+            return cli_colors.REFUSAL, f"report outcome is {result.get('outcome')}, not a passing result"
         return cli_colors.PENDING, "report is schema-valid; this proves the contract holds, it does not accept the work"
     return cli_colors.PENDING, "command completed"
 
