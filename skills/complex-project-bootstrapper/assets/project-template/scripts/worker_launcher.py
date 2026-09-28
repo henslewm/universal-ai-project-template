@@ -45,15 +45,25 @@ def child_environment(names, source=None):
 
 
 def dispatch_record(directory, sequence, head, dispatch_id):
-    """The ledger's DISPATCH plan for the pending reservation, from the event replay just verified."""
+    """The ledger's DISPATCH data for the pending reservation, from the event replay just verified."""
     event = wp.read_json(Path(directory) / f"{sequence:08d}.json")
     claimed = event.pop("hash", None)
     require(claimed == head and feedback.router.digest(event) == head,
             "The feedback ledger changed while the launch was being checked")
-    plan = event["data"].get("plan") if event.get("kind") == "DISPATCH" else None
-    require(isinstance(plan, dict) and plan["routing"]["decision"]["decision_id"] == dispatch_id,
+    data = event["data"] if event.get("kind") == "DISPATCH" else {}
+    require(isinstance(data.get("plan"), dict) and data["plan"]["routing"]["decision"]["decision_id"] == dispatch_id,
             "The pending reservation is not the ledger's latest dispatch")
-    return plan
+    return data
+
+
+def verify_prepared(rundir, expected):
+    """The run directory still holds exactly the brief, rules and invocation the launcher verified."""
+    require((rundir / "brief.json").read_bytes().decode("utf-8") == expected["brief"],
+            "brief.json differs from what dispatch renders for this reservation, its binding and its startup sources")
+    require((rundir / "BOUNDED_WORKER_RULES.md").read_bytes().decode("utf-8") == expected["rules"],
+            "BOUNDED_WORKER_RULES.md differs from the bounded worker rules")
+    require(wp.read_json(rundir / "invocation.json") == expected["invocation"],
+            "invocation.json differs from what the current configuration prepares for this attempt")
 
 
 def prepared_run(directory, config, rundir, root, timeout=None):
@@ -86,18 +96,26 @@ def prepared_run(directory, config, rundir, root, timeout=None):
     selected = next(item for item in config["harnesses"] if item["id"] == bindings[0]["harness_id"])
     # The whole brief is what dispatch renders from the ledger's own record of this reservation, so an
     # edited contract, context or startup text never reaches the worker (PR #70 Codex round 1).
-    reserved = dispatch_record(directory, sequence, head, state["pending"])
+    recorded_dispatch = dispatch_record(directory, sequence, head, state["pending"])
+    reserved = recorded_dispatch["plan"]
     startup = harness.startup_bundle(root, reserved["context"]["contract"], config)
     readable = harness.brief(reserved["context"], reserved["routing"], bindings[0], state["pending"],
                              paths, startup)[2]
-    require((rundir / "brief.json").read_bytes().decode("utf-8") == readable,
-            "brief.json differs from what dispatch renders for this reservation, its binding and its startup sources")
-    require((rundir / "BOUNDED_WORKER_RULES.md").read_bytes().decode("utf-8")
-            == "".join(startup["rules"]["content_lines"]),
-            "BOUNDED_WORKER_RULES.md differs from the bounded worker rules")
+    rules = "".join(startup["rules"]["content_lines"])
     plan = harness.invocation(selected, bindings[0], paths)
-    require(wp.read_json(rundir / "invocation.json") == plan,
-            "invocation.json differs from what the current configuration prepares for this attempt")
+    expected = {"brief": readable, "rules": rules, "invocation": plan}
+    verify_prepared(rundir, expected)
+    # The current configuration must still judge the prepared prompt to fit, as dispatch did
+    # (PR #70 Codex round 2), from the router configuration and request the ledger recorded.
+    router_config = recorded_dispatch["config"]
+    harness.bindings_consistent(config, router_config)
+    estimate = harness.context_estimate(config, selected, bindings[0],
+                                        harness.routed_resource(router_config, reserved["routing"]),
+                                        recorded_dispatch["options"], len(readable),
+                                        len(rules) if any("{rules}" in item for item in selected["argv"]) else 0)
+    require(estimate["headroom_tokens"] >= 0,
+            f"The prepared run needs about {estimate['required_tokens']} tokens, but the current configuration "
+            f"serves a {estimate['served_context_window']}-token window; record the attempt with abandon")
     require(not os.path.lexists(rundir / "report.json"),
             "The run directory already holds report.json; ingest it instead of launching again")
     require(not os.path.lexists(rundir / MARKER),
@@ -106,7 +124,8 @@ def prepared_run(directory, config, rundir, root, timeout=None):
     require(remaining > 0, "The reservation's deadline has passed; record the attempt with abandon")
     return {"dispatch_id": state["pending"], "argv": plan["argv"], "names": plan["required_environment"],
             "environment": child_environment(plan["required_environment"]), "deadline": attempt["deadline"],
-            "bound": remaining if timeout is None else min(float(timeout), remaining), "rundir": rundir}
+            "bound": remaining if timeout is None else min(float(timeout), remaining), "rundir": rundir,
+            "expected": expected}
 
 
 class Interrupts:
@@ -163,6 +182,12 @@ def launch(directory, config, rundir, root, timeout=None):
         except FileExistsError as exc:
             raise ValueError("Another launch of this run directory started first") from exc
         try:
+            # Checked again once the marker is held, so a change after the precondition check is caught.
+            verify_prepared(run["rundir"], run["expected"])
+        except (ValueError, OSError):
+            marker.unlink()  # Nothing ran, so the run directory is not spent.
+            raise
+        try:
             process = acceptance.ProcessTree.launch(run["argv"], None, env=run["environment"],
                                                     stdin=subprocess.DEVNULL, stdout=2, stderr=2)
         except OSError as exc:
@@ -182,6 +207,11 @@ def launch(directory, config, rundir, root, timeout=None):
         require(tree.stopped, f"The harness process tree (pid {process.pid}) could not be confirmed stopped; "
                               "stop it before recording the attempt")
         interrupted = interrupted or interrupts.pending
+        try:
+            verify_prepared(run["rundir"], run["expected"])
+        except (ValueError, OSError) as exc:
+            raise ValueError(f"The run directory changed while the harness ran ({exc}); do not ingest its "
+                             "report; record the attempt with abandon") from exc
     present = (run["rundir"] / "report.json").is_file()
     status = ("INTERRUPTED" if interrupted else "TIMED_OUT" if timed_out
               else "REPORT_WRITTEN" if present else "NO_REPORT")

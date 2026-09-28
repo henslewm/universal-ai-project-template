@@ -43,7 +43,7 @@ observed = {"environment_names": sorted(os.environ), "argv": sys.argv[1:], "stdi
             "credential_sha256": hashlib.sha256(os.environ.get("SYNTH_LAUNCH_CREDENTIAL", "").encode()).hexdigest()}
 with open(os.path.join(here, "observed.json"), "w", encoding="utf-8") as stream:
     json.dump(observed, stream)
-if mode in ("report", "orphan"):
+if mode in ("report", "orphan", "tamper"):
     with open(brief_path, encoding="utf-8") as stream:
         brief = json.load(stream)
     report = {"dispatch_id": brief["dispatch_id"], "outcome": "FAIL",
@@ -57,6 +57,10 @@ if mode in ("report", "orphan"):
               "cost_evidence": "Synthetic zero-cost run; no model calls made."}
     with open(report_path, "w", encoding="utf-8") as stream:
         json.dump(report, stream)
+if mode == "tamper":
+    # Change the brief while the run is under way; the launcher must notice once the tree stops.
+    with open(brief_path, "a", encoding="utf-8") as stream:
+        stream.write("\n")
 if mode == "orphan":
     # Leave a descendant behind that keeps writing a heartbeat for as long as it lives.
     beat = os.path.join(here, "heartbeat.txt")
@@ -324,6 +328,39 @@ class LauncherRunTests(LauncherBase):
         self.assertIsNone(self.observed(), "the losing launch must not start the harness")
         self.assertEqual((rundir / "launch.json").read_text(encoding="utf-8"), "{}", "the winner's marker stays")
 
+    def test_a_run_directory_changed_after_the_check_is_not_started(self):
+        # PR #70 Codex round 2: the files are checked again at the start, after the marker is claimed.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("report")
+        checked = launcher.prepared_run
+
+        def swapped_after_check(*args, **kwargs):
+            run = checked(*args, **kwargs)
+            brief = rundir / "brief.json"
+            brief.write_text(brief.read_text(encoding="utf-8").replace("Report exactly", "Report roughly"),
+                             encoding="utf-8")
+            return run
+
+        with self.environment(), mock.patch.object(launcher, "prepared_run", swapped_after_check):
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1)
+        self.assertIn("brief.json differs", err)
+        self.assertIsNone(self.observed(), "a run directory changed after the check must not start the harness")
+        self.assertFalse((rundir / "launch.json").exists(), "nothing ran, so the run directory is not spent")
+
+    def test_a_run_directory_changed_during_the_run_is_reported_not_trusted(self):
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("tamper")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1)
+        self.assertIn("changed while the harness ran", err)
+        self.assertIn("abandon", err)
+        self.assertEqual(out, "")
+        self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+
     def test_a_harness_that_cannot_be_started_refuses_and_frees_the_run_directory(self):
         missing = self.base / "missing-harness-executable"
         self.config = synthetic_configuration(self.script, command=str(missing))
@@ -425,6 +462,12 @@ class LauncherRefusalTests(LauncherBase):
         governing = self.project / "MASTER_INSTRUCTIONS.md"
         governing.write_text(governing.read_text(encoding="utf-8") + "\nChanged after dispatch.\n", encoding="utf-8")
         self.refused(self.rundir, "brief.json differs")
+
+    def test_a_capacity_change_since_dispatch_is_not_run(self):
+        # PR #70 Codex round 2: the current configuration's capacity check must still pass.
+        changed = copy.deepcopy(self.config)
+        changed["harnesses"][0]["context_overhead_tokens"] = 1000000
+        self.refused(self.rundir, "tokens", config=changed)
 
     def test_an_existing_report_expired_deadline_or_bad_bound_refuses(self):
         self.refused(self.rundir, "must be positive", "--timeout-seconds", "0")
