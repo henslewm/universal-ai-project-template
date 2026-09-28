@@ -135,7 +135,7 @@ def prepared_run(directory, config, rundir, root, timeout=None):
     return {"dispatch_id": state["pending"], "argv": plan["argv"], "names": plan["required_environment"],
             "environment": child_environment(plan["required_environment"]), "deadline": attempt["deadline"],
             "bound": remaining if timeout is None else min(float(timeout), remaining), "rundir": rundir,
-            "expected": expected}
+            "expected": expected, "ledger": (Path(directory), sequence, head)}
 
 
 class Interrupts:
@@ -194,6 +194,11 @@ def launch(directory, config, rundir, root, timeout=None):
             raise ValueError("Another launch of this run directory started first") from exc
         try:
             # Checked again once the marker is held, so a change after the precondition check is caught.
+            # Everything that can change is checked again here: the ledger (so the reservation is
+            # still the pending, latest dispatch), the run files, report absence and the deadline.
+            directory_, sequence, head = run["ledger"]
+            require(feedback.replay(directory_)[1:] == (sequence, head),
+                    "The feedback ledger changed after the launch was checked; the reservation may be closed")
             verify_prepared(run["rundir"], run["expected"])
             require_unreported(run["rundir"])
             remaining_seconds(run["deadline"])

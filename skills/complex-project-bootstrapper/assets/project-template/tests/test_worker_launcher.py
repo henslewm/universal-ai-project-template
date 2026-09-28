@@ -379,6 +379,25 @@ class LauncherRunTests(LauncherBase):
                 self.assertFalse((rundir / "launch.json").exists(), "nothing ran, so the run directory is not spent")
                 mock.patch.stopall()
 
+    def test_a_reservation_closed_after_the_check_is_not_started(self):
+        # PR #70 Codex round 4: the ledger is replayed again while the marker is held.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("report")
+        checked = launcher.prepared_run
+
+        def abandoned_after_check(*args, **kwargs):
+            run = checked(*args, **kwargs)
+            harness.abandon(self.ledger, self.config, "Closed by another session between check and start.")
+            return run
+
+        with self.environment(), mock.patch.object(launcher, "prepared_run", abandoned_after_check):
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1, out)
+        self.assertIn("feedback ledger changed", err)
+        self.assertIsNone(self.observed(), "a closed reservation must not start the harness")
+        self.assertFalse((rundir / "launch.json").exists())
+
     def test_the_wait_is_anchored_to_the_reservation_deadline(self):
         # PR #70 Codex round 3: time spent starting the harness counts against the deadline.
         prepared = self.prepare()
