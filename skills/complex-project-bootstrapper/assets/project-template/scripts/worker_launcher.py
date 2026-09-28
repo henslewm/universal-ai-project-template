@@ -222,12 +222,13 @@ def launch(directory, config, rundir, root, timeout=None):
             interrupted = True
         require(tree.stopped, f"The harness process tree (pid {process.pid}) could not be confirmed stopped; "
                               "stop it before recording the attempt")
-        interrupted = interrupted or interrupts.pending
         try:
             verify_prepared(run["rundir"], run["expected"])
         except (ValueError, OSError) as exc:
             raise ValueError(f"The run directory changed while the harness ran ({exc}); do not ingest its "
                              "report; record the attempt with abandon") from exc
+        # Read last, while interrupts are still held, so none arriving during the checks is lost.
+        interrupted = interrupted or interrupts.pending
     present = (run["rundir"] / "report.json").is_file()
     status = ("INTERRUPTED" if interrupted else "TIMED_OUT" if timed_out
               else "REPORT_WRITTEN" if present else "NO_REPORT")
@@ -260,7 +261,10 @@ def main(argv=None):
     except (ValueError, OSError, KeyError, TypeError) as exc:
         print(f"Worker launcher refused: {exc}", file=sys.stderr)
         return 1
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    try:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    except (OSError, ValueError):
+        pass  # A closed stdout must not replace the outcome's exit code (ADR-072).
     return EXIT_CODES[result["status"]]
 
 

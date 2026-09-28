@@ -405,6 +405,25 @@ class LauncherRunTests(LauncherBase):
         self.assertLessEqual(outcome["bound_seconds"], 1.5)
         self.assertLess(time.monotonic() - started, 12, "the wait must end at the reservation deadline")
 
+    def test_an_interrupt_held_during_final_verification_still_exits_130(self):
+        # PR #70 Codex (071f16f): the held flag is read after the post-run verification too.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("silent")
+        original, calls = launcher.verify_prepared, []
+
+        def interrupted_last_check(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 3:
+                signal.raise_signal(signal.SIGINT)
+            return original(*args, **kwargs)
+
+        with self.environment(), mock.patch.object(launcher, "verify_prepared", interrupted_last_check):
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(code, 130, out + err)
+        self.assertEqual(json.loads(out)["status"], "INTERRUPTED")
+
     def test_a_run_directory_changed_during_the_run_is_reported_not_trusted(self):
         prepared = self.prepare()
         rundir = Path(prepared["destination"])
@@ -536,6 +555,15 @@ class LauncherRefusalTests(LauncherBase):
 
 
 class LauncherBoundaryTests(unittest.TestCase):
+    def test_an_interrupted_result_exits_130_even_when_stdout_is_closed(self):
+        closed = io.StringIO()
+        closed.close()
+        with mock.patch.object(launcher, "launch", return_value={"status": "INTERRUPTED"}), \
+                mock.patch.object(launcher.wp, "read_json", return_value={}), \
+                contextlib.redirect_stdout(closed):
+            self.assertEqual(launcher.main(["--config", "unused.json", "launch", "ledger", "rundir"]), 130)
+
+
     def test_an_interrupt_exits_130_even_when_stderr_is_closed(self):
         # The convention PR #68 set for acceptance.py: the diagnostic print is best-effort, so it
         # can never replace the interrupted exit code (ADR-072).
