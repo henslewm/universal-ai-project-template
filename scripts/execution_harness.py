@@ -387,7 +387,12 @@ def invocation(harness, binding, paths):
 
 
 def dispatch(directory, config, router_config, request, root, destination):
-    """Reserve one bounded attempt and write the worker brief; never run the harness."""
+    """Reserve one bounded attempt and write the worker brief; never run the harness.
+
+    Deliberately no progress reporting (#27): dispatch prepares an invocation and returns;
+    it never runs the harness command or waits on a worker, so a "worker running" spinner
+    here would be showing progress for something that has not started.
+    """
     config_valid(config)
     require(config["enabled"], "Execution harness dispatch is disabled")
     bindings_consistent(config, router_config)

@@ -1,0 +1,168 @@
+from __future__ import annotations
+
+import importlib.util
+import io
+import sys
+import time
+import unittest
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+SPEC = importlib.util.spec_from_file_location("progress_under_test", ROOT / "scripts/progress.py")
+progress = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(progress)
+
+
+def noninteractive_stream():
+    return io.StringIO()  # StringIO has no isatty(); StreamProgress must treat that as False.
+
+
+def interactive_stream():
+    stream = io.StringIO()
+    stream.isatty = lambda: True
+    return stream
+
+
+class FormatElapsedTests(unittest.TestCase):
+    def test_seconds_under_a_minute(self):
+        self.assertEqual(progress.format_elapsed(2.34), "2.3s")
+
+    def test_minutes_and_seconds(self):
+        self.assertEqual(progress.format_elapsed(62), "1m02s")
+        self.assertEqual(progress.format_elapsed(125.9), "2m05s")
+
+    def test_never_negative(self):
+        self.assertEqual(progress.format_elapsed(-5), "0.0s")
+
+
+class NullProgressTests(unittest.TestCase):
+    def test_every_method_is_a_no_op(self):
+        reporter = progress.NullProgress()
+        reporter.start(3)
+        with reporter.checking(1, 3, "VAL-1"):
+            pass
+        reporter.check_result(1, 3, "VAL-1", "PASSED", 0.1)
+        reporter.finish(3, 3, True)
+
+
+class StreamProgressBasicsTests(unittest.TestCase):
+    def test_noninteractive_stream_is_detected(self):
+        self.assertFalse(progress.StreamProgress(stream=noninteractive_stream()).interactive)
+
+    def test_interactive_stream_is_detected(self):
+        self.assertTrue(progress.StreamProgress(stream=interactive_stream()).interactive)
+
+    def test_start_check_and_finish_lines(self):
+        out = noninteractive_stream()
+        reporter = progress.StreamProgress(stream=out)
+        reporter.start(1)
+        with reporter.checking(1, 1, "VAL-1"):
+            pass
+        reporter.check_result(1, 1, "VAL-1", "PASSED", 1.5)
+        reporter.finish(1, 1, True)
+        text = out.getvalue()
+        self.assertIn("Running 1 check(s)...", text)
+        self.assertIn("[1/1] VAL-1: running", text)
+        self.assertIn("[1/1] VAL-1: PASSED (1.5s)", text)
+        self.assertIn("run-checks: 1/1 passed, deterministic gate satisfied, in", text)
+
+    def test_unsatisfied_finish_names_the_gate_as_not_satisfied(self):
+        out = noninteractive_stream()
+        reporter = progress.StreamProgress(stream=out)
+        reporter.start(2)
+        reporter.finish(1, 2, False)
+        self.assertIn("run-checks: 1/2 passed, deterministic gate NOT satisfied", out.getvalue())
+
+    def test_style_hook_wraps_every_written_line(self):
+        # The identity hook by default (#26's color helper had not landed); a later one plugs
+        # in here without any other change to this module.
+        out = noninteractive_stream()
+        reporter = progress.StreamProgress(stream=out, style=lambda text: f"<{text}>")
+        reporter.start(1)
+        self.assertIn("<Running 1 check(s)...>", out.getvalue())
+
+
+class FastCheckTests(unittest.TestCase):
+    """'Prompt acknowledgement, not an unconditional spinner for every operation lasting
+    100 ms' (#27): a check well under TICKER_DELAY_SECONDS must never grow a second line."""
+
+    def test_fast_check_gets_no_heartbeat_line_when_noninteractive(self):
+        out = noninteractive_stream()
+        reporter = progress.StreamProgress(stream=out)
+        reporter.start(1)
+        with reporter.checking(1, 1, "VAL-1"):
+            time.sleep(0.05)  # Real TICKER_DELAY_SECONDS (2.0s) is nowhere near reached.
+        self.assertEqual(out.getvalue().count("VAL-1"), 1)  # Only the initial "running" line.
+
+    def test_fast_check_gets_no_ticker_redraw_when_interactive(self):
+        out = interactive_stream()
+        reporter = progress.StreamProgress(stream=out)
+        reporter.start(1)
+        with reporter.checking(1, 1, "VAL-1"):
+            time.sleep(0.05)
+        self.assertNotIn("\r", out.getvalue())
+
+
+class SlowCheckTests(unittest.TestCase):
+    """The delay/interval/cap are patched to millisecond scale so these stay fast and
+    deterministic instead of asserting against the real multi-second thresholds."""
+
+    def test_slow_noninteractive_check_gets_bounded_heartbeat_lines(self):
+        out = noninteractive_stream()
+        with mock.patch.object(progress, "TICKER_DELAY_SECONDS", 0.0), \
+             mock.patch.object(progress, "HEARTBEAT_INTERVAL_SECONDS", 0.01), \
+             mock.patch.object(progress, "HEARTBEAT_MAX_LINES", 2):
+            reporter = progress.StreamProgress(stream=out)
+            reporter.start(1)
+            with reporter.checking(1, 1, "VAL-1"):
+                time.sleep(0.1)  # ~10 intervals; the cap must still hold heartbeats at 2.
+        occurrences = out.getvalue().count("VAL-1")
+        self.assertGreaterEqual(occurrences, 2)  # The initial line plus at least one heartbeat.
+        self.assertLessEqual(occurrences, 3)  # Initial line + HEARTBEAT_MAX_LINES(2), never more.
+        self.assertNotIn("\r", out.getvalue())  # Non-interactive never redraws in place.
+
+    def test_slow_interactive_check_redraws_in_place_without_growing_new_lines(self):
+        out = interactive_stream()
+        with mock.patch.object(progress, "TICKER_DELAY_SECONDS", 0.0), \
+             mock.patch.object(progress, "TICKER_INTERVAL_SECONDS", 0.01):
+            reporter = progress.StreamProgress(stream=out)
+            reporter.start(1)
+            with reporter.checking(1, 1, "VAL-1"):
+                time.sleep(0.05)
+        self.assertIn("\r", out.getvalue())
+
+
+class CleanupTests(unittest.TestCase):
+    """'Any ticker is optional and must clean up on success, refusal and Ctrl+C (130, per
+    ADR-072)' (#27). KeyboardInterrupt is just another exception raised into the `with`
+    block from the caller's perspective, so a plain exception exercises the same path."""
+
+    def _run_with_ticker_then_raise(self, out):
+        with mock.patch.object(progress, "TICKER_DELAY_SECONDS", 0.0), \
+             mock.patch.object(progress, "TICKER_INTERVAL_SECONDS", 0.01):
+            reporter = progress.StreamProgress(stream=out)
+            reporter.start(1)
+            with self.assertRaises(ValueError):
+                with reporter.checking(1, 1, "VAL-1"):
+                    time.sleep(0.05)  # Let the ticker redraw at least once first.
+                    raise ValueError("simulated refusal or KeyboardInterrupt")
+            return reporter
+
+    def test_open_ticker_line_is_blanked_on_exception(self):
+        out = interactive_stream()
+        reporter = self._run_with_ticker_then_raise(out)
+        self.assertFalse(reporter._line_open)
+        self.assertTrue(out.getvalue().endswith("\r" + " " * progress._REDRAW_WIDTH + "\r"))
+
+    def test_ticker_thread_stops_and_writes_nothing_more_after_exception(self):
+        out = interactive_stream()
+        self._run_with_ticker_then_raise(out)
+        length_after_exit = len(out.getvalue())
+        time.sleep(0.05)  # A still-alive ticker thread would have redrawn again by now.
+        self.assertEqual(len(out.getvalue()), length_after_exit)
+
+
+if __name__ == "__main__":
+    unittest.main()
