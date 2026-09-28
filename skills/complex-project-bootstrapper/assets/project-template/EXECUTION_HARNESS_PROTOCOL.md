@@ -4,7 +4,7 @@ A worker harness executes one architected work packet and nothing else. Cline is
 
 The harness sits in exactly one gap: between the reservation the feedback controller grants and the result it records. Everything around that gap already exists and is reused rather than duplicated. `WORK_PACKET_PROTOCOL.md` owns the contract and its revisions. `MODEL_ROUTING.md` owns tier and effort selection and its replayable decision ledger. `FEEDBACK_PROTOCOL.md` owns the reservation, the attempt budget, failure evidence and escalation. `GITHUB_LEDGER_PROTOCOL.md` owns publication of the resulting evidence. No routing decision, attempt counter or scope rule lives inside the harness or inside Cline.
 
-`scripts/execution_harness.py` never invokes a model, never runs the harness command, and never verifies that reported work actually happened. It prepares a bounded brief, emits the exact invocation, and ingests a report. An operator or a later authorized automation runs the harness itself.
+`scripts/execution_harness.py` never invokes a model, never runs the harness command, and never verifies that reported work actually happened. It prepares a bounded brief, emits the exact invocation, and ingests a report. The operator runs the harness, by hand or through the separate operator launcher described below. Any automated launcher needs a later, separate decision (ADR-073).
 
 ## Setup and authority
 
@@ -23,6 +23,7 @@ python scripts/execution_harness.py --config config/execution-harness.json verif
 python scripts/execution_harness.py --config config/execution-harness.json --root . dispatch LEDGER RUNDIR --router-config config/model-router.json --request request.json
 python scripts/execution_harness.py --config config/execution-harness.json ingest LEDGER RUNDIR/report.json
 python scripts/execution_harness.py --config config/execution-harness.json abandon LEDGER --reason "..."
+python scripts/worker_launcher.py --config config/execution-harness.json --root . launch LEDGER RUNDIR [--timeout-seconds N]
 ```
 
 ## Worker cycle
@@ -50,6 +51,48 @@ Ctrl+C stops a command, never an attempt. The command exits 130 (README.md, "CLI
 If preparation refuses after the reservation is already spent — no binding for the routed resource, an oversized brief, a brief that cannot fit the window the resource is served in — the attempt is closed as `PROVIDER_UNAVAILABLE` with the refusal as evidence rather than left pending. The controller escalates that to the architect rather than retrying, which is deliberate: a harness that cannot be prepared is an architecture or configuration problem, not a transient failure to loop on.
 
 Cline is replaceable. Any harness that accepts a brief path and writes a report path can be bound instead, which is why the example declares a second non-Cline harness. Packets, contracts, routing decisions, attempt ledgers and published evidence remain valid across that substitution. Nothing here assumes a harness can natively assign a different model to every arbitrary subagent; the orchestration layer stays explicit precisely so that assumption is never load-bearing.
+
+## Operator launcher (ADR-073)
+
+`scripts/worker_launcher.py launch` runs the prepared harness for one reserved attempt, so the operator does not have to set up the provider environment by hand. It is optional and separate from this adapter. The operator runs it explicitly. No controller invokes it, and `dispatch` stays preparation-only (`executed: false`, ADR-010). It never writes the task ledger: it creates no reservation, never ingests, abandons or accepts, and leaves routing decisions and attempt counts untouched.
+
+**Preconditions.** Every one is checked before anything is written or started, and any failure is a refusal (exit 1).
+
+- The harness configuration is valid and enabled.
+- The project's `config/bootstrap.json` validates as `ACTIVE` for the packet's profile, which is the check `validate_bootstrap.py --require-active` makes, and its architecture fingerprint equals the ledger's INIT anchor.
+- The ledger has a pending reservation, and it is the ledger's latest DISPATCH event. The paths RUNDIR's `brief.json` records resolve to RUNDIR.
+- RUNDIR's `brief.json` is byte for byte what dispatch renders from that event's recorded contract, worker context and routing, the reserved resource's current binding and the current startup sources. Its `BOUNDED_WORKER_RULES.md` is the brief's rules. An edited contract, context or startup text is therefore refused, and so is a change since dispatch to the binding's provider or model, the worker rules, a worker instruction or a governing document.
+- RUNDIR's `invocation.json` is exactly what the current configuration prepares for that binding, so an edited invocation, or a harness command or argument changed in the configuration alone, is refused. Nothing immutable records the prepared invocation, though: the feedback ledger records the routing, not the harness configuration. An operator who changes the configuration's command and edits `invocation.json` to match is therefore run as configured. The configuration is the operator's authority (ADR-010), and binding the invocation to dispatch would need a ledger format change.
+- The current configuration still judges the prepared run to fit: dispatch's capacity check passes again, using the router configuration and request the DISPATCH event recorded, the current harness overhead, limits and served window, and the brief as prepared.
+- RUNDIR holds no `report.json` and no `launch.json`.
+- The reservation's deadline has not passed.
+- Every variable the binding's `credential_env` names is set and nonempty in the launcher's own environment.
+
+**Scoped environment.** The child environment holds exactly the variables the binding's `credential_env` names, with values read from the launcher's environment at launch. Nothing else is inherited: not `PATH`, not `HOME`, and no other credential. Name the harness `command` by absolute path for that reason. As ADR-073 stands, a harness that needs any further variable cannot be launched through this command; run it by hand instead. The launcher writes no value anywhere. The argv comes from `invocation.json`, which holds only names. `launch.json` and the printed result also hold only names, and a refusal names a missing variable, never a value. The launcher neither captures nor stores the harness's output. The harness runs in the launcher's working directory with the prepared argv unchanged, reads an empty stdin, and writes its stdout and stderr to the launcher's stderr. The launcher's stdout carries only its JSON result. What the harness itself prints or writes is outside the launcher's control.
+
+**Process ownership.** The launcher owns the harness from start until it is confirmed stopped. It uses `acceptance.ProcessTree`, the same owner the deterministic gate uses (ADR-024), and adds no second cleanup mechanism. On POSIX the harness runs in its own session and process group. On Windows it is created suspended and assigned to a job object before it runs. However the run ends (the harness exits, the bound passes, the operator interrupts, or an error occurs), the whole tree is ended and confirmed stopped before the launcher reports. A descendant left behind by an exited harness is killed. If the tree cannot be confirmed stopped, the launcher refuses (exit 1) and names the process id; it never reports an outcome for a tree it could not stop.
+
+The launcher checks the brief, the rules file and the invocation three times. It checks them among the preconditions, again after it holds `launch.json` and immediately before it starts the harness (together with the ledger's head, so the reservation is still the pending, latest dispatch, the absence of `report.json` and the deadline), and again once the tree is confirmed stopped. A change found at the start is a refusal with nothing run. A change found after the run is a refusal that names it: the report must not be ingested, and the attempt is recorded with `abandon`. A process with the operator's privileges that swaps a file and restores it while the harness runs is outside what the launcher can detect; as for the deterministic gate (ADR-024), deployment isolation is the control for that.
+
+Just before starting, the launcher creates `launch.json` in RUNDIR exclusively, recording the dispatch id, start time, bound and variable names. That exclusive creation is the guard that RUNDIR launches once, whether an earlier launch is still running, finished or crashed. The file is removed only when the harness process could not be created at all, since then nothing ran. Otherwise it stays as evidence that execution was attempted. It is not an outcome record.
+
+**Timeout.** The bound is the reservation's own deadline in the ledger (`attempt_timeout_seconds` after dispatch), not a second configured timeout. The wait is measured from that absolute deadline once the harness has started, so start-up time counts against it. `--timeout-seconds` may shorten it and never lengthens it. At the bound the tree is killed and confirmed stopped, and the status is `TIMED_OUT`. A report written before then stays in place for `ingest`, which records a result that arrives after the deadline as `ATTEMPT_TIMEOUT` (`FEEDBACK_PROTOCOL.md`).
+
+**Cancellation.** Ctrl+C ends the tree through the same owner and confirms it stopped. The launcher then prints status `INTERRUPTED` and exits 130 (ADR-072). It waits in short slices, so an interrupt is honored promptly on Windows too. On POSIX the terminal's interrupt reaches only the launcher, because the harness runs in its own session. On Windows the console delivers it to both, and the job ends whatever remains. While the harness is being started, and while its tree is torn down, an interrupt is held and acted on afterwards. A second Ctrl+C therefore cannot leave an unowned or half-stopped process. An interrupt during the precondition checks exits 130 with nothing started, through `scripts/cli_exit.py` like every command. Cancellation records nothing, because stopping a process is not abandoning the attempt.
+
+**Missing report.** The launcher neither reads nor trusts a report. When the run ends without `report.json`, it says so and names the next step: record the attempt with `abandon --reason`, stating what happened (ADR-011). It never infers or records that outcome itself. When a report exists, the next step is `ingest`, which validates it.
+
+**Exit codes (ADR-072).**
+
+| Code | Status | Meaning | Next step |
+|---|---|---|---|
+| 0 | `REPORT_WRITTEN` | The harness ended within the bound and `report.json` exists. The harness's own exit code is reported, not interpreted. | `ingest` |
+| 2 | `NO_REPORT` | The harness ended within the bound without writing a report. | `abandon` |
+| 2 | `TIMED_OUT` | The bound passed, and the tree was stopped. | `ingest` if a report exists, otherwise `abandon` |
+| 130 | `INTERRUPTED` | The operator interrupted, and the tree was stopped. | `ingest` if a report exists, otherwise `abandon` |
+| 1 | refusal | A precondition failed, the harness could not be started, its tree could not be confirmed stopped, or the run directory changed while it ran. | Correct the cause, or `abandon` |
+
+Automated tests use a synthetic harness and synthetic credentials only. Live provider readiness is an operator check.
 
 ## Boundaries
 
