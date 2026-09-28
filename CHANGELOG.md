@@ -9,6 +9,13 @@
 
 - Codex's review quota ran out during PR #61. The merge rule now accepts an automated review by Codex or by CodeRabbit on the exact head; request one with `@codex review` or `@coderabbitai review`. ADR-063's actionability test applies unchanged.
 
+## 2026-09-27 — #49: template packaging fixes (ADR-071)
+
+- The CI workflow runs the payload-drift check only when `skills/complex-project-bootstrapper/assets/project-template` exists. Generated projects, which inherit the workflow but have no payload, skip it and still run validation and tests.
+- `sync_skills.py --check` reports mirror files that no longer have a source, and a sync removes them. It excludes `.git` and the other excluded names as files too, so a worktree's `.git` pointer is never copied into the payload.
+- A generated project gets a fresh `DECISIONS.md` (ADR-000 only), and the template's own `docs/ISSUE_*_VALIDATION.md` and `docs/WORKER_STARTUP_VALIDATION.md` are not copied into it. The other records were already regenerated. In-place generation also removes the payload folder.
+- Scope: the sync keeps mirrors equal to their sources for regular files and directories. It removes links without following them and refuses to run through a linked destination. It never reads a wrong-type or linked entry at a target, and writes each file with a temporary file plus `os.replace`, so hard links are replaced rather than written through (#62).
+
 ## 2026-09-27 — Triage decisions: exit codes (ADR-072) and launcher boundary (ADR-073)
 
 - ADR-072 (#32): exit codes are 0 OK, 1 handled refusal, 2 not-OK outcome (usage error, domain stop/hold, or unreadable bootstrap file, told apart by the JSON `status`), 130 interrupted. Nothing is reclassified; implementation stays under #32 and #31.
