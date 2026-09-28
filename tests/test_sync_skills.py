@@ -21,7 +21,7 @@ class SyncSkillsTests(unittest.TestCase):
         # A worktree-shaped layout: `.git` is a pointer file, not a directory.
         (self.root / ".git").write_text("gitdir: /elsewhere/.git/worktrees/example\n", encoding="utf-8")
         (self.root / "scripts").mkdir()
-        for name in ("bootstrap_project.py", "bootstrap_gate.py", "validate_bootstrap.py", "validate_project.py"):
+        for name in ("bootstrap_project.py", "bootstrap_gate.py", "validate_bootstrap.py", "validate_project.py", "cli_exit.py"):
             (self.root / "scripts" / name).write_text(f"# {name}\n", encoding="utf-8")
         self.skill = self.root / "skills/complex-project-bootstrapper"
         (self.skill / "assets/project-template").mkdir(parents=True)
