@@ -75,9 +75,16 @@ class StreamProgress:
         self.stream = stream if stream is not None else sys.stderr
         self.clock = clock
         self.style = style
-        self.interactive = bool(getattr(self.stream, "isatty", lambda: False)())
         self._line_open = False
         self._disabled = False  # Codex P2 on PR #68: an I/O failure here is cosmetic-only
+        try:
+            # A stream already closed at construction time (Codex P2 round 2) can raise
+            # here too, not only from write()/flush(); treated the same way: go quiet,
+            # never raise out of a progress reporter's own setup.
+            self.interactive = bool(getattr(self.stream, "isatty", lambda: False)())
+        except (OSError, ValueError):
+            self.interactive = False
+            self._disabled = True
 
     def _safe_write(self, raw):
         """Write raw text, or quietly stop reporting forever if the stream itself is bad.
@@ -85,6 +92,10 @@ class StreamProgress:
         A closed stderr or a downstream pipe that hung up must never escape into
         run_checks(): this is stderr feedback, not a gate, and the checks it decorates
         must keep running and get recorded whether or not anyone is still reading it.
+        A stream already closed raises ValueError ("I/O operation on closed file"), not
+        OSError, for both a real closed file and a closed io.StringIO/TextIOWrapper
+        (Codex P2 on PR #68, round 2) — caught here alongside OSError, and nowhere
+        wider: this except only wraps the two stream calls above.
         """
         if self._disabled:
             return False
@@ -92,7 +103,7 @@ class StreamProgress:
             self.stream.write(raw)
             self.stream.flush()
             return True
-        except OSError:
+        except (OSError, ValueError):
             self._disabled = True
             return False
 

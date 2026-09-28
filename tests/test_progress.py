@@ -223,5 +223,35 @@ class BrokenStreamTests(unittest.TestCase):
         self.assertTrue(reporter._disabled)
 
 
+class ClosedStreamTests(unittest.TestCase):
+    """Codex P2 round 2 on PR #68: an actually closed stream raises ValueError ("I/O
+    operation on closed file"), not OSError, for both a real closed file and a closed
+    io.StringIO/TextIOWrapper. _safe_write must swallow this too."""
+
+    def closed_stream(self):
+        stream = io.StringIO()
+        stream.close()
+        return stream
+
+    def test_write_on_a_closed_stringio_raises_value_error_not_os_error(self):
+        # Documents the exact fresh evidence the finding cites, so this test would fail
+        # loudly (not silently pass for the wrong reason) if StringIO's behavior ever changed.
+        with self.assertRaises(ValueError):
+            self.closed_stream().write("x")
+
+    def test_start_does_not_raise_on_a_closed_stream(self):
+        progress.StreamProgress(stream=self.closed_stream()).start(1)
+
+    def test_checking_does_not_raise_on_a_closed_stream(self):
+        reporter = progress.StreamProgress(stream=self.closed_stream())
+        with reporter.checking(1, 1, "VAL-1"):
+            pass
+
+    def test_reporter_is_disabled_after_a_closed_stream_write(self):
+        reporter = progress.StreamProgress(stream=self.closed_stream())
+        reporter.start(1)
+        self.assertTrue(reporter._disabled)
+
+
 if __name__ == "__main__":
     unittest.main()
