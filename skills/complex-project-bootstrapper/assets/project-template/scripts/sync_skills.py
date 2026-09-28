@@ -2,12 +2,18 @@
 """Synchronize bootstrap entrypoints, native skills and the standalone template."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import os
 import shutil
 import stat
 import tempfile
 from pathlib import Path
+
+import cli_exit
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / 'skills/complex-project-bootstrapper'
@@ -159,7 +165,7 @@ def sync(check: bool = False) -> list[str]:
             if temporary.exists():
                 temporary.unlink()
 
-    for name in ('bootstrap_project.py', 'bootstrap_gate.py', 'validate_bootstrap.py', 'validate_project.py'):
+    for name in ('bootstrap_project.py', 'bootstrap_gate.py', 'validate_bootstrap.py', 'validate_project.py', 'cli_exit.py'):
         copy(ROOT / 'scripts' / name, SKILL / 'scripts' / name)
     def prune(mirror: Path):
         # A mirror holds only what its source produces: a file deleted or renamed at the source
@@ -240,4 +246,4 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

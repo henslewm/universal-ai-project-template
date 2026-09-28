@@ -2,6 +2,10 @@
 """Prepare and ingest bounded worker runs for a replaceable execution harness; never invoke a model."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import hashlib
 import json
@@ -11,6 +15,7 @@ import sys
 from decimal import ROUND_CEILING
 from pathlib import Path, PureWindowsPath
 
+import cli_exit
 import feedback
 import model_router as router
 import work_packet as wp
@@ -387,7 +392,12 @@ def invocation(harness, binding, paths):
 
 
 def dispatch(directory, config, router_config, request, root, destination):
-    """Reserve one bounded attempt and write the worker brief; never run the harness."""
+    """Reserve one bounded attempt and write the worker brief; never run the harness.
+
+    Deliberately no progress reporting (#27): dispatch prepares an invocation and returns;
+    it never runs the harness command or waits on a worker, so a "worker running" spinner
+    here would be showing progress for something that has not started.
+    """
     config_valid(config)
     require(config["enabled"], "Execution harness dispatch is disabled")
     bindings_consistent(config, router_config)
@@ -590,4 +600,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))
