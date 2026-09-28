@@ -88,5 +88,14 @@ class MistralWiringTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
 
 
+class IssueTemplateGuidanceTests(unittest.TestCase):
+    def test_evidence_gap_template_warns_against_placeholder_reports(self) -> None:
+        text = (ROOT / ".github/ISSUE_TEMPLATE/evidence-gap.yml").read_text(encoding="utf-8")
+        self.assertIn("Do not submit placeholder text such as `Blocker`, `unknown`", text)
+        self.assertIn("If you cannot name the canonical task, master issue, packet binding", text)
+        self.assertIn("contract_sha256: <64-hex sha256>", text)
+        self.assertIn("https://github.com/henslewm/universal-ai-project-template/issues/11", text)
+
+
 if __name__ == "__main__":
     unittest.main()
