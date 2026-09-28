@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from test_acceptance import (ARCHITECT, CONTROLLER, IMPLEMENTERS, AcceptanceBase, acceptance,
                              make_artifact, make_result)
@@ -111,9 +112,14 @@ class ContractRuleTests(unittest.TestCase):
     def test_domain_rules_apply_only_to_the_registered_profile(self):
         broken = example()
         broken["domain"] = {"synthetic": True}
-        self.assertEqual(wp.validate_contract(broken, "civil-rights-nc"), [])
+        # Every canonical profile now registers a module, so the no-module path is exercised by
+        # unregistering one for the duration of the check.
+        with mock.patch.dict(wp.DOMAIN_MODULES):
+            del wp.DOMAIN_MODULES["civil-rights-nc"]
+            self.assertEqual(wp.validate_contract(broken, "civil-rights-nc"), [])
+            self.assertIsNone(wp.domain_module("civil-rights-nc"))
         self.assertTrue(any(e.startswith("domain:") for e in errors_for(broken)))
-        self.assertIsNone(wp.domain_module("civil-rights-nc"))
+        self.assertTrue(any(e.startswith("domain:") for e in wp.validate_contract(broken, "civil-rights-nc")))
 
     def test_domain_block_is_closed_and_extension_properties_are_refused(self):
         contract = example()

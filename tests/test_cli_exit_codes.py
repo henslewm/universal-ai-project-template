@@ -323,7 +323,8 @@ class ExitCodeTableTests(CliAssertions, unittest.TestCase):
         self.usage(cli("work_packet.py"))
         refused = self.expect(cli("work_packet.py", "validate", self.directory / "absent.json"), 1)
         self.assertIn("WORK PACKET INVALID", refused.stderr)
-        for script, profile in (("software_hardware.py", "software-hardware"), ("family_law.py", "family-law")):
+        for script, profile in (("software_hardware.py", "software-hardware"), ("family_law.py", "family-law"),
+                                ("civil_rights_nc.py", "civil-rights-nc")):
             with self.subTest(script=script):
                 example = ROOT / f"examples/work-packets/{profile}.contract.json"
                 self.expect(cli(script, "validate-contract", example), 0, "valid", True)
