@@ -11,6 +11,7 @@ import copy
 import json
 import os
 import re
+import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -92,6 +93,43 @@ def render_review(data: dict, root: Path | None = None) -> str:
     return "\n".join(lines) + "\n"
 
 
+BANNER_WIDTH = 72
+
+
+def approval_banner(data: dict, fingerprint: str) -> str:
+    """Plain-ASCII frame shown directly above the approval prompts; presentation only."""
+    def wrapped(text: str, indent: str = " ", hanging: str = " ") -> list[str]:
+        return textwrap.wrap(text, BANNER_WIDTH - 1, initial_indent=indent, subsequent_indent=hanging,
+                             break_long_words=False, break_on_hyphens=False)
+
+    def field(label: str, value: str) -> list[str]:
+        # Package values are user-authored. Escape everything outside printable ASCII, so nothing reaches the
+        # terminal that it could act on or render wider than one column; the review above shows the original text.
+        visible = "".join(ch if ch.isascii() and ch.isprintable() else ch.encode("unicode_escape").decode("ascii")
+                          for ch in value)
+        return textwrap.wrap(visible, BANNER_WIDTH - 15, initial_indent=f" {label:<13}", subsequent_indent=" " * 14,
+                             break_on_hyphens=False) or [f" {label}"]
+
+    heavy, light = "=" * BANNER_WIDTH, "-" * BANNER_WIDTH
+    project = data.get("project") if isinstance(data.get("project"), dict) else {}
+    lines = [heavy, " FOUNDATION APPROVAL", heavy]
+    lines += field("State:", f"{data.get('state')} (autonomy is OFF)")
+    lines += field("Profile:", str(data.get("domain_profile")))
+    lines += field("Project:", str(project.get("name")))
+    lines += [" Package fingerprint (SHA-256):", "   " + fingerprint, light, " If you approve this exact package:"]
+    for item in ("State becomes ACTIVE and autonomy turns ON for this foundation.",
+                 "Routine work within the approved scope may proceed without approval for each step.",
+                 "Reserved human actions, material architecture changes and consequential external actions "
+                 "still need explicit authority. Tool and connector permissions do not expand.",
+                 "Any later change to the fingerprinted foundation invalidates this approval."):
+        lines += wrapped(item, "  - ", "    ")
+    lines += [light, " To approve, enter your identity, then type exactly:", "   APPROVE " + fingerprint]
+    lines += wrapped("Only the user may approve this exact foundation. Anything else, including a blank line, "
+                     "end of input or Ctrl+C, refuses approval and leaves autonomy OFF.")
+    lines.append(heavy)
+    return "\n".join(lines)
+
+
 def write_state(root: Path, data: dict) -> None:
     target = root / "config/bootstrap.json"
     temporary = target.with_suffix(".json.tmp")
@@ -134,7 +172,7 @@ def activate(root: Path) -> dict:
         raise ValueError("Activation requires a valid AWAITING_APPROVAL package. " + "; ".join(errors))
     print(render_review(data, root))
     fingerprint = architecture_fingerprint(data)
-    print("Only the user may approve this exact foundation. Entering anything else leaves autonomy OFF.")
+    print(approval_banner(data, fingerprint))
     identity = input("Approving user identity: ").strip()
     decision = input(f"Type APPROVE {fingerprint}: ").strip()
     if not identity or decision != f"APPROVE {fingerprint}":
