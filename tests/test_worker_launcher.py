@@ -480,6 +480,17 @@ class LauncherRefusalTests(LauncherBase):
 
 
 class LauncherBoundaryTests(unittest.TestCase):
+    def test_an_interrupt_exits_130_even_when_stderr_is_closed(self):
+        # The convention PR #68 set for acceptance.py: the diagnostic print is best-effort, so it
+        # can never replace the interrupted exit code (ADR-072).
+        closed = io.StringIO()
+        closed.close()
+        with mock.patch.object(launcher, "launch", side_effect=KeyboardInterrupt), \
+                mock.patch.object(launcher.wp, "read_json", return_value={}), \
+                contextlib.redirect_stderr(closed):
+            self.assertEqual(launcher.main(["--config", "unused.json", "launch", "ledger", "rundir"]), 130)
+
+
     def test_no_controller_invokes_the_launcher(self):
         for path in sorted((ROOT / "scripts").glob("*.py")):
             if path.name != "worker_launcher.py":

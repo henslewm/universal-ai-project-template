@@ -235,7 +235,11 @@ def main(argv=None):
         result = launch(args.ledger, wp.read_json(args.config), args.rundir, args.root, args.timeout_seconds)
     except KeyboardInterrupt:
         # Outside the owned run: either nothing was started, or the tree was already confirmed stopped.
-        print("Worker launcher interrupted; no harness it started is still running.", file=sys.stderr)
+        # Best-effort, as in acceptance.py: a closed stderr must not replace the exit code (ADR-072).
+        try:
+            print("Worker launcher interrupted; no harness it started is still running.", file=sys.stderr)
+        except (OSError, ValueError):
+            pass
         return 130
     except (ValueError, OSError, KeyError, TypeError) as exc:
         print(f"Worker launcher refused: {exc}", file=sys.stderr)
