@@ -15,8 +15,6 @@ The remaining startup files are not imported, so they do not load into every ses
 - `FACTS_AND_ASSUMPTIONS.md`
 - `SOURCE_INDEX.md`
 
-A subagent working a bounded brief reads only what its brief needs; the session that delegated it owns the startup reads.
-
 Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` from the repository root. Continue autonomously only after successful validation confirms `ACTIVE`, explicit approval, and a matching material-architecture fingerprint. Missing, invalid, or inactive state, or an unavailable runtime/validator, means no autonomous execution: resume bootstrap through `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md` within existing permissions.
 
 Once activated, routine work within the approved scope and existing permissions may proceed without approval for each step. User-reserved actions, material architecture changes, and consequential external actions retain their applicable explicit-authority requirements. Activation does not expand tool or connector permissions.
