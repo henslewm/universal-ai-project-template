@@ -2,6 +2,10 @@
 """Prepare and ingest bounded worker runs for a replaceable execution harness; never invoke a model."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import hashlib
 import json
@@ -12,6 +16,7 @@ from decimal import ROUND_CEILING
 from pathlib import Path, PureWindowsPath
 
 import cli_colors
+import cli_exit
 import feedback
 import model_router as router
 import work_packet as wp
@@ -376,6 +381,14 @@ def brief(context, routing, binding, dispatch_id, paths, startup):
     return document, wp.canonical(document), json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
+def run_paths(destination):
+    """The run-directory layout, defined once for dispatch and the operator launcher."""
+    destination = Path(destination)
+    return {"rundir": destination, "brief": destination / "brief.json",
+            "rules": destination / "BOUNDED_WORKER_RULES.md",
+            "report": destination / "report.json", "workspace": destination / "workspace"}
+
+
 def invocation(harness, binding, paths):
     values = {"provider": binding["provider"], "model": binding["model"],
               "rules": str(paths["rules"]), "brief": str(paths["brief"]),
@@ -388,7 +401,12 @@ def invocation(harness, binding, paths):
 
 
 def dispatch(directory, config, router_config, request, root, destination):
-    """Reserve one bounded attempt and write the worker brief; never run the harness."""
+    """Reserve one bounded attempt and write the worker brief; never run the harness.
+
+    Deliberately no progress reporting (#27): dispatch prepares an invocation and returns;
+    it never runs the harness command or waits on a worker, so a "worker running" spinner
+    here would be showing progress for something that has not started.
+    """
     config_valid(config)
     require(config["enabled"], "Execution harness dispatch is disabled")
     bindings_consistent(config, router_config)
@@ -407,9 +425,7 @@ def dispatch(directory, config, router_config, request, root, destination):
         return {"status": reserved["status"], "reason": reserved["reason"], "dispatch_id": reserved["dispatch_id"],
                 "prepared": False, "destination": str(destination)}
     destination.mkdir(parents=True, exist_ok=False)
-    paths = {"rundir": destination, "brief": destination / "brief.json",
-             "rules": destination / "BOUNDED_WORKER_RULES.md",
-             "report": destination / "report.json", "workspace": destination / "workspace"}
+    paths = run_paths(destination)
     try:
         binding, harness = binding_for(config, reserved["routing"])
         require(reserved["context"]["contract"] == contract,
@@ -637,4 +653,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

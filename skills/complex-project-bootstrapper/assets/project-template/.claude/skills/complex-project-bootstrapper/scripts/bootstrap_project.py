@@ -3,6 +3,10 @@
 
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import json
 import os
@@ -14,6 +18,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import cli_exit
 from bootstrap_gate import collect_intake, new_state, profile_from_template, render_review, write_state
 from validate_bootstrap import PROFILES, validate
 
@@ -23,6 +28,9 @@ EXCLUDE_NAMES = {
     # Approval belongs only to its original project, even if generation fails.
     "bootstrap.json", "bootstrap.json.tmp", "BOOTSTRAP_REVIEW.md",
 }
+# The template's own build evidence. A generated project starts its own history, so these are
+# removed rather than inherited (#49); reusable docs, examples and templates stay.
+TEMPLATE_HISTORY = ("docs/ISSUE_*_VALIDATION.md", "docs/WORKER_STARTUP_VALIDATION.md")
 
 
 def slugify(value: str) -> str:
@@ -64,7 +72,7 @@ def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
         raw[field] = [item.strip() for item in value]
 
     raw["deliverables"] = raw["deliverables"] or ["Project-specific analysis or implementation", "Current handoff and state records"]
-    raw["ai_clients"] = raw["ai_clients"] or ["chatgpt", "codex", "claude", "claude-code"]
+    raw["ai_clients"] = raw["ai_clients"] or ["chatgpt", "codex", "claude", "claude-code", "mistral"]
     raw["connectors"] = raw["connectors"] or ["github", "web"]
     raw["output_formats"] = raw["output_formats"] or ["markdown"]
     raw["domain"] = str(raw.get("domain") or "other").strip().lower()
@@ -129,6 +137,11 @@ def copy_template(source: Path, destination: Path) -> None:
     if source == destination:
         if not (destination / ".ai-project-template").exists():
             raise SystemExit(f"Not a recognized template repository: {destination}")
+        # A generated project carries no bootstrap payload, whichever way it was generated; the
+        # copy path already omits it, and CI runs the payload check only where it exists (#49).
+        payload = destination / "skills/complex-project-bootstrapper/assets/project-template"
+        if payload.is_dir():
+            shutil.rmtree(payload)
         return
 
     if destination.exists() and any(destination.iterdir()):
@@ -417,6 +430,18 @@ Complete `config/bootstrap.json` using `prompts/INTERACTIVE_BOOTSTRAP.md`, prese
 - Tailored charter, state, connectors, skills, risks, sources, and handoff.
 """, encoding="utf-8")
 
+    (dest / "DECISIONS.md").write_text(f"""# Decision Log
+
+Append material decisions. Do not rewrite prior decisions without recording supersession.
+
+| ID | Date | Decision | Rationale | Alternatives considered | Consequences | Status |
+|---|---|---|---|---|---|---|
+| ADR-000 | {today} | Use GitHub as the durable project state and native instruction files as platform adapters | Enables cross-model continuity and reviewable history | Chat-only memory; separate vendor projects | Requires disciplined closeout and commits | Accepted |
+""", encoding="utf-8")
+    for pattern in TEMPLATE_HISTORY:
+        for path in dest.glob(pattern):
+            path.unlink()
+
 
 def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=check)
@@ -578,7 +603,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(cli_exit.run(main))
     except (OSError, ValueError, TypeError, EOFError) as exc:
         print(f"BOOTSTRAP BLOCKED: {exc}", file=sys.stderr)
         raise SystemExit(1)

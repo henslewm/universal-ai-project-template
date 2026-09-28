@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-28 — PR #71: CLI exit codes and Ctrl+C → 130 (#32, #31; ADR-075)
+
+- README "CLI exit codes" lists every command's 0/1/2 outcomes and the 130 behavior; the protocols point to it. No existing outcome changed code (ADR-072).
+- Every `scripts/*.py` command line routes through `scripts/cli_exit.py`: Ctrl+C exits 130 with no traceback, including while a command is still loading.
+- `acceptance.py run-checks` stops the check's whole process tree before reporting an interrupt, and refuses (exit 1) if it cannot confirm the tree stopped.
+- Ledger creation, ledger events and new output files are written whole under Ctrl+C.
+- Merged at `bb0e629` after seven Codex rounds (five with findings, each fixed with a regression; the last clean). 491 tests pass.
+
 ## 2026-09-27 — PR #63: PlatformIO example shipped with the software-hardware template
 
 - `templates/software-hardware/platformio.example.ini` is an Arduino-ESP32 2.0.x (espressif32 6.9.0) variant for the ESP32-S3-DevKitC-1 N16R8. It conforms to `docs/PLATFORMIO.md`: an exact pin, an app-partition `maximum_size`, quiet `dev`/verbose `debug`/silent `release` environments, and the arduino-cli equivalent. It replaces the untracked root `platformio.ini`.
@@ -8,6 +16,13 @@
 ## 2026-09-27 — Merge rule accepts Codex or CodeRabbit reviews (ADR-074)
 
 - Codex's review quota ran out during PR #61. The merge rule now accepts an automated review by Codex or by CodeRabbit on the exact head; request one with `@codex review` or `@coderabbitai review`. ADR-063's actionability test applies unchanged.
+
+## 2026-09-27 — #49: template packaging fixes (ADR-071)
+
+- The CI workflow runs the payload-drift check only when `skills/complex-project-bootstrapper/assets/project-template` exists. Generated projects, which inherit the workflow but have no payload, skip it and still run validation and tests.
+- `sync_skills.py --check` reports mirror files that no longer have a source, and a sync removes them. It excludes `.git` and the other excluded names as files too, so a worktree's `.git` pointer is never copied into the payload.
+- A generated project gets a fresh `DECISIONS.md` (ADR-000 only), and the template's own `docs/ISSUE_*_VALIDATION.md` and `docs/WORKER_STARTUP_VALIDATION.md` are not copied into it. The other records were already regenerated. In-place generation also removes the payload folder.
+- Scope: the sync keeps mirrors equal to their sources for regular files and directories. It removes links without following them and refuses to run through a linked destination. It never reads a wrong-type or linked entry at a target, and writes each file with a temporary file plus `os.replace`, so hard links are replaced rather than written through (#62).
 
 ## 2026-09-27 — Triage decisions: exit codes (ADR-072) and launcher boundary (ADR-073)
 

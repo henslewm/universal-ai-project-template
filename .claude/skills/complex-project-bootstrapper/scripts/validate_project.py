@@ -3,24 +3,32 @@
 
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import json
 import re
 import sys
 import tomllib
 from pathlib import Path
 
+import cli_exit
 from validate_bootstrap import validate as validate_bootstrap
 
 ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED = [
     "MASTER_INSTRUCTIONS.md", "MASTER_CHATGPT.md", "MASTER_CODEX.md",
-    "MASTER_CLAUDE.md", "MASTER_CLAUDE_CODE.md", "AGENTS.md", "CLAUDE.md",
+    "MASTER_CLAUDE.md", "MASTER_CLAUDE_CODE.md", "MASTER_MISTRAL.md",
+    "AGENTS.md", "CLAUDE.md",
     "PROJECT_CHARTER.md", "PROJECT_STATE.md", "OPEN_LOOPS.md", "DECISIONS.md",
     "FACTS_AND_ASSUMPTIONS.md", "SOURCE_INDEX.md", "RISK_REGISTER.md",
     "HANDOFF_CURRENT.md", "CONNECTOR_PLAN.md", "SKILL_PLAN.md",
     "config/project.json", ".chatgpt/PROJECT_INSTRUCTIONS.md",
-    ".claude-web/PROJECT_INSTRUCTIONS.md", ".codex/config.toml",
+    ".claude-web/PROJECT_INSTRUCTIONS.md",
+    ".mistral/PROJECT_INSTRUCTIONS.md", ".mistral/PROJECT_KNOWLEDGE.md",
+    ".codex/config.toml",
     ".claude/settings.json", "prompts/BOOTSTRAP_NEW_PROJECT.md",
     "skills/complex-project-bootstrapper/SKILL.md",
     ".agents/skills/complex-project-bootstrapper/SKILL.md",
@@ -186,4 +194,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

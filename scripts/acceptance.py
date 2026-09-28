@@ -2,6 +2,10 @@
 """Gate and record independent acceptance of reviewed work; execute only architect-declared checks."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import contextlib
 import copy
@@ -16,9 +20,11 @@ import time
 from pathlib import Path
 
 import cli_colors
+import cli_exit
 import execution_harness as harness
 import feedback
 import model_router as router
+import progress
 import work_packet as wp
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -520,11 +526,12 @@ def append(directory, kind, data, timestamp=None, previous_state=None):
     next_state = apply(copy.deepcopy(state), event)
     event["hash"] = router.digest(event)
     serialized = json.dumps(event, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-    with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
-        output.write(serialized)
-        output.flush()
-        os.fsync(output.fileno())
-    feedback.sync_directory(directory)
+    with cli_exit.interrupts_held():  # Ctrl+C never leaves an event cut short (#31).
+        with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
+            output.write(serialized)
+            output.flush()
+            os.fsync(output.fileno())
+        feedback.sync_directory(directory)
     return next_state
 
 
@@ -540,9 +547,11 @@ def initialize(directory, config, packet, result, artifact, controller, architec
             "architect": architect, "implementers": implementers, "result": result,
             "artifact": artifact, "open_questions": open_questions}
     apply(None, {"kind": "INIT", "data": data, "timestamp": timestamp or wp.now()})
-    Path(directory).mkdir(exist_ok=False)
-    feedback.sync_directory(Path(directory).parent)
-    return append(directory, "INIT", data, timestamp)
+    # Ctrl+C is held until INIT is written, so a new ledger is never left empty (#31).
+    with cli_exit.interrupts_held():
+        Path(directory).mkdir(exist_ok=False)
+        feedback.sync_directory(Path(directory).parent)
+        return append(directory, "INIT", data, timestamp)
 
 
 def stream_digest(stdout_hex, stderr_hex):
@@ -553,6 +562,9 @@ def stream_digest(stdout_hex, stderr_hex):
 # After a check ends or is terminated, its pipes are drained for at most this long; a
 # descendant that still holds them after that is killed with the whole tree, not waited on.
 DRAIN_GRACE_SECONDS = 5
+# A running check is waited on in slices this long: on Windows one long wait cannot see Ctrl+C
+# until it returns, so a check that ignores the interrupt would hold the controller to its timeout.
+WAIT_SLICE_SECONDS = 0.2
 PROC_ROOT = Path("/proc")
 
 
@@ -655,9 +667,13 @@ class ProcessTree:
         return cls.CREATE_SUSPENDED if os.name == "nt" else 0
 
     @classmethod
-    def launch(cls, argv, cwd):
-        """Start a check. This is the only step whose OSError means "the check could not run"."""
-        return subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
+    def launch(cls, argv, cwd, *, env=None, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+        """Start a check. This is the only step whose OSError means "the check could not run".
+
+        The operator launcher (ADR-073) starts a harness through the same owner, passing its scoped
+        environment and its own streams; the session and suspended-creation flags stay defined here.
+        """
+        return subprocess.Popen(argv, cwd=cwd, env=env, stdin=stdin, stdout=stdout, stderr=stderr, shell=False,
                                 start_new_session=os.name != "nt", creationflags=cls.creation_flags())
 
     @classmethod
@@ -667,18 +683,25 @@ class ProcessTree:
 
         Timeout, normal exit with a descendant still alive, refusal, and any exception raised
         inside the block all leave through the same `finally`, so nothing spawned by the check
-        can outlive it, and the caller learns whether the tree was confirmed stopped. An error
-        raised by the teardown itself propagates: it is never converted into a check result,
-        because a tree that could not be confirmed stopped must refuse the run, not fail the check.
+        can outlive it. An error raised by the teardown itself propagates: it is never converted
+        into a check result, because a tree that could not be confirmed stopped must refuse the
+        run, not fail the check. That refusal is made here, on every exit, before any interrupt is
+        re-raised. Ctrl+C is one more exit (#31): the teardown holds a further interrupt until the
+        refusal is decided, so an interrupt leaves as a cancellation only once the tree is
+        confirmed stopped.
         """
         tree = cls(process)  # Refuses, with the suspended check killed, if it cannot be isolated.
         tree.stopped = None
         try:
             yield tree
         finally:
-            if process.poll() is None:
-                tree.kill()
-            tree.stopped = tree.close()
+            with cli_exit.interrupts_held():
+                if process.poll() is None:
+                    tree.kill()
+                tree.stopped = tree.close()
+                # Nothing from the tree may still be running when the workspace is digested.
+                require(tree.stopped, "The check's process tree could not be confirmed stopped; "
+                                      "refuse to digest a moving workspace")
 
     def _windows_resume(self):
         import ctypes
@@ -863,24 +886,34 @@ def bounded_capture(argv, cwd, timeout, bound):
     # Only a launch failure is a check result. Once the check exists, an OSError from owning or
     # tearing it down propagates and refuses the run (Codex P1, round 16): converting it into a
     # failed-check record would let the digest run over a tree never confirmed stopped.
-    try:
-        process = ProcessTree.launch(argv, cwd)
-    except OSError as exc:
-        message = str(exc).encode("utf-8")
-        text = message.decode("utf-8")
-        return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
-                "output_truncated": len(text) > bound,
-                "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
-    with ProcessTree.own(process) as tree:
-        readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
-                   threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
-        for reader in readers:
-            reader.start()
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            tree.kill()
+    with contextlib.ExitStack() as owned:
+        # Launch, ownership and draining are one step for Ctrl+C (#31): an interrupt while the
+        # check starts is held until its owner holds the tree, so no launched check is left unowned.
+        with cli_exit.interrupts_held():
+            try:
+                process = ProcessTree.launch(argv, cwd)
+            except OSError as exc:
+                message = str(exc).encode("utf-8")
+                text = message.decode("utf-8")
+                return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
+                        "output_truncated": len(text) > bound,
+                        "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(),
+                                                       hashlib.sha256(message).hexdigest())}
+            tree = owned.enter_context(ProcessTree.own(process))
+            readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
+                       threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
+            for reader in readers:
+                reader.start()
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                process.wait(timeout=max(0.0, min(WAIT_SLICE_SECONDS, deadline - time.monotonic())))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    timed_out = True
+                    tree.kill()
+                    break
         # A descendant that inherited the pipes — whether the check timed out or exited normally
         # and left it behind — would hold the readers open forever. The drain is bounded; a reader
         # still alive after the grace period means the tree is killed and the check is recorded
@@ -890,8 +923,6 @@ def bounded_capture(argv, cwd, timeout, bound):
             tree.kill()
             for reader in readers:
                 reader.join(timeout=DRAIN_GRACE_SECONDS)
-    # Nothing from the tree may still be running when the workspace is scanned and digested.
-    require(tree.stopped, "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
     out, out_cut, out_hex = finish(sinks[0], abandoned)
     err, err_cut, err_hex = finish(sinks[1], abandoned)
     return {"exit_code": None if timed_out or abandoned else process.returncode,
@@ -992,14 +1023,19 @@ def check_cwd(workspace, relative):
     return cwd
 
 
-def run_checks(directory, workspace, timestamp=None):
+def run_checks(directory, workspace, timestamp=None, reporter=None):
     """Execute the contract's declared validation commands and record what was observed.
 
     This is the one deliberate exception to the metadata-only pattern: independence requires
     observing the checks run, not transcribing a worker's claim that they ran. It executes
     only commands the architect declared in the contract; it never invokes a model, never
     runs a harness, and recording an observation is still not accepting work.
+
+    `reporter` (default `progress.NullProgress`, so an unmodified caller sees no output) is
+    purely cosmetic stderr feedback (#27): it never affects which commands run, their
+    timeouts, or the recorded result. See `scripts/progress.py`.
     """
+    reporter = reporter or progress.NullProgress()
     prior = replay(directory)
     state = prior[0]
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
@@ -1008,14 +1044,18 @@ def run_checks(directory, workspace, timestamp=None):
     # first checked, at each cwd, before each command and before the digest.
     workspace = trusted_workspace(workspace, policy)
     results = []
-    for check in state["contract"]["validation"]:
+    validations = state["contract"]["validation"]
+    reporter.start(len(validations))
+    for index, check in enumerate(validations, start=1):
         command = check.get("command")
         if command is None:
-            empty = hashlib.sha256(b"").hexdigest()
-            results.append({"validation_id": check["id"], "machine_runnable": False, "passed": False,
-                            "argv": [], "exit_code": None, "duration_seconds": None, "timed_out": False,
-                            "stdout": "", "stderr": "", "output_truncated": False,
-                            "output_sha256": stream_digest(empty, empty)})
+            with reporter.checking(index, len(validations), check["id"]):
+                empty = hashlib.sha256(b"").hexdigest()
+                results.append({"validation_id": check["id"], "machine_runnable": False, "passed": False,
+                                "argv": [], "exit_code": None, "duration_seconds": None, "timed_out": False,
+                                "stdout": "", "stderr": "", "output_truncated": False,
+                                "output_sha256": stream_digest(empty, empty)})
+            reporter.check_result(index, len(validations), check["id"], "NEEDS ATTESTATION", 0.0)
             continue
         cwd = check_cwd(workspace, command.get("cwd", "."))
         # Scanned before every command: an earlier check could create a link, a later one read
@@ -1023,10 +1063,13 @@ def run_checks(directory, workspace, timestamp=None):
         scan_workspace(workspace, policy)
         timeout = command.get("timeout_seconds", policy["check_timeout_seconds"])
         started = time.monotonic()
-        observed = bounded_capture(command["argv"], cwd, timeout, policy["check_output_max_chars"])
+        with reporter.checking(index, len(validations), check["id"]):
+            observed = bounded_capture(command["argv"], cwd, timeout, policy["check_output_max_chars"])
         duration = time.monotonic() - started
-        results.append({"validation_id": check["id"], "machine_runnable": True,
-                        "passed": observed["exit_code"] == 0 and not observed["timed_out"],
+        passed = observed["exit_code"] == 0 and not observed["timed_out"]
+        outcome = "TIMED OUT" if observed["timed_out"] else ("PASSED" if passed else "FAILED")
+        reporter.check_result(index, len(validations), check["id"], outcome, duration)
+        results.append({"validation_id": check["id"], "machine_runnable": True, "passed": passed,
                         "argv": list(command["argv"]), "duration_seconds": round(duration, 3), **observed})
     # Scanned again after the commands, so a link created during execution is caught too.
     files = scan_workspace(workspace, policy)
@@ -1035,9 +1078,12 @@ def run_checks(directory, workspace, timestamp=None):
     checks = {"workspace": str(workspace), "workspace_digest": router.digest(listing),
               "workspace_files": len(files), "results": results}
     recorded = append(directory, "CHECKS", {"checks": checks}, timestamp, prior)
+    satisfied = deterministic_satisfied(recorded)
+    passed_count = sum(1 for entry in results if entry["passed"])
+    reporter.finish(passed_count, len(results), satisfied)
     return {"status": recorded["status"], "workspace_digest": checks["workspace_digest"],
             "deterministic": deterministic_status(recorded),
-            "satisfied": deterministic_satisfied(recorded)}
+            "satisfied": satisfied}
 
 
 def review_contract(paths, policy, used):
@@ -1415,7 +1461,7 @@ def main(argv=None):
                                wp.read_json(args.questions) if args.questions else [])
             result = summary(state)
         elif args.command == "run-checks":
-            result = run_checks(args.ledger, args.workspace)
+            result = run_checks(args.ledger, args.workspace, reporter=progress.StreamProgress())
         elif args.command == "attest":
             state = append(args.ledger, "ATTESTATION",
                            {"attestation": {"validation_id": args.validation_id, "operator": args.operator,
@@ -1466,10 +1512,18 @@ def main(argv=None):
         kind, message = status_style(args.command, result)
         cli_colors.write_status(kind, f"{args.command}: {message}")
         return 0 if result.get("valid", True) and result.get("status") not in {"ESCALATION_REQUIRED", "ARCHITECTURE_CONFLICT", "USER_REJECTED"} else 2
+    except KeyboardInterrupt:
+        # ADR-072: 130 is the interrupted exit code. run_checks's own cleanup (killing the
+        # check's process tree, stopping any progress ticker) has already run by the time this
+        # is reached; nothing here needs to know whether a check was mid-run. The report and
+        # code are the shared ones (#31), and the report is best-effort (Codex P2 on PR #68):
+        # a closed stderr must not replace the exit code 130 this handler exists to guarantee.
+        cli_exit.report()
+        return cli_exit.INTERRUPTED
     except (OSError, ValueError, TypeError, KeyError) as exc:
         cli_colors.write_status(cli_colors.REFUSAL, f"Acceptance refused: {exc}")
         return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

@@ -18,7 +18,7 @@ Read `PROJECT_CHARTER.md`, `PROJECT_STATE.md`, `OPEN_LOOPS.md`, `DECISIONS.md`, 
 
 ## Work and closeout
 
-Apply `MASTER_INSTRUCTIONS.md`. Separate facts, inferences, allegations, proposals, and unknowns, and preserve provenance. Default connectors to read-only; the GitHub connector can manage issues and pull requests, but use write actions only on the user's explicit current instruction. At the end of meaningful work, produce commit-ready updates to the project state, open loops, decisions, source index, risks, changelog, and handoff. Never imply a commit or push occurred unless it was verified.
+Apply `MASTER_INSTRUCTIONS.md`. Separate facts, inferences, allegations, proposals, and unknowns, and preserve provenance. Default connectors to read-only; the GitHub App connector can search repositories, review issues, and manage pull requests, but use write actions only on the user's explicit current instruction. At the end of meaningful work, produce commit-ready updates to the project state, open loops, decisions, source index, risks, changelog, and handoff. Never imply a commit or push occurred unless it was verified.
 
 ## Notes
 

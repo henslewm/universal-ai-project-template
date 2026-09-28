@@ -2,6 +2,11 @@
 """Validate bootstrap state and explicit project activation; no dependencies."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    # Imported only here: the library stays dependency-free.
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import hashlib
 import json
@@ -221,4 +226,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))
