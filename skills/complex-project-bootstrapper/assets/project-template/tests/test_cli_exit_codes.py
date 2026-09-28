@@ -210,12 +210,12 @@ class SharedWrapperTests(unittest.TestCase):
                 self.assertIn("Interrupted", completed.stderr)
 
     def test_the_startup_guard_needs_nothing_the_interpreter_has_not_already_loaded(self):
-        # Codex P2 on PR #71, round 5: importing `cli_exit` loaded contextlib and threading before
-        # the guard existed. It may import only modules loaded before any script runs.
+        # Codex P2 on PR #71, rounds 5 and 6: importing `cli_exit` loaded contextlib, threading
+        # and (under `python -S`) os before the guard existed. Only `sys`, always loaded, may be.
         module = ast.parse((SCRIPTS / "cli_exit.py").read_text(encoding="utf-8"))
         imported = {alias.name for node in module.body if isinstance(node, (ast.Import, ast.ImportFrom))
                     for alias in node.names} | {node.module for node in module.body if isinstance(node, ast.ImportFrom)}
-        self.assertLessEqual(imported, {"annotations", "__future__", "os", "sys"})
+        self.assertLessEqual(imported, {"annotations", "__future__", "sys"})
 
     def test_interrupt_reporting_never_changes_the_exit_code(self):
         # Codex P2 on PR #71, round 5: with stderr closed, the report raised and the CLI exited 1.
@@ -230,7 +230,7 @@ class SharedWrapperTests(unittest.TestCase):
         self.addCleanup(setattr, sys, "excepthook", previous)
         cli_exit.guard_startup()
         with contextlib.redirect_stderr(closed), \
-                mock.patch.object(cli_exit.os, "_exit", side_effect=SystemExit) as exited:
+                mock.patch.object(os, "_exit", side_effect=SystemExit) as exited:
             with self.assertRaises(SystemExit):
                 sys.excepthook(KeyboardInterrupt, KeyboardInterrupt(), None)
         exited.assert_called_once_with(cli_exit.INTERRUPTED)

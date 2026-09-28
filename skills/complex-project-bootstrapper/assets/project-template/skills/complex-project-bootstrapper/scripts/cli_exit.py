@@ -6,14 +6,13 @@ module adds only what is shared: an interrupt returns 130 without a traceback, w
 arrives while the CLI is still loading or once it runs, and the few steps an interrupt must not
 cut in half hold it until they finish.
 
-A CLI imports this module before anything else, so at module level it imports only what the
-interpreter has already loaded before any script runs (`os`, `sys`): loading it opens no window
-in which an interrupt could escape before `guard_startup` is installed. Everything else is
-imported where it is used.
+A CLI imports this module before anything else, so at module level it imports only `sys`, which
+the interpreter always has loaded (even under `python -S`): loading it opens no window in which
+an interrupt could escape before `guard_startup` is installed. Everything else is imported
+where it is used.
 """
 from __future__ import annotations
 
-import os
 import sys
 
 INTERRUPTED = 130
@@ -41,6 +40,7 @@ def guard_startup():
 
     def hook(kind, value, traceback):
         if issubclass(kind, KeyboardInterrupt):
+            import os
             report()
             os._exit(INTERRUPTED)
         previous(kind, value, traceback)
