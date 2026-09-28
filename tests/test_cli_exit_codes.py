@@ -65,14 +65,14 @@ INTERRUPTING_RUNNER = ("import _thread, runpy, sys, threading, time\n"
                        "sys.argv = [script, *argv]\n"
                        "runpy.run_path(script, run_name='__main__')\n")
 
-# Runs a script's real `__main__` path and delivers Ctrl+C at its first module import after the
-# startup guard is in place, i.e. while the CLI is still loading, before `cli_exit.run` is reached.
+# Runs a script's real `__main__` path and delivers Ctrl+C at the first module import once
+# `cli_exit` starts loading, i.e. while the CLI is still loading, before `cli_exit.run` is reached.
 STARTUP_RUNNER = ("import runpy, sys\n"
                   "from pathlib import Path\n"
                   "script, *argv = sys.argv[1:]\n"
                   "class Interrupt:\n"
                   "    def find_spec(self, name, path=None, target=None):\n"
-                  "        if sys.excepthook is not sys.__excepthook__:\n"
+                  "        if 'cli_exit' in sys.modules:\n"
                   "            sys.meta_path.remove(self)\n"
                   "            raise KeyboardInterrupt\n"
                   "        return None\n"
@@ -192,8 +192,8 @@ class SharedWrapperTests(unittest.TestCase):
         self.assertEqual(seen, [(signal.default_int_handler, [])])
 
     def test_ctrl_c_while_a_cli_is_still_importing_also_exits_130_without_a_traceback(self):
-        # Codex P2 on PR #71, round 4: an interrupt during a CLI's module imports (jsonschema,
-        # schema loading) arrived before `cli_exit.run` was reached and printed a traceback.
+        # Codex P2 on PR #71, rounds 4 and 5: an interrupt during a CLI's module imports, or
+        # during the import of `cli_exit` itself, arrived before any handler and printed a traceback.
         for path in sorted(SCRIPTS.glob("*.py")):
             if path.name == "cli_exit.py":
                 continue
@@ -203,6 +203,32 @@ class SharedWrapperTests(unittest.TestCase):
                 self.assertEqual(completed.returncode, cli_exit.INTERRUPTED, completed.stdout + completed.stderr)
                 self.assertNotIn("Traceback", completed.stderr)
                 self.assertIn("Interrupted", completed.stderr)
+
+    def test_the_startup_guard_needs_nothing_the_interpreter_has_not_already_loaded(self):
+        # Codex P2 on PR #71, round 5: importing `cli_exit` loaded contextlib and threading before
+        # the guard existed. It may import only modules loaded before any script runs.
+        module = ast.parse((SCRIPTS / "cli_exit.py").read_text(encoding="utf-8"))
+        imported = {alias.name for node in module.body if isinstance(node, (ast.Import, ast.ImportFrom))
+                    for alias in node.names} | {node.module for node in module.body if isinstance(node, ast.ImportFrom)}
+        self.assertLessEqual(imported, {"annotations", "__future__", "os", "sys"})
+
+    def test_interrupt_reporting_never_changes_the_exit_code(self):
+        # Codex P2 on PR #71, round 5: with stderr closed, the report raised and the CLI exited 1.
+        def interrupted():
+            raise KeyboardInterrupt
+
+        closed = io.StringIO()
+        closed.close()
+        with contextlib.redirect_stderr(closed):
+            self.assertEqual(cli_exit.run(interrupted), cli_exit.INTERRUPTED)
+        previous = sys.excepthook
+        self.addCleanup(setattr, sys, "excepthook", previous)
+        cli_exit.guard_startup()
+        with contextlib.redirect_stderr(closed), \
+                mock.patch.object(cli_exit.os, "_exit", side_effect=SystemExit) as exited:
+            with self.assertRaises(SystemExit):
+                sys.excepthook(KeyboardInterrupt, KeyboardInterrupt(), None)
+        exited.assert_called_once_with(cli_exit.INTERRUPTED)
 
     def test_every_cli_entry_point_goes_through_the_shared_wrapper(self):
         guarded = {}

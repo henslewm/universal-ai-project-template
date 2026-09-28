@@ -5,33 +5,43 @@ A CLI returns 0 for success, 1 for a handled refusal and 2 for a not-OK outcome 
 module adds only what is shared: an interrupt returns 130 without a traceback, whether it
 arrives while the CLI is still loading or once it runs, and the few steps an interrupt must not
 cut in half hold it until they finish.
+
+A CLI imports this module before anything else, so at module level it imports only what the
+interpreter has already loaded before any script runs (`os`, `sys`): loading it opens no window
+in which an interrupt could escape before `guard_startup` is installed. Everything else is
+imported where it is used.
 """
 from __future__ import annotations
 
-import contextlib
 import os
-import signal
 import sys
-import threading
 
 INTERRUPTED = 130
 MESSAGE = ("Interrupted. Records written before the interrupt are kept; "
            "check the ledger or output status before retrying.")
 
 
+def report():
+    """Say the command was interrupted, best-effort: a closed or broken stderr never changes 130."""
+    try:
+        print(MESSAGE, file=sys.stderr)
+        sys.stderr.flush()
+    except (OSError, ValueError):
+        pass
+
+
 def guard_startup():
     """Map a Ctrl+C that arrives while a CLI is still importing, before `run` is reached, to 130.
 
-    Called first in a CLI's `__main__` path, before its heavier imports. Nothing has been
-    written at that point, so the process exits at once with no traceback; any other uncaught
-    exception is left to the previous hook.
+    Called first in a CLI's `__main__` path, before its own imports. Nothing has been written at
+    that point, so the process exits at once with no traceback; any other uncaught exception is
+    left to the previous hook.
     """
     previous = sys.excepthook
 
     def hook(kind, value, traceback):
         if issubclass(kind, KeyboardInterrupt):
-            print(MESSAGE, file=sys.stderr)
-            sys.stderr.flush()
+            report()
             os._exit(INTERRUPTED)
         previous(kind, value, traceback)
 
@@ -50,31 +60,36 @@ def run(main, *args):
     try:
         return main(*args)
     except KeyboardInterrupt:
-        print(MESSAGE, file=sys.stderr)
+        report()
         return INTERRUPTED
 
 
-@contextlib.contextmanager
-def interrupts_held():
+class interrupts_held:
     """Hold a Ctrl+C that arrives inside the block and raise it once the block completes.
 
     For the few steps an interrupt must not split: a launched check reaching its owner, the
     owner confirming the check's tree stopped, and a ledger event or new output file being
-    written whole. Yields the list of held signals, so the block can see whether one arrived.
-    If the block raises, that exception propagates and a held interrupt is dropped with it, so
-    a refusal is never masked. Python raises KeyboardInterrupt only in the main thread and
-    installs handlers only there; elsewhere, or when SIGINT is not Python's default handler
-    (ignored, or replaced by an embedding program), the block runs unchanged.
+    written whole. `with interrupts_held() as held` gives the list of held signals, so the block
+    can see whether one arrived. If the block raises, that exception propagates and a held
+    interrupt is dropped with it, so a refusal is never masked. Python raises KeyboardInterrupt
+    only in the main thread and installs handlers only there; elsewhere, or when SIGINT is not
+    Python's default handler (ignored, or replaced by an embedding program), the block runs
+    unchanged.
     """
-    held = []
-    if (threading.current_thread() is not threading.main_thread()
-            or signal.getsignal(signal.SIGINT) is not signal.default_int_handler):
-        yield held
-        return
-    previous = signal.signal(signal.SIGINT, lambda signum, frame: held.append(signum))
-    try:
-        yield held
-    finally:
-        signal.signal(signal.SIGINT, previous)
-    if held:
-        raise KeyboardInterrupt
+
+    def __enter__(self):
+        import signal
+        import threading
+        self.held, self.previous = [], None
+        if (threading.current_thread() is threading.main_thread()
+                and signal.getsignal(signal.SIGINT) is signal.default_int_handler):
+            self.previous = signal.signal(signal.SIGINT, lambda signum, frame: self.held.append(signum))
+        return self.held
+
+    def __exit__(self, kind, value, traceback):
+        if self.previous is not None:
+            import signal
+            signal.signal(signal.SIGINT, self.previous)
+        if kind is None and self.held:
+            raise KeyboardInterrupt
+        return False

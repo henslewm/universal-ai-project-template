@@ -127,7 +127,7 @@ Every `scripts/*.py` command follows one exit-code policy (ADR-072). Adopting it
 | 0 | Success, or an outcome the command reports in its output. A command can exit 0 on a hold, as the table below shows, so read its JSON `status`. |
 | 1 | A handled refusal: invalid input found after argument parsing, a failed validation, or a refused operation. The reason is printed. A missing `jsonschema` also exits 1, with the install instruction. |
 | 2 | A not-OK outcome from one of three sources. An argparse usage error prints usage on stderr and nothing on stdout. A domain stop or hold prints JSON with `status`, or with `valid: false`. `validate_bootstrap.py` exits 2 when it cannot read or parse its file. Tell them apart by stdout, never by the code alone. |
-| 130 | Interrupted (Ctrl+C), including while the command is still loading its modules. No traceback is printed. |
+| 130 | Interrupted (Ctrl+C) at any point from the command's first statement, including while it loads its modules. No traceback is printed. Only the interpreter's own startup comes before that point. |
 
 | Command | 0 | 1 | 2 (besides usage errors) |
 |---|---|---|---|
