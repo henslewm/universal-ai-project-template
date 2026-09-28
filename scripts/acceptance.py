@@ -1327,6 +1327,12 @@ def status_style(command, result):
         return cli_colors.REFUSAL, result.get("reason", status)
     if status == "GATES_PENDING" and result.get("reason") == "REVIEW_ABANDONED":
         return cli_colors.ABANDONED, "the last review was abandoned; gates remain pending"
+    # run-checks and status/summary both report deterministic-gate outcomes under this key,
+    # and the ledger's own "status" stays GATES_PENDING regardless of a failing check.
+    deterministic = result.get("deterministic")
+    if isinstance(deterministic, dict) and "FAILED" in deterministic.values():
+        failed = sorted(k for k, v in deterministic.items() if v == "FAILED")
+        return cli_colors.REFUSAL, f"a deterministic check failed: {', '.join(failed)}"
     return cli_colors.PENDING, f"{status or 'in progress'}: not yet accepted"
 
 

@@ -1251,6 +1251,25 @@ class VerifyAndCliTests(AcceptanceBase):
         kind, _ = acceptance.status_style("verify-review", {"valid": True, "verdict": "NEEDS_EVIDENCE"})
         self.assertEqual(kind, "pending")
 
+    def test_a_failed_deterministic_check_is_a_refusal_even_while_gates_pending(self):
+        # Codex review round 4 of PR #67: run-checks (and status/summary, which share the
+        # same "deterministic" key) report GATES_PENDING regardless of a failing check, so
+        # the generic fallback must inspect the deterministic-gate outcomes too.
+        run_checks_result = {"status": "GATES_PENDING", "workspace_digest": "d" * 64,
+                              "deterministic": {"VAL-1": "PASSED", "VAL-2": "FAILED"},
+                              "satisfied": False}
+        kind, _ = acceptance.status_style("run-checks", run_checks_result)
+        self.assertEqual(kind, "refusal")
+        status_result = {"status": "GATES_PENDING", "reason": "INITIALIZED",
+                          "deterministic": {"VAL-1": "FAILED"}, "deterministic_satisfied": False}
+        kind, _ = acceptance.status_style("status", status_result)
+        self.assertEqual(kind, "refusal")
+        clean_result = {"status": "GATES_PENDING", "reason": "INITIALIZED",
+                         "deterministic": {"VAL-1": "PASSED", "VAL-2": "NEEDS_ATTESTATION"},
+                         "deterministic_satisfied": False}
+        kind, _ = acceptance.status_style("status", clean_result)
+        self.assertEqual(kind, "pending")
+
     def test_refusal_is_styled_on_stderr_and_stdout_stays_empty(self):
         argv = [sys.executable, str(ROOT / "scripts/acceptance.py"),
                 "--config", str(ROOT / "does-not-exist.json"), "validate-config"]
