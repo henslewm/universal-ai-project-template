@@ -541,9 +541,11 @@ def initialize(directory, config, packet, result, artifact, controller, architec
             "architect": architect, "implementers": implementers, "result": result,
             "artifact": artifact, "open_questions": open_questions}
     apply(None, {"kind": "INIT", "data": data, "timestamp": timestamp or wp.now()})
-    Path(directory).mkdir(exist_ok=False)
-    feedback.sync_directory(Path(directory).parent)
-    return append(directory, "INIT", data, timestamp)
+    # Ctrl+C is held until INIT is written, so a new ledger is never left empty (#31).
+    with cli_exit.interrupts_held():
+        Path(directory).mkdir(exist_ok=False)
+        feedback.sync_directory(Path(directory).parent)
+        return append(directory, "INIT", data, timestamp)
 
 
 def stream_digest(stdout_hex, stderr_hex):

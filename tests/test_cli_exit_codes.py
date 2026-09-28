@@ -23,7 +23,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from test_acceptance import AcceptanceBase, acceptance, process_alive
+from test_acceptance import (ARCHITECT, CONTROLLER, IMPLEMENTERS, AcceptanceBase, acceptance, make_artifact,
+                             make_result, process_alive)
+from test_acceptance import make_packet as review_packet
 from test_bootstrap_integration import answers
 from test_execution_harness import configuration as harness_configuration
 from test_feedback import ANCHOR, active_project, options, policy, timestamp
@@ -537,6 +539,30 @@ class InterruptedWriteTests(AcceptanceBase):
                 feedback.initialize(ledger, packet, [packet], policy(), router_config(resource()), self.directory,
                                     "Synthetic architect", timestamp())
         self.assertEqual(feedback.replay(ledger)[0]["status"], "READY")
+
+    def test_a_new_ledger_is_never_left_without_its_first_event(self):
+        # Codex P2 on PR #71: Ctrl+C between creating the ledger directory and appending INIT left
+        # an empty ledger that replay refuses and that blocks a retry (the directory exists).
+        real_sync = feedback.sync_directory
+
+        def sync(directory):
+            if Path(directory) == self.directory:  # The parent sync, after mkdir and before INIT.
+                signal.raise_signal(signal.SIGINT)
+            return real_sync(directory)
+
+        packet = ready_packet()
+        ledger = self.directory / "feedback"
+        with mock.patch.object(feedback, "active_anchor", return_value=ANCHOR), \
+                mock.patch.object(feedback, "sync_directory", sync), self.assertRaises(KeyboardInterrupt):
+            feedback.initialize(ledger, packet, [packet], policy(), router_config(resource()), self.directory,
+                                "Synthetic architect", timestamp())
+        self.assertEqual(feedback.replay(ledger)[0]["status"], "READY")
+        packet = review_packet()
+        ledger = self.directory / "acceptance"
+        with mock.patch.object(feedback, "sync_directory", sync), self.assertRaises(KeyboardInterrupt):
+            acceptance.initialize(ledger, self.config(), packet, make_result(packet), make_artifact(), CONTROLLER,
+                                  ARCHITECT, IMPLEMENTERS, [])
+        self.assertEqual(self.state(ledger)["status"], "GATES_PENDING")
 
     def test_a_new_output_file_is_written_whole(self):
         output = self.directory / "record.json"

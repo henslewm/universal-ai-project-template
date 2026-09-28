@@ -527,10 +527,12 @@ def initialize(directory, packet, graph, policy, config, root, architect, timest
             "anchor": anchor, "architect": architect}
     # Validate before creating the ledger. A partial initialization fails closed.
     apply(None, {"kind": "INIT", "data": data, "timestamp": timestamp or wp.now()})
-    # The caller supplies an existing parent; persist the ledger name there too.
-    Path(directory).mkdir(exist_ok=False)
-    sync_directory(Path(directory).parent)
-    return append(directory, "INIT", data, timestamp)
+    # The caller supplies an existing parent; persist the ledger name there too. Ctrl+C is held
+    # until INIT is written, so a new ledger is never left empty and unreplayable (#31).
+    with cli_exit.interrupts_held():
+        Path(directory).mkdir(exist_ok=False)
+        sync_directory(Path(directory).parent)
+        return append(directory, "INIT", data, timestamp)
 
 
 def reserve(directory, config, options, root, timestamp=None):
