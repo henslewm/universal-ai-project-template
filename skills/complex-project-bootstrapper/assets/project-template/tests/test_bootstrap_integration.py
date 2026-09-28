@@ -404,6 +404,12 @@ class ApprovalInteractionTests(unittest.TestCase):
         self.assertIn("\\x1b[2J\\r\\u202eName", banner)
         self.assertTrue(all(len(line) <= 80 for line in banner.splitlines()), max(map(len, banner.splitlines())))
         self.assertEqual(1, banner.count("   APPROVE " + self.fingerprint))
+        # Wide or combining characters would make code-point wrapping misjudge terminal columns.
+        data["project"]["name"] = "\u754c" * 43 + " Cafe\u0301 \U0001F600"
+        banner = bootstrap_gate.approval_banner(data, self.fingerprint)
+        self.assertTrue(all(ch.isascii() and ch.isprintable() for line in banner.splitlines() for ch in line), repr(banner))
+        self.assertIn("\\u754c", banner)
+        self.assertTrue(all(len(line) <= 80 for line in banner.splitlines()), max(map(len, banner.splitlines())))
 
     def test_exact_confirmation_activates_and_banner_precedes_prompts(self):
         banner = bootstrap_gate.approval_banner(read(self.state), self.fingerprint)

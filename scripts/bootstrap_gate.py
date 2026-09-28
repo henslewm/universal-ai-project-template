@@ -98,8 +98,10 @@ def approval_banner(data: dict, fingerprint: str) -> str:
                              break_long_words=False, break_on_hyphens=False)
 
     def field(label: str, value: str) -> list[str]:
-        # Package values are user-authored: escape anything a terminal could act on, and hard-wrap long tokens.
-        visible = "".join(ch if ch.isprintable() else ch.encode("unicode_escape").decode("ascii") for ch in value)
+        # Package values are user-authored. Escape everything outside printable ASCII, so nothing reaches the
+        # terminal that it could act on or render wider than one column; the review above shows the original text.
+        visible = "".join(ch if ch.isascii() and ch.isprintable() else ch.encode("unicode_escape").decode("ascii")
+                          for ch in value)
         return textwrap.wrap(visible, BANNER_WIDTH - 15, initial_indent=f" {label:<13}", subsequent_indent=" " * 14,
                              break_on_hyphens=False) or [f" {label}"]
 
