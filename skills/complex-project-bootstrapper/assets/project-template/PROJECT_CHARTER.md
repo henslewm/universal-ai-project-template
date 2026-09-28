@@ -53,7 +53,7 @@ A reusable, repo-backed control plane that makes complex, high-stakes AI-assiste
 
 - Preserve authoritative source material and provenance. Keep secrets and restricted material out of Git.
 - Filing and sending require explicit owner approval. Until a superseding ADR on C is recorded with owner sign-off, the current rules' other explicit-authority gates, including those for deletions and consequential external writes, also apply.
-- No real party or case identity in this public repository. In the private case repository, only public-record case documents (court filings) may be committed; before committing anything case-related, run the owner's privacy-redaction gate (the privacy-redaction-gate skill: PII, minors, sealed material, public uploads).
+- No real party or case identity in this public repository. In the private case repository, only public-record case documents (court filings) may be committed; before committing anything case-related, run the owner's privacy-redaction gate (the privacy-redaction-gate skill in the owner's Claude account, not in this repository: PII, minors, sealed material, public uploads). A session without that skill does not commit case-related material.
 - Simulations or guesses are never acceptable as verification (owner, stated with the domain-template requirement).
 
 ## Decision rights
