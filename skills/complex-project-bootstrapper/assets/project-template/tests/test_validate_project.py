@@ -49,6 +49,17 @@ class MistralWiringTests(unittest.TestCase):
         self.assertIsNotNone(match, "authority-order item 5 not found")
         self.assertIn("MASTER_MISTRAL.md", match.group(1))
 
+    def test_mistral_row_in_bootstrapper_platform_map(self) -> None:
+        # Codex round 2: bootstrap_project.py's default ai_clients now offers
+        # "mistral", but the bootstrap workflow (SKILL.md step 6) applies
+        # references/platform-map.md to wire each client's native discovery
+        # mechanism. Without a Mistral row there, following that workflow could
+        # declare Mistral supported without ever pasting its Project
+        # instructions or connecting its knowledge source.
+        text = (ROOT / "skills/complex-project-bootstrapper/references/platform-map.md").read_text(encoding="utf-8")
+        self.assertIn("Mistral", text)
+        self.assertIn(".mistral/PROJECT_INSTRUCTIONS.md", text)
+
     def test_validator_refuses_a_checkout_missing_the_mistral_master(self) -> None:
         # Before this fix, REQUIRED omitted MASTER_MISTRAL.md, so deleting it from a
         # checkout passed validation. Prove the enforcement is real: build a disposable
