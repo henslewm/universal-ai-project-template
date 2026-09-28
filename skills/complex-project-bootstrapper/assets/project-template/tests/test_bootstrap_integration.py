@@ -1,7 +1,9 @@
 """Exercise the delivered commands in disposable projects; never activate real work."""
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
 import os
 import shutil
@@ -10,10 +12,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from validate_bootstrap import BOUND_DOCUMENTS, DOMAIN_FIELDS, architecture_fingerprint
+import bootstrap_gate
 import github_ledger
 
 FIXTURES = {"software-hardware": "config/bootstrap.example.json", "family-law": "tests/fixtures/bootstrap-family-law-awaiting.json", "civil-rights-nc": "tests/fixtures/bootstrap-civil-rights-awaiting.json"}
@@ -340,6 +344,117 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     dest = self.base / "must-not-exist"
                     self.run_cli(ROOT / "scripts/bootstrap_project.py", "--answers", source, "--destination", dest, "--no-git", ok=False)
                     self.assertFalse(dest.exists())
+
+
+class ApprovalInteractionTests(unittest.TestCase):
+    """#29: the framed approval banner, and the typed confirmation it must not weaken."""
+
+    def setUp(self):
+        self.helper = BootstrapIntegrationTests("run")
+        self.helper.setUp()
+        self.addCleanup(self.helper.temp.cleanup)
+        self.root = self.helper.generate()
+        self.helper.run_cli(self.root / "scripts/bootstrap_gate.py", "review", "--root", self.root)
+        self.state = self.root / "config/bootstrap.json"
+        self.fingerprint = architecture_fingerprint(read(self.state))
+
+    def activate(self, *replies):
+        """Run activation in-process; each reply is a string or an exception raised by input()."""
+        pending = list(replies)
+        prompts = []
+
+        def fake_input(prompt=""):
+            prompts.append(prompt)
+            reply = pending.pop(0)
+            if isinstance(reply, BaseException) or (isinstance(reply, type) and issubclass(reply, BaseException)):
+                raise reply
+            return reply(self) if callable(reply) else reply
+
+        output = io.StringIO()
+        with mock.patch("builtins.input", fake_input), contextlib.redirect_stdout(output):
+            try:
+                return None, bootstrap_gate.activate(self.root), output.getvalue(), prompts
+            except BaseException as exc:  # noqa: BLE001 - the tests assert on the exception type
+                return exc, None, output.getvalue(), prompts
+
+    def assert_inactive(self, before):
+        self.assertEqual(before, self.state.read_bytes())
+        self.assertEqual("AWAITING_APPROVAL", read(self.state)["state"])
+        self.helper.active_check(self.root, False)
+
+    def test_banner_frames_state_full_fingerprint_and_consequence(self):
+        banner = bootstrap_gate.approval_banner(read(self.state), self.fingerprint)
+        lines = banner.splitlines()
+        self.assertTrue(lines[0].startswith("=") and lines[-1].startswith("="))
+        self.assertTrue(all(ch.isascii() for ch in banner))
+        self.assertTrue(all(len(line) <= 80 for line in lines), max(map(len, lines)))
+        self.assertIn("AWAITING_APPROVAL", banner)
+        self.assertIn("autonomy is OFF", banner)
+        self.assertIn(self.fingerprint, banner)
+        self.assertIn("ACTIVE", banner)
+        self.assertIn("APPROVE " + self.fingerprint, banner)
+        self.assertIn("blank", banner.lower())
+        self.assertNotIn("\x1b", banner)
+
+    def test_banner_escapes_control_characters_and_wraps_long_names(self):
+        data = read(self.state)
+        data["project"]["name"] = "Evil\x1b[2J\r\u202eName " + "X" * 200
+        banner = bootstrap_gate.approval_banner(data, self.fingerprint)
+        self.assertTrue(all(ch.isprintable() for line in banner.splitlines() for ch in line), repr(banner))
+        self.assertIn("\\x1b[2J\\r\\u202eName", banner)
+        self.assertTrue(all(len(line) <= 80 for line in banner.splitlines()), max(map(len, banner.splitlines())))
+        self.assertEqual(1, banner.count("   APPROVE " + self.fingerprint))
+        # Wide or combining characters would make code-point wrapping misjudge terminal columns.
+        data["project"]["name"] = "\u754c" * 43 + " Cafe\u0301 \U0001F600"
+        banner = bootstrap_gate.approval_banner(data, self.fingerprint)
+        self.assertTrue(all(ch.isascii() and ch.isprintable() for line in banner.splitlines() for ch in line), repr(banner))
+        self.assertIn("\\u754c", banner)
+        self.assertTrue(all(len(line) <= 80 for line in banner.splitlines()), max(map(len, banner.splitlines())))
+
+    def test_exact_confirmation_activates_and_banner_precedes_prompts(self):
+        banner = bootstrap_gate.approval_banner(read(self.state), self.fingerprint)
+        exc, data, output, prompts = self.activate("Synthetic test user", f"APPROVE {self.fingerprint}")
+        self.assertIsNone(exc)
+        self.assertEqual("ACTIVE", data["state"])
+        self.assertEqual(["Approving user identity: ", f"Type APPROVE {self.fingerprint}: "], prompts)
+        self.assertIn(banner, output)
+        self.assertTrue(output.endswith(banner + "\n"), "the banner must sit directly above the prompts")
+        self.helper.active_check(self.root, True)
+
+    def test_wrong_fingerprint_blank_and_generic_yes_leave_autonomy_off(self):
+        before = self.state.read_bytes()
+        wrong = "0" * 64 if self.fingerprint != "0" * 64 else "1" * 64
+        for identity, decision in (("Synthetic test user", f"APPROVE {wrong}"), ("Synthetic test user", ""),
+                                   ("", f"APPROVE {self.fingerprint}"), ("Synthetic test user", "yes"),
+                                   ("Synthetic test user", f"approve {self.fingerprint}")):
+            with self.subTest(identity=identity, decision=decision):
+                exc, data, _, _ = self.activate(identity, decision)
+                self.assertIsInstance(exc, ValueError)
+                self.assertIsNone(data)
+                self.assert_inactive(before)
+
+    def test_eof_and_interrupt_leave_autonomy_off(self):
+        before = self.state.read_bytes()
+        for replies, expected in (((EOFError,), EOFError), (("Synthetic test user", EOFError), EOFError),
+                                  ((KeyboardInterrupt,), KeyboardInterrupt),
+                                  (("Synthetic test user", KeyboardInterrupt), KeyboardInterrupt)):
+            with self.subTest(replies=replies):
+                exc, data, _, _ = self.activate(*replies)
+                self.assertIsInstance(exc, expected)
+                self.assertIsNone(data)
+                self.assert_inactive(before)
+
+    def test_foundation_change_during_input_still_refuses(self):
+        def tamper(test):
+            data = read(test.state)
+            data["architecture"]["boundaries"].append("Changed during approval")
+            write(test.state, data)
+            return f"APPROVE {test.fingerprint}"
+        exc, data, _, _ = self.activate("Synthetic test user", tamper)
+        self.assertIsInstance(exc, ValueError)
+        self.assertIn("changed during approval", str(exc))
+        self.assertNotEqual("ACTIVE", read(self.state)["state"])
+        self.helper.active_check(self.root, False)
 
 
 if __name__ == "__main__":
