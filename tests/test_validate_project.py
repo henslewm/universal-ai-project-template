@@ -88,5 +88,21 @@ class MistralWiringTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
 
 
+class IssueTemplateGuidanceTests(unittest.TestCase):
+    def test_evidence_gap_template_warns_against_placeholder_reports(self) -> None:
+        canonical = ROOT / ".github/ISSUE_TEMPLATE/evidence-gap.yml"
+        mirrored = ROOT / "skills/complex-project-bootstrapper/assets/project-template/.github/ISSUE_TEMPLATE/evidence-gap.yml"
+        text = canonical.read_text(encoding="utf-8")
+        self.assertIn("Do not submit placeholder text such as `Blocker`, `unknown`", text)
+        self.assertIn("If you cannot name the canonical task, master issue, packet binding", text)
+        self.assertIn("contract_sha256: <64-hex sha256>", text)
+        self.assertIn("https://github.com/henslewm/universal-ai-project-template/issues/11", text)
+        self.assertIn("Missing evidence: signed order entered on 2026-09-21", text)
+        self.assertIn("Search 2026-09-28 05:30 UTC: county eCourts portal query", text)
+        self.assertIn("Required source: county clerk docket export or filed PDF", text)
+        self.assertIn("Owner: Winston", text)
+        self.assertEqual(text, mirrored.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

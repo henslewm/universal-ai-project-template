@@ -7,11 +7,14 @@ body:
     attributes:
       value: |
         Missing evidence remains unknown. This issue cannot substitute for a verified source or acceptance result and does not change the canonical JSON packet. Preserve originals and provenance; link approved locations for restricted evidence instead of attaching it here.
+
+        If you cannot name the canonical task, master issue, packet binding, and exact blocked criterion yet, stop and open or update a blocker instead. Do not submit placeholder text such as `Blocker`, `unknown`, or “I am not sure what the problem is.” Use neutral, source-backed language and say exactly what is missing, what was searched, and who owns the next evidence step.
   - type: input
     id: task_issue
     attributes:
       label: Canonical task issue
       description: Link the authoritative task issue whose conclusion or acceptance is affected.
+      placeholder: https://github.com/henslewm/universal-ai-project-template/issues/11
     validations:
       required: true
   - type: input
@@ -19,6 +22,7 @@ body:
     attributes:
       label: Master issue
       description: Link the controlling project or master issue.
+      placeholder: https://github.com/henslewm/universal-ai-project-template/issues/14
     validations:
       required: true
   - type: textarea
@@ -26,6 +30,11 @@ body:
     attributes:
       label: Canonical packet binding
       description: Link the packet and record task_id, current revision, and complete contract SHA-256.
+      placeholder: |-
+        Packet: /packets/FAM-04-issue-brief.contract.json
+        task_id: issue-11-demo
+        revision: 2
+        contract_sha256: <64-hex sha256>
     validations:
       required: true
   - type: textarea
@@ -33,6 +42,9 @@ body:
     attributes:
       label: Missing evidence and affected criterion
       description: Identify the missing, inaccessible, stale, or conflicting evidence and the exact claim or acceptance criterion it prevents verifying.
+      placeholder: |-
+        Missing evidence: signed order entered on 2026-09-21 is not yet in the authoritative docket export.
+        Affected criterion: AC-PROVENANCE for Claim 2 element 3 cannot be verified without the entered order.
     validations:
       required: true
   - type: textarea
@@ -40,6 +52,12 @@ body:
     attributes:
       label: Available evidence and searches performed
       description: Link existing sources, source IDs, conflicting records, queries, and dated search results. Distinguish unavailable material from material not yet searched.
+      placeholder: |-
+        Sources checked:
+        - SRC-041 docket export dated 2026-09-27: no signed order attached
+        - Search 2026-09-28 05:30 UTC: county eCourts portal query for 24-CVD-1234; no new filing returned
+        Conflicting or partial evidence:
+        - Counsel email dated 2026-09-26 refers to a signed order but does not attach it
     validations:
       required: true
   - type: textarea
@@ -47,6 +65,11 @@ body:
     attributes:
       label: Required provenance and verification
       description: Specify the expected source, coverage, version or date, and verification check that would resolve the gap. Note access and preservation constraints.
+      placeholder: |-
+        Required source: county clerk docket export or filed PDF bearing the court timestamp
+        Coverage/date needed: final entered order for 24-CVD-1234, on or after 2026-09-21
+        Verification check: match case number, filing date, and disposition text against the packet assertion
+        Constraints: do not upload the full PDF if it contains restricted personal information; link the approved storage location instead
     validations:
       required: true
   - type: textarea
@@ -54,5 +77,11 @@ body:
     attributes:
       label: Next action and evidence owner
       description: Name the responsible owner, permitted collection or verification action, dependency, and due date if known. Identify any permission still required.
+      placeholder: |-
+        Owner: Winston
+        Next action: request the certified docket export from the clerk and record the response in the canonical task
+        Dependency: clerk portal availability
+        Due: 2026-09-30
+        Permission needed: none beyond existing case-access authority
     validations:
       required: true

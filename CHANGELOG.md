@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — #87: evidence-gap issue form hardened against placeholder reports (ADR-076)
+
+- `.github/ISSUE_TEMPLATE/evidence-gap.yml` now tells a reporter to stop and open or update a blocker instead if they cannot yet identify the canonical task, master issue, packet binding, and blocked criterion.
+- The form explicitly rejects placeholder text such as `Blocker`, `unknown`, or “I am not sure what the problem is,” and now ships concrete placeholders for the packet binding, provenance/search history, verification requirement, and next owner.
+- `tests/test_validate_project.py` adds a regression that locks in the new anti-placeholder guidance; `sync_skills.py` propagated the same update into the generated-project payload mirror.
+
 ## 2026-09-28 — PR #71: CLI exit codes and Ctrl+C → 130 (#32, #31; ADR-075)
 
 - README "CLI exit codes" lists every command's 0/1/2 outcomes and the 130 behavior; the protocols point to it. No existing outcome changed code (ADR-072).
