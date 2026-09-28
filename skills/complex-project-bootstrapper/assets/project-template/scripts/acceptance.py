@@ -19,6 +19,7 @@ import threading
 import time
 from pathlib import Path
 
+import cli_colors
 import cli_exit
 import execution_harness as harness
 import feedback
@@ -1329,6 +1330,58 @@ def verify_review(config, packet_path, report_path):
             "recorded_in_ledger": False, "acceptance_granted": False}
 
 
+_REFUSAL_STATUSES = {"REJECTED", "USER_REJECTED", "ESCALATION_REQUIRED", "ARCHITECTURE_CONFLICT"}
+# A verdict this repository's own controllers treat as a rejection or escalation, wherever
+# it surfaces: verify-review (unrecorded), apply (materialized onto the packet), and
+# sync-feedback (forwarded into the feedback ledger) all carry the same `verdict` field.
+_REFUSAL_VERDICTS = {"REJECT_BOUNDED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT"}
+
+
+def status_style(command, result):
+    """Classify a command's result into a human status kind and an explicit message.
+
+    Acceptance is earned only by `accept` reaching ACCEPTED; a valid config, a
+    schema-valid `verify-review`, or a pending ledger are never styled success.
+    """
+    if command == "abandon-review":
+        return cli_colors.ABANDONED, "review closed with a recorded reason; no verdict was recorded"
+    if command == "validate-config":
+        return cli_colors.SUCCESS if result.get("valid", True) else cli_colors.REFUSAL, \
+            "schema-valid" if result.get("valid", True) else "schema validation failed"
+    if command == "verify-review":
+        if not result.get("valid", True):
+            return cli_colors.REFUSAL, "schema validation failed"
+        if result.get("verdict") in _REFUSAL_VERDICTS:
+            return cli_colors.REFUSAL, f"review verdict is {result['verdict']}"
+        return cli_colors.PENDING, "review report is schema-valid; this proves the contract holds, it does not accept the work"
+    if command in {"apply", "sync-feedback"}:
+        if result.get("verdict") in _REFUSAL_VERDICTS:
+            return cli_colors.REFUSAL, f"decision verdict is {result['verdict']}"
+        if command == "apply":
+            state = result.get("packet_state")
+            if state == "ACCEPTED":
+                return cli_colors.SUCCESS, "the acceptance ledger's decision was materialized as ACCEPTED"
+            return cli_colors.PENDING, f"packet transitioned to {state}; not yet accepted"
+        state = result.get("feedback_status")
+        if state == "ACCEPTED":
+            return cli_colors.SUCCESS, "the acceptance decision was recorded as ACCEPTED in the feedback ledger"
+        return cli_colors.PENDING, f"feedback ledger at {state}; not yet accepted"
+    status = result.get("status")
+    if status == "ACCEPTED":
+        return cli_colors.SUCCESS, "every required acceptance gate passed"
+    if status in _REFUSAL_STATUSES:
+        return cli_colors.REFUSAL, result.get("reason", status)
+    if status == "GATES_PENDING" and result.get("reason") == "REVIEW_ABANDONED":
+        return cli_colors.ABANDONED, "the last review was abandoned; gates remain pending"
+    # run-checks and status/summary both report deterministic-gate outcomes under this key,
+    # and the ledger's own "status" stays GATES_PENDING regardless of a failing check.
+    deterministic = result.get("deterministic")
+    if isinstance(deterministic, dict) and "FAILED" in deterministic.values():
+        failed = sorted(k for k, v in deterministic.items() if v == "FAILED")
+        return cli_colors.REFUSAL, f"a deterministic check failed: {', '.join(failed)}"
+    return cli_colors.PENDING, f"{status or 'in progress'}: not yet accepted"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
@@ -1456,6 +1509,8 @@ def main(argv=None):
             result = {"packet_state": updated["state"], "verdict": decision["verdict"],
                       "output": str(args.output)}
         print(json.dumps(result, indent=2, ensure_ascii=False))
+        kind, message = status_style(args.command, result)
+        cli_colors.write_status(kind, f"{args.command}: {message}")
         return 0 if result.get("valid", True) and result.get("status") not in {"ESCALATION_REQUIRED", "ARCHITECTURE_CONFLICT", "USER_REJECTED"} else 2
     except KeyboardInterrupt:
         # ADR-072: 130 is the interrupted exit code. run_checks's own cleanup (killing the
@@ -1466,7 +1521,7 @@ def main(argv=None):
         cli_exit.report()
         return cli_exit.INTERRUPTED
     except (OSError, ValueError, TypeError, KeyError) as exc:
-        print(f"Acceptance refused: {exc}", file=sys.stderr)
+        cli_colors.write_status(cli_colors.REFUSAL, f"Acceptance refused: {exc}")
         return 1
 
 

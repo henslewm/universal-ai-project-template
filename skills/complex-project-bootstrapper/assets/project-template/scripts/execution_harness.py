@@ -15,6 +15,7 @@ import sys
 from decimal import ROUND_CEILING
 from pathlib import Path, PureWindowsPath
 
+import cli_colors
 import cli_exit
 import feedback
 import model_router as router
@@ -504,7 +505,8 @@ def ingest(directory, config, report_path):
     report_valid(report, wp.current(state["packet"])["contract"], state["pending"],
                  config["limits"], path.stat().st_size)
     recorded = feedback.complete(directory, report)
-    return {"status": recorded["status"], "outcome": report["outcome"], "dispatch_id": report["dispatch_id"],
+    return {"status": recorded["status"], "outcome": report["outcome"], "reason": recorded["reason"],
+            "dispatch_id": report["dispatch_id"],
             "attempts_used": len(recorded["attempts"]), "remaining_task_attempts": recorded["total_cap"] - len(recorded["attempts"]),
             "evidence_preserved": bool(recorded["attempts"][-1].get("fingerprint")) or report["outcome"] == "PASS",
             "independent_acceptance": False}
@@ -562,6 +564,49 @@ def abandon(directory, config, reason):
             "evidence_preserved": True, "independent_acceptance": False}
 
 
+# Every non-PASS report outcome (config/feedback.schema.json) is an adverse worker
+# result, not merely an unaccepted one, and a dispatch stopped at one of these
+# ledger statuses needs reconciliation or architect action, not "in progress."
+_REFUSAL_OUTCOMES = {"FAIL", "BLOCKED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT", "PROVIDER_UNAVAILABLE"}
+# feedback.plan() returns only DISPATCH/BLOCKED/NEEDS_ARCHITECT; feedback.reserve() can also
+# short-circuit straight to NEEDS_DECISION when the bootstrap approval no longer matches this
+# task's anchor (an architect decision is required before any reservation can be attempted).
+_REFUSAL_DISPATCH_STATUSES = {"BLOCKED", "NEEDS_ARCHITECT", "NEEDS_DECISION"}
+
+
+def status_style(command, result):
+    """Classify a command's result into a human status kind and an explicit message.
+
+    A prepared reservation, a schema-valid `verify-report`, or an ingested worker
+    report is never styled as success: none of them is an independent acceptance
+    decision, only the acceptance controller's ledger can report that.
+    """
+    if command == "abandon":
+        return cli_colors.ABANDONED, "attempt closed with a recorded reason; no report was produced"
+    if command == "validate-config":
+        return cli_colors.SUCCESS, "harness configuration is valid"
+    if command == "dispatch":
+        status = result.get("status")
+        if status == "PREPARED":
+            return cli_colors.PENDING, "prepared for an operator-run harness; not executed, not accepted"
+        if status == "HARNESS_UNAVAILABLE" or status in _REFUSAL_DISPATCH_STATUSES:
+            return cli_colors.REFUSAL, result.get("reason", f"reservation stopped at {status}")
+        return cli_colors.PENDING, f"reservation stopped at {status}; nothing was dispatched"
+    if command == "ingest":
+        timed_out = result.get("reason") == "ATTEMPT_TIMEOUT"
+        if timed_out or result.get("outcome") in _REFUSAL_OUTCOMES:
+            # A timed-out PASS is recorded as FAIL by feedback.apply_result even though the
+            # worker's own report still says PASS; the ledger's reason is the honest signal.
+            label = result["reason"] if timed_out else result.get("outcome")
+            return cli_colors.REFUSAL, f"worker report recorded as {label}"
+        return cli_colors.PENDING, "worker report recorded in the ledger; independent acceptance is separate"
+    if command == "verify-report":
+        if result.get("outcome") in _REFUSAL_OUTCOMES:
+            return cli_colors.REFUSAL, f"report outcome is {result.get('outcome')}, not a passing result"
+        return cli_colors.PENDING, "report is schema-valid; this proves the contract holds, it does not accept the work"
+    return cli_colors.PENDING, "command completed"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
@@ -599,9 +644,11 @@ def main(argv=None):
         else:
             result = ingest(args.ledger, config, args.report)
         print(json.dumps(result, indent=2, ensure_ascii=False))
+        kind, message = status_style(args.command, result)
+        cli_colors.write_status(kind, f"{args.command}: {message}")
         return 0 if result.get("valid", True) and result.get("status") != "BLOCKED" else 2
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        print(f"Execution harness refused: {exc}", file=sys.stderr)
+        cli_colors.write_status(cli_colors.REFUSAL, f"Execution harness refused: {exc}")
         return 1
 
 

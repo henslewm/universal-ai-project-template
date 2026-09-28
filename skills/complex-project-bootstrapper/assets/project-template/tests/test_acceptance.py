@@ -1300,6 +1300,78 @@ class VerifyAndCliTests(AcceptanceBase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertTrue(json.loads(run.stdout)["valid"])
 
+    def test_cli_stdout_json_is_unaffected_by_a_tty_or_no_color(self):
+        # A subprocess's captured pipes are never a TTY, so this exercises the plain and
+        # NO_COLOR-forced paths, matching a redirected/CI invocation of this same command.
+        argv = [sys.executable, str(ROOT / "scripts/acceptance.py"),
+                "--config", str(ROOT / "config/acceptance.example.json"), "validate-config"]
+        plain_env = dict(os.environ)
+        plain_env.pop("NO_COLOR", None)
+        no_color_env = dict(plain_env, NO_COLOR="1")
+        plain = subprocess.run(argv, capture_output=True, text=True, env=plain_env)
+        no_color = subprocess.run(argv, capture_output=True, text=True, env=no_color_env)
+        self.assertEqual(plain.returncode, 0, plain.stderr)
+        self.assertEqual(plain.stdout, no_color.stdout)
+        json.loads(plain.stdout)
+        self.assertNotIn("\x1b[", plain.stdout)
+        self.assertIn("[OK]", plain.stderr)
+        self.assertNotIn("\x1b[", plain.stderr)
+
+    def test_verify_review_is_never_styled_as_success(self):
+        # Codex review of PR #67: a schema-valid verify-review is not an acceptance
+        # decision, so it must classify the same way as validate-config's opposite
+        # number (execution_harness.verify_report) -- pending, not success.
+        kind, _ = acceptance.status_style("verify-review", {"valid": True, "acceptance_granted": False})
+        self.assertEqual(kind, "pending")
+        kind, _ = acceptance.status_style("verify-review", {"valid": False})
+        self.assertEqual(kind, "refusal")
+
+    def test_adverse_verdicts_are_refusals_across_verify_review_apply_and_sync_feedback(self):
+        # Codex review round 3 of PR #67: a REJECT_BOUNDED/NEEDS_ESCALATION/
+        # ARCHITECTURE_CONFLICT verdict must be a refusal wherever it surfaces.
+        for verdict in ("REJECT_BOUNDED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT"):
+            with self.subTest(verdict=verdict):
+                kind, _ = acceptance.status_style("verify-review", {"valid": True, "verdict": verdict})
+                self.assertEqual(kind, "refusal")
+                kind, _ = acceptance.status_style("apply", {"packet_state": "IN_PROGRESS", "verdict": verdict})
+                self.assertEqual(kind, "refusal")
+                kind, _ = acceptance.status_style("sync-feedback", {"feedback_status": "IN_PROGRESS", "verdict": verdict})
+                self.assertEqual(kind, "refusal")
+        kind, _ = acceptance.status_style("apply", {"packet_state": "ACCEPTED", "verdict": "APPROVE"})
+        self.assertEqual(kind, "success")
+        kind, _ = acceptance.status_style("sync-feedback", {"feedback_status": "ACCEPTED", "verdict": "APPROVE"})
+        self.assertEqual(kind, "success")
+        kind, _ = acceptance.status_style("verify-review", {"valid": True, "verdict": "NEEDS_EVIDENCE"})
+        self.assertEqual(kind, "pending")
+
+    def test_a_failed_deterministic_check_is_a_refusal_even_while_gates_pending(self):
+        # Codex review round 4 of PR #67: run-checks (and status/summary, which share the
+        # same "deterministic" key) report GATES_PENDING regardless of a failing check, so
+        # the generic fallback must inspect the deterministic-gate outcomes too.
+        run_checks_result = {"status": "GATES_PENDING", "workspace_digest": "d" * 64,
+                              "deterministic": {"VAL-1": "PASSED", "VAL-2": "FAILED"},
+                              "satisfied": False}
+        kind, _ = acceptance.status_style("run-checks", run_checks_result)
+        self.assertEqual(kind, "refusal")
+        status_result = {"status": "GATES_PENDING", "reason": "INITIALIZED",
+                          "deterministic": {"VAL-1": "FAILED"}, "deterministic_satisfied": False}
+        kind, _ = acceptance.status_style("status", status_result)
+        self.assertEqual(kind, "refusal")
+        clean_result = {"status": "GATES_PENDING", "reason": "INITIALIZED",
+                         "deterministic": {"VAL-1": "PASSED", "VAL-2": "NEEDS_ATTESTATION"},
+                         "deterministic_satisfied": False}
+        kind, _ = acceptance.status_style("status", clean_result)
+        self.assertEqual(kind, "pending")
+
+    def test_refusal_is_styled_on_stderr_and_stdout_stays_empty(self):
+        argv = [sys.executable, str(ROOT / "scripts/acceptance.py"),
+                "--config", str(ROOT / "does-not-exist.json"), "validate-config"]
+        run = subprocess.run(argv, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 1)
+        self.assertEqual(run.stdout, "")
+        self.assertIn("[REFUSED]", run.stderr)
+        self.assertIn("Acceptance refused:", run.stderr)
+
     def test_run_checks_cli_prints_progress_on_stderr_and_valid_json_on_stdout(self):
         # #27: stdout must stay exactly the machine-readable result; the new progress feedback
         # belongs on stderr, wired in through the CLI's own reporter=progress.StreamProgress().
