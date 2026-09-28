@@ -35,6 +35,8 @@ Before substantive work:
 3. Inspect the newest relevant commits or handoff if another model may have worked since the last session.
 4. Reuse facts already established. Ask only questions whose answers materially change the plan and cannot be obtained from connected sources or the repository.
 
+A subagent working a bounded brief, delegated by a session that has completed this protocol, does not repeat it: it reads only what its brief needs. The delegating session stays responsible for the startup reads and for putting the state and decisions the task depends on into the brief.
+
 ## Bootstrap / autonomy gate
 
 Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` from the repository root. Autonomous execution requires successful validation of the current repository state: `ACTIVE`, explicit user approval, and a matching material-architecture fingerprint.
