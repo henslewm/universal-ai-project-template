@@ -19,6 +19,8 @@ Read these files in order:
 
 Then inspect `git status`, the current branch, and the newest relevant commits.
 
+A subagent working a bounded brief follows the bounded-subagent exception in the startup protocol of `MASTER_INSTRUCTIONS.md` instead of repeating these reads.
+
 ## Bootstrap / autonomy gate
 
 Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` from the repository root. Continue autonomously only after successful validation confirms `ACTIVE`, explicit approval, and a matching material-architecture fingerprint. A missing, invalid, or inactive bootstrap file, or an unavailable runtime/validator, means autonomy is not authorized. Resume bootstrap through `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md`; orientation, intake, and preparation of the approval package may continue within existing permissions. Generated files, completed intake, or assumed approval do not satisfy the gate.
