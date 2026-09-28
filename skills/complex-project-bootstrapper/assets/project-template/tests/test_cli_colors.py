@@ -43,6 +43,11 @@ class SupportsColorTests(unittest.TestCase):
             self.skipTest("posix-only assertion")
         self.assertTrue(cli_colors.supports_color(FakeStream(True), env={}))
 
+    def test_term_dumb_disables_color_even_on_a_reported_tty(self):
+        # Codex review round 5 of PR #67: a "dumb" terminal (e.g. some CI runners,
+        # `emacs -nw`'s shell) can report isatty() True but cannot render ANSI.
+        self.assertFalse(cli_colors.supports_color(FakeStream(True), env={"TERM": "dumb"}))
+
     def test_windows_tty_falls_back_to_plain_when_vt_mode_cannot_be_enabled(self):
         # On a non-Windows test host, `ctypes.windll` does not exist, so this
         # exercises the same AttributeError fallback a real legacy console takes.

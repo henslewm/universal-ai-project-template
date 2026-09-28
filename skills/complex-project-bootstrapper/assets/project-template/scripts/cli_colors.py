@@ -74,14 +74,18 @@ def supports_color(stream=None, *, env=None) -> bool:
     """True only when styling `stream` (default stderr) is safe and wanted.
 
     Honors NO_COLOR (any non-empty value disables, per no-color.org) ahead of
-    everything else, and requires an interactive TTY regardless of NO_COLOR. On
-    Windows, a TTY only counts once VT processing is confirmed enabled; otherwise
-    this reports no color support rather than emit escapes a legacy console
-    cannot render.
+    everything else, and requires an interactive TTY regardless of NO_COLOR.
+    TERM=dumb is treated as no ANSI support even on a reported TTY, matching
+    every other terminal-capability check (this is the standard "cannot render
+    escapes" signal, distinct from "not a TTY at all"). On Windows, a TTY only
+    counts once VT processing is confirmed enabled; otherwise this reports no
+    color support rather than emit escapes a legacy console cannot render.
     """
     stream = sys.stderr if stream is None else stream
     env = os.environ if env is None else env
     if env.get(_NO_COLOR_ENV):
+        return False
+    if env.get("TERM") == "dumb":
         return False
     try:
         is_tty = bool(stream.isatty())
