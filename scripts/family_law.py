@@ -8,6 +8,10 @@ actually earned from its acceptance ledger. It executes nothing and invokes no m
 """
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import hashlib
 import json

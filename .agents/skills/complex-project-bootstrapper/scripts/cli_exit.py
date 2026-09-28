@@ -2,17 +2,40 @@
 """The one Ctrl+C policy for every scripts/*.py command line (ADR-072; README "CLI exit codes").
 
 A CLI returns 0 for success, 1 for a handled refusal and 2 for a not-OK outcome itself; this
-module adds only what is shared: an interrupt returns 130 without a traceback, and the few
-steps an interrupt must not cut in half hold it until they finish.
+module adds only what is shared: an interrupt returns 130 without a traceback, whether it
+arrives while the CLI is still loading or once it runs, and the few steps an interrupt must not
+cut in half hold it until they finish.
 """
 from __future__ import annotations
 
 import contextlib
+import os
 import signal
 import sys
 import threading
 
 INTERRUPTED = 130
+MESSAGE = ("Interrupted. Records written before the interrupt are kept; "
+           "check the ledger or output status before retrying.")
+
+
+def guard_startup():
+    """Map a Ctrl+C that arrives while a CLI is still importing, before `run` is reached, to 130.
+
+    Called first in a CLI's `__main__` path, before its heavier imports. Nothing has been
+    written at that point, so the process exits at once with no traceback; any other uncaught
+    exception is left to the previous hook.
+    """
+    previous = sys.excepthook
+
+    def hook(kind, value, traceback):
+        if issubclass(kind, KeyboardInterrupt):
+            print(MESSAGE, file=sys.stderr)
+            sys.stderr.flush()
+            os._exit(INTERRUPTED)
+        previous(kind, value, traceback)
+
+    sys.excepthook = hook
 
 
 def run(main, *args):
@@ -27,8 +50,7 @@ def run(main, *args):
     try:
         return main(*args)
     except KeyboardInterrupt:
-        print("Interrupted. Records written before the interrupt are kept; "
-              "check the ledger or output status before retrying.", file=sys.stderr)
+        print(MESSAGE, file=sys.stderr)
         return INTERRUPTED
 
 

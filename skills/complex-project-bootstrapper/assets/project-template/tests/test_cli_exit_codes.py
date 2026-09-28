@@ -65,6 +65,22 @@ INTERRUPTING_RUNNER = ("import _thread, runpy, sys, threading, time\n"
                        "sys.argv = [script, *argv]\n"
                        "runpy.run_path(script, run_name='__main__')\n")
 
+# Runs a script's real `__main__` path and delivers Ctrl+C at its first module import after the
+# startup guard is in place, i.e. while the CLI is still loading, before `cli_exit.run` is reached.
+STARTUP_RUNNER = ("import runpy, sys\n"
+                  "from pathlib import Path\n"
+                  "script, *argv = sys.argv[1:]\n"
+                  "class Interrupt:\n"
+                  "    def find_spec(self, name, path=None, target=None):\n"
+                  "        if sys.excepthook is not sys.__excepthook__:\n"
+                  "            sys.meta_path.remove(self)\n"
+                  "            raise KeyboardInterrupt\n"
+                  "        return None\n"
+                  "sys.meta_path.insert(0, Interrupt())\n"
+                  "sys.path.insert(0, str(Path(script).parent))\n"
+                  "sys.argv = [script, *argv]\n"
+                  "runpy.run_path(script, run_name='__main__')\n")
+
 
 def cli(script, *args, cwd=None):
     path = script if isinstance(script, Path) else SCRIPTS / script
@@ -175,6 +191,19 @@ class SharedWrapperTests(unittest.TestCase):
         worker.join()
         self.assertEqual(seen, [(signal.default_int_handler, [])])
 
+    def test_ctrl_c_while_a_cli_is_still_importing_also_exits_130_without_a_traceback(self):
+        # Codex P2 on PR #71, round 4: an interrupt during a CLI's module imports (jsonschema,
+        # schema loading) arrived before `cli_exit.run` was reached and printed a traceback.
+        for path in sorted(SCRIPTS.glob("*.py")):
+            if path.name == "cli_exit.py":
+                continue
+            with self.subTest(script=path.name):
+                completed = subprocess.run([sys.executable, "-c", STARTUP_RUNNER, str(path)], capture_output=True,
+                                           text=True, encoding="utf-8", timeout=120, env=ENV)
+                self.assertEqual(completed.returncode, cli_exit.INTERRUPTED, completed.stdout + completed.stderr)
+                self.assertNotIn("Traceback", completed.stderr)
+                self.assertIn("Interrupted", completed.stderr)
+
     def test_every_cli_entry_point_goes_through_the_shared_wrapper(self):
         guarded = {}
         for path in sorted(SCRIPTS.glob("*.py")):
@@ -182,12 +211,16 @@ class SharedWrapperTests(unittest.TestCase):
             guards = [node for node in module.body if isinstance(node, ast.If)
                       and ast.unparse(node.test) in ("__name__ == '__main__'", '__name__ == "__main__"')]
             if guards:
-                guarded[path.name] = ast.unparse(guards[0])
+                guarded[path.name] = [ast.unparse(guard) for guard in guards]
         self.assertEqual(sorted(path.name for path in SCRIPTS.glob("*.py") if path.name not in guarded),
                          ["cli_exit.py"])
-        for name, guard in guarded.items():
+        for name, guards in guarded.items():
             with self.subTest(script=name):
-                self.assertIn("cli_exit.run(main)", guard)
+                # The first statement after the future import guards startup; the last runs main.
+                module = ast.parse((SCRIPTS / name).read_text(encoding="utf-8"))
+                self.assertEqual(ast.unparse(module.body[2]), guards[0])
+                self.assertIn("cli_exit.guard_startup()", guards[0])
+                self.assertIn("cli_exit.run(main)", guards[-1])
 
 
 class ExitCodeTableTests(CliAssertions, unittest.TestCase):

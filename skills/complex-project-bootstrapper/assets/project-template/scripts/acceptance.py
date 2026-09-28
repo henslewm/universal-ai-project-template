@@ -2,6 +2,10 @@
 """Gate and record independent acceptance of reviewed work; execute only architect-declared checks."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import contextlib
 import copy
