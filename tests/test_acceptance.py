@@ -1233,6 +1233,24 @@ class VerifyAndCliTests(AcceptanceBase):
         kind, _ = acceptance.status_style("verify-review", {"valid": False})
         self.assertEqual(kind, "refusal")
 
+    def test_adverse_verdicts_are_refusals_across_verify_review_apply_and_sync_feedback(self):
+        # Codex review round 3 of PR #67: a REJECT_BOUNDED/NEEDS_ESCALATION/
+        # ARCHITECTURE_CONFLICT verdict must be a refusal wherever it surfaces.
+        for verdict in ("REJECT_BOUNDED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT"):
+            with self.subTest(verdict=verdict):
+                kind, _ = acceptance.status_style("verify-review", {"valid": True, "verdict": verdict})
+                self.assertEqual(kind, "refusal")
+                kind, _ = acceptance.status_style("apply", {"packet_state": "IN_PROGRESS", "verdict": verdict})
+                self.assertEqual(kind, "refusal")
+                kind, _ = acceptance.status_style("sync-feedback", {"feedback_status": "IN_PROGRESS", "verdict": verdict})
+                self.assertEqual(kind, "refusal")
+        kind, _ = acceptance.status_style("apply", {"packet_state": "ACCEPTED", "verdict": "APPROVE"})
+        self.assertEqual(kind, "success")
+        kind, _ = acceptance.status_style("sync-feedback", {"feedback_status": "ACCEPTED", "verdict": "APPROVE"})
+        self.assertEqual(kind, "success")
+        kind, _ = acceptance.status_style("verify-review", {"valid": True, "verdict": "NEEDS_EVIDENCE"})
+        self.assertEqual(kind, "pending")
+
     def test_refusal_is_styled_on_stderr_and_stdout_stays_empty(self):
         argv = [sys.executable, str(ROOT / "scripts/acceptance.py"),
                 "--config", str(ROOT / "does-not-exist.json"), "validate-config"]

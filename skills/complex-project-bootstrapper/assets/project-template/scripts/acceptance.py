@@ -1285,6 +1285,10 @@ def verify_review(config, packet_path, report_path):
 
 
 _REFUSAL_STATUSES = {"REJECTED", "USER_REJECTED", "ESCALATION_REQUIRED", "ARCHITECTURE_CONFLICT"}
+# A verdict this repository's own controllers treat as a rejection or escalation, wherever
+# it surfaces: verify-review (unrecorded), apply (materialized onto the packet), and
+# sync-feedback (forwarded into the feedback ledger) all carry the same `verdict` field.
+_REFUSAL_VERDICTS = {"REJECT_BOUNDED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT"}
 
 
 def status_style(command, result):
@@ -1301,7 +1305,21 @@ def status_style(command, result):
     if command == "verify-review":
         if not result.get("valid", True):
             return cli_colors.REFUSAL, "schema validation failed"
+        if result.get("verdict") in _REFUSAL_VERDICTS:
+            return cli_colors.REFUSAL, f"review verdict is {result['verdict']}"
         return cli_colors.PENDING, "review report is schema-valid; this proves the contract holds, it does not accept the work"
+    if command in {"apply", "sync-feedback"}:
+        if result.get("verdict") in _REFUSAL_VERDICTS:
+            return cli_colors.REFUSAL, f"decision verdict is {result['verdict']}"
+        if command == "apply":
+            state = result.get("packet_state")
+            if state == "ACCEPTED":
+                return cli_colors.SUCCESS, "the acceptance ledger's decision was materialized as ACCEPTED"
+            return cli_colors.PENDING, f"packet transitioned to {state}; not yet accepted"
+        state = result.get("feedback_status")
+        if state == "ACCEPTED":
+            return cli_colors.SUCCESS, "the acceptance decision was recorded as ACCEPTED in the feedback ledger"
+        return cli_colors.PENDING, f"feedback ledger at {state}; not yet accepted"
     status = result.get("status")
     if status == "ACCEPTED":
         return cli_colors.SUCCESS, "every required acceptance gate passed"

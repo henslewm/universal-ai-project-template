@@ -489,7 +489,8 @@ def ingest(directory, config, report_path):
     report_valid(report, wp.current(state["packet"])["contract"], state["pending"],
                  config["limits"], path.stat().st_size)
     recorded = feedback.complete(directory, report)
-    return {"status": recorded["status"], "outcome": report["outcome"], "dispatch_id": report["dispatch_id"],
+    return {"status": recorded["status"], "outcome": report["outcome"], "reason": recorded["reason"],
+            "dispatch_id": report["dispatch_id"],
             "attempts_used": len(recorded["attempts"]), "remaining_task_attempts": recorded["total_cap"] - len(recorded["attempts"]),
             "evidence_preserved": bool(recorded["attempts"][-1].get("fingerprint")) or report["outcome"] == "PASS",
             "independent_acceptance": False}
@@ -573,8 +574,12 @@ def status_style(command, result):
             return cli_colors.REFUSAL, result.get("reason", f"reservation stopped at {status}")
         return cli_colors.PENDING, f"reservation stopped at {status}; nothing was dispatched"
     if command == "ingest":
-        if result.get("outcome") in _REFUSAL_OUTCOMES:
-            return cli_colors.REFUSAL, f"worker report recorded as {result.get('outcome')}"
+        timed_out = result.get("reason") == "ATTEMPT_TIMEOUT"
+        if timed_out or result.get("outcome") in _REFUSAL_OUTCOMES:
+            # A timed-out PASS is recorded as FAIL by feedback.apply_result even though the
+            # worker's own report still says PASS; the ledger's reason is the honest signal.
+            label = result["reason"] if timed_out else result.get("outcome")
+            return cli_colors.REFUSAL, f"worker report recorded as {label}"
         return cli_colors.PENDING, "worker report recorded in the ledger; independent acceptance is separate"
     if command == "verify-report":
         if result.get("outcome") in _REFUSAL_OUTCOMES:

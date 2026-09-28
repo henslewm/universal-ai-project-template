@@ -796,6 +796,15 @@ class HarnessCliColorTests(unittest.TestCase):
         kind, _ = harness.status_style("ingest", {"outcome": "PASS"})
         self.assertEqual(kind, cli_colors.PENDING)
 
+    def test_a_timeout_normalized_pass_is_a_refusal_not_pending(self):
+        # Codex review round 3 of PR #67: feedback.apply_result records a PASS that
+        # arrived after its deadline as FAIL/ATTEMPT_TIMEOUT, but the worker's own
+        # report still says outcome PASS; the ledger's reason must win.
+        kind, _ = harness.status_style("ingest", {"outcome": "PASS", "reason": "ATTEMPT_TIMEOUT"})
+        self.assertEqual(kind, cli_colors.REFUSAL)
+        kind, _ = harness.status_style("ingest", {"outcome": "PASS", "reason": "OBJECTIVE_CHECKS_PASSED"})
+        self.assertEqual(kind, cli_colors.PENDING)
+
 
 if __name__ == "__main__":
     unittest.main()
