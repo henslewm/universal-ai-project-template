@@ -1314,6 +1314,24 @@ class VerifyAndCliTests(AcceptanceBase):
         self.assertIn("VAL-FRAMES: PASSED", run.stderr)
         self.assertIn("run-checks: 1/1 passed, deterministic gate satisfied", run.stderr)
 
+    def test_keyboard_interrupt_returns_130_even_if_stderr_is_already_closed(self):
+        # Codex P2 round 3 on PR #68: the KeyboardInterrupt handler's own diagnostic print
+        # must not let a closed stderr replace the exit code 130 it exists to guarantee.
+        ledger, _ = self.start(argv=PASS_ARGV)
+
+        class BrokenStderr:
+            def write(self, _text):
+                raise ValueError("I/O operation on closed file.")
+
+            def flush(self):
+                pass
+
+        with mock.patch.object(acceptance, "run_checks", side_effect=KeyboardInterrupt), \
+             mock.patch.object(acceptance.sys, "stderr", BrokenStderr()):
+            code = acceptance.main(["--config", str(ROOT / "config/acceptance.example.json"),
+                                    "run-checks", str(ledger), "--workspace", str(self.workspace())])
+        self.assertEqual(code, 130)
+
 
 class FeedbackIntegrationTests(AcceptanceBase):
     def setUp(self):

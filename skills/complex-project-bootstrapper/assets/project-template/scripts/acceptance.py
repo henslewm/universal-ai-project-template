@@ -1431,7 +1431,13 @@ def main(argv=None):
         # ADR-072: 130 is the interrupted exit code. run_checks's own cleanup (killing the
         # check's process tree, stopping any progress ticker) has already run by the time this
         # is reached; nothing here needs to know whether a check was mid-run.
-        print("Acceptance interrupted", file=sys.stderr)
+        # Best-effort only (Codex P2 on PR #68): if stderr is itself closed by this point,
+        # this diagnostic print can raise OSError/ValueError; that must not replace the
+        # exit code 130 this handler exists to guarantee.
+        try:
+            print("Acceptance interrupted", file=sys.stderr)
+        except (OSError, ValueError):
+            pass
         return 130
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print(f"Acceptance refused: {exc}", file=sys.stderr)
