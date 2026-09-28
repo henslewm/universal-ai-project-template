@@ -297,6 +297,29 @@ class SyncSkillsTests(unittest.TestCase):
             drift = sync_skills.sync(check=True)
         self.assertIn("skills/complex-project-bootstrapper/assets/project-template/README.md", drift)
 
+    def test_check_mode_reports_drift_instead_of_crashing_on_an_unreadable_stale_source(self):
+        # PR #61 round 14: a native mirror can hold a stale regular file that prune() already
+        # detects (not part of `expected`) but --check leaves in place. files_under(ROOT)'s later
+        # asset-copy pass still walks the whole repository and can pick up that same stale file
+        # as a "source"; with a same-type file already at the colliding payload path (so the
+        # target is not "blocking" and the fast path runs), an unreadable source must report the
+        # already-known drift rather than raise.
+        stale = self.root / ".agents/skills/complex-project-bootstrapper/stray.md"
+        stale.write_text("stray\n", encoding="utf-8")
+        asset_copy = self.skill / "assets/project-template/.agents/skills/complex-project-bootstrapper/stray.md"
+        asset_copy.parent.mkdir(parents=True, exist_ok=True)
+        asset_copy.write_text("stray\n", encoding="utf-8")
+        original = Path.read_bytes
+
+        def guarded(path):
+            if Path(path) == stale:
+                raise OSError("simulated unreadable native entry")
+            return original(path)
+
+        with mock.patch.object(Path, "read_bytes", guarded):
+            drift = sync_skills.sync(check=True)
+        self.assertIn(stale.relative_to(self.root).as_posix(), drift)
+
     def test_a_native_mirror_file_link_is_never_read_as_an_asset_source(self):
         # PR #61 round 13: files_under(ROOT) walks the whole repository, which includes the
         # native mirror directories -- unlink_all reports a link there under --check but does not

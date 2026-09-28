@@ -120,9 +120,17 @@ def sync(check: bool = False) -> list[str]:
                 target_stat = target.stat()
             except FileNotFoundError:
                 target_stat = None
-            if (target_stat is not None and stat.S_ISREG(target_stat.st_mode) and target_stat.st_nlink == 1
-                    and stat.S_IMODE(source.stat().st_mode) == stat.S_IMODE(target_stat.st_mode)
-                    and source.read_bytes() == target.read_bytes()):
+            matches = False
+            if target_stat is not None and stat.S_ISREG(target_stat.st_mode) and target_stat.st_nlink == 1:
+                # A source that is itself stale drift (e.g. a native-mirror entry prune() has
+                # already reported but --check left in place) may not be safely readable; report
+                # the already-known difference instead of raising out of the fast path.
+                try:
+                    matches = (stat.S_IMODE(source.stat().st_mode) == stat.S_IMODE(target_stat.st_mode)
+                               and source.read_bytes() == target.read_bytes())
+                except OSError:
+                    matches = False
+            if matches:
                 return
         differences.append(target.relative_to(ROOT).as_posix())
         if check:
