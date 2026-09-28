@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-28 — #49 closed through merged PR #61
+
+- PR #61 merged at `b463642`, closing #49 (OL-016) and #62. After review round 7 it also: replaces a hard-linked mirror file even when its bytes already match; keeps the source's executable bit and compares mode bits on the fast path; detects Windows junctions wherever it checks for symbolic links; writes through a `mkstemp` temporary name; never reads a symlinked file as a source; and makes `--check` report drift instead of raising on an unreadable stale source. It also merges `main` through PR #71 (`cli_exit.py`). 511 tests pass.
+
 ## 2026-09-27 — PR #63: PlatformIO example shipped with the software-hardware template
 
 - `templates/software-hardware/platformio.example.ini` is an Arduino-ESP32 2.0.x (espressif32 6.9.0) variant for the ESP32-S3-DevKitC-1 N16R8. It conforms to `docs/PLATFORMIO.md`: an exact pin, an app-partition `maximum_size`, quiet `dev`/verbose `debug`/silent `release` environments, and the arduino-cli equivalent. It replaces the untracked root `platformio.ini`.
