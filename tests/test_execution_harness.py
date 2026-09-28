@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
+import io
 import json
 import os
 import sys
@@ -21,6 +23,15 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import execution_harness as harness
 
 wp = harness.wp
+
+
+class FakeTty(io.StringIO):
+    def __init__(self, is_tty):
+        super().__init__()
+        self._is_tty = is_tty
+
+    def isatty(self):
+        return self._is_tty
 
 
 def configuration():
@@ -712,6 +723,53 @@ class HarnessReportTests(HarnessBase):
         _, path = self.report({"dispatch_id": "a" * 64, "destination": str(self.base)})
         with self.assertRaisesRegex(ValueError, "No reserved dispatch"):
             harness.ingest(self.ledger, self.config, path)
+
+
+class HarnessCliColorTests(unittest.TestCase):
+    """Issue #26: styling is an added stderr line; stdout JSON is unaffected by it."""
+
+    def setUp(self):
+        self.config_path = ROOT / "config/execution-harness.example.json"
+
+    def _run(self, is_tty, extra_env):
+        out, err = io.StringIO(), FakeTty(is_tty)
+        env = dict(os.environ)
+        env.pop("NO_COLOR", None)
+        env.update(extra_env)
+        with mock.patch.dict(os.environ, env, clear=True), \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = harness.main(["--config", str(self.config_path), "validate-config"])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_stdout_json_is_byte_identical_regardless_of_color_state(self):
+        plain_code, plain_out, plain_err = self._run(False, {})
+        tty_code, tty_out, tty_err = self._run(True, {})
+        no_color_code, no_color_out, no_color_err = self._run(True, {"NO_COLOR": "1"})
+        self.assertEqual(plain_code, tty_code)
+        self.assertEqual(plain_code, no_color_code)
+        self.assertEqual(plain_out, tty_out)
+        self.assertEqual(plain_out, no_color_out)
+        # A trailing newline from json.dumps + print is the only content; no ANSI ever reaches stdout.
+        self.assertNotIn("\x1b[", plain_out)
+        self.assertNotIn("\x1b[", tty_out)
+        json.loads(plain_out)
+        # The stderr status line is present and unstyled without a TTY or under NO_COLOR...
+        self.assertIn("[OK]", plain_err)
+        self.assertNotIn("\x1b[", plain_err)
+        self.assertIn("[OK]", no_color_err)
+        self.assertNotIn("\x1b[", no_color_err)
+        # ...and colored only on a real interactive TTY with NO_COLOR unset.
+        if sys.platform != "win32":
+            self.assertIn("\x1b[", tty_err)
+
+    def test_refusal_path_is_styled_on_stderr_only(self):
+        out, err = io.StringIO(), FakeTty(False)
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = harness.main(["--config", str(ROOT / "does-not-exist.json"), "validate-config"])
+        self.assertEqual(code, 1)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("[REFUSED]", err.getvalue())
+        self.assertIn("Execution harness refused:", err.getvalue())
 
 
 if __name__ == "__main__":

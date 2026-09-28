@@ -15,6 +15,7 @@ import threading
 import time
 from pathlib import Path
 
+import cli_colors
 import execution_harness as harness
 import feedback
 import model_router as router
@@ -1283,6 +1284,30 @@ def verify_review(config, packet_path, report_path):
             "recorded_in_ledger": False, "acceptance_granted": False}
 
 
+_REFUSAL_STATUSES = {"REJECTED", "USER_REJECTED", "ESCALATION_REQUIRED", "ARCHITECTURE_CONFLICT"}
+
+
+def status_style(command, result):
+    """Classify a command's result into a human status kind and an explicit message.
+
+    Acceptance is earned only by `accept` reaching ACCEPTED; a valid config, a
+    schema-valid `verify-review`, or a pending ledger are never styled success.
+    """
+    if command == "abandon-review":
+        return cli_colors.ABANDONED, "review closed with a recorded reason; no verdict was recorded"
+    if command in {"validate-config", "verify-review"}:
+        return cli_colors.SUCCESS if result.get("valid", True) else cli_colors.REFUSAL, \
+            "schema-valid" if result.get("valid", True) else "schema validation failed"
+    status = result.get("status")
+    if status == "ACCEPTED":
+        return cli_colors.SUCCESS, "every required acceptance gate passed"
+    if status in _REFUSAL_STATUSES:
+        return cli_colors.REFUSAL, result.get("reason", status)
+    if status == "GATES_PENDING" and result.get("reason") == "REVIEW_ABANDONED":
+        return cli_colors.ABANDONED, "the last review was abandoned; gates remain pending"
+    return cli_colors.PENDING, f"{status or 'in progress'}: not yet accepted"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
@@ -1410,9 +1435,11 @@ def main(argv=None):
             result = {"packet_state": updated["state"], "verdict": decision["verdict"],
                       "output": str(args.output)}
         print(json.dumps(result, indent=2, ensure_ascii=False))
+        kind, message = status_style(args.command, result)
+        cli_colors.write_status(kind, f"{args.command}: {message}")
         return 0 if result.get("valid", True) and result.get("status") not in {"ESCALATION_REQUIRED", "ARCHITECTURE_CONFLICT", "USER_REJECTED"} else 2
     except (OSError, ValueError, TypeError, KeyError) as exc:
-        print(f"Acceptance refused: {exc}", file=sys.stderr)
+        cli_colors.write_status(cli_colors.REFUSAL, f"Acceptance refused: {exc}")
         return 1
 
 

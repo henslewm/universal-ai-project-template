@@ -11,6 +11,7 @@ import sys
 from decimal import ROUND_CEILING
 from pathlib import Path, PureWindowsPath
 
+import cli_colors
 import feedback
 import model_router as router
 import work_packet as wp
@@ -546,6 +547,35 @@ def abandon(directory, config, reason):
             "evidence_preserved": True, "independent_acceptance": False}
 
 
+def status_style(command, result):
+    """Classify a command's result into a human status kind and an explicit message.
+
+    A prepared reservation, a schema-valid `verify-report`, or an ingested worker
+    report is never styled as success: none of them is an independent acceptance
+    decision, only the acceptance controller's ledger can report that.
+    """
+    if command == "abandon":
+        return cli_colors.ABANDONED, "attempt closed with a recorded reason; no report was produced"
+    if command == "validate-config":
+        return cli_colors.SUCCESS, "harness configuration is valid"
+    if command == "dispatch":
+        status = result.get("status")
+        if status == "PREPARED":
+            return cli_colors.PENDING, "prepared for an operator-run harness; not executed, not accepted"
+        if status == "HARNESS_UNAVAILABLE":
+            return cli_colors.REFUSAL, result.get("reason", "harness preparation refused")
+        return cli_colors.PENDING, f"reservation stopped at {status}; nothing was dispatched"
+    if command == "ingest":
+        if result.get("outcome") == "FAIL":
+            return cli_colors.REFUSAL, "worker report recorded as FAIL"
+        return cli_colors.PENDING, "worker report recorded in the ledger; independent acceptance is separate"
+    if command == "verify-report":
+        if result.get("outcome") == "FAIL":
+            return cli_colors.REFUSAL, "report failed its own contract's validation"
+        return cli_colors.PENDING, "report is schema-valid; this proves the contract holds, it does not accept the work"
+    return cli_colors.PENDING, "command completed"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
@@ -583,9 +613,11 @@ def main(argv=None):
         else:
             result = ingest(args.ledger, config, args.report)
         print(json.dumps(result, indent=2, ensure_ascii=False))
+        kind, message = status_style(args.command, result)
+        cli_colors.write_status(kind, f"{args.command}: {message}")
         return 0 if result.get("valid", True) and result.get("status") != "BLOCKED" else 2
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        print(f"Execution harness refused: {exc}", file=sys.stderr)
+        cli_colors.write_status(cli_colors.REFUSAL, f"Execution harness refused: {exc}")
         return 1
 
 

@@ -1207,6 +1207,32 @@ class VerifyAndCliTests(AcceptanceBase):
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertTrue(json.loads(run.stdout)["valid"])
 
+    def test_cli_stdout_json_is_unaffected_by_a_tty_or_no_color(self):
+        # A subprocess's captured pipes are never a TTY, so this exercises the plain and
+        # NO_COLOR-forced paths, matching a redirected/CI invocation of this same command.
+        argv = [sys.executable, str(ROOT / "scripts/acceptance.py"),
+                "--config", str(ROOT / "config/acceptance.example.json"), "validate-config"]
+        plain_env = dict(os.environ)
+        plain_env.pop("NO_COLOR", None)
+        no_color_env = dict(plain_env, NO_COLOR="1")
+        plain = subprocess.run(argv, capture_output=True, text=True, env=plain_env)
+        no_color = subprocess.run(argv, capture_output=True, text=True, env=no_color_env)
+        self.assertEqual(plain.returncode, 0, plain.stderr)
+        self.assertEqual(plain.stdout, no_color.stdout)
+        json.loads(plain.stdout)
+        self.assertNotIn("\x1b[", plain.stdout)
+        self.assertIn("[OK]", plain.stderr)
+        self.assertNotIn("\x1b[", plain.stderr)
+
+    def test_refusal_is_styled_on_stderr_and_stdout_stays_empty(self):
+        argv = [sys.executable, str(ROOT / "scripts/acceptance.py"),
+                "--config", str(ROOT / "does-not-exist.json"), "validate-config"]
+        run = subprocess.run(argv, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 1)
+        self.assertEqual(run.stdout, "")
+        self.assertIn("[REFUSED]", run.stderr)
+        self.assertIn("Acceptance refused:", run.stderr)
+
 
 class FeedbackIntegrationTests(AcceptanceBase):
     def setUp(self):
