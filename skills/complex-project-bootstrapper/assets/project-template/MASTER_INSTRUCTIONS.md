@@ -12,7 +12,7 @@ Apply instructions in this order, highest first:
 2. Safety, law, privacy, and configured permission boundaries.
 3. `PROJECT_CHARTER.md` and signed/controlling project records.
 4. This file.
-5. The active platform master: `MASTER_CHATGPT.md`, `MASTER_CODEX.md`, `MASTER_CLAUDE.md`, or `MASTER_CLAUDE_CODE.md`.
+5. The active platform master: `MASTER_CHATGPT.md`, `MASTER_CODEX.md`, `MASTER_CLAUDE.md`, `MASTER_CLAUDE_CODE.md`, or `MASTER_MISTRAL.md`.
 6. A selected profile under `instructions/profiles/`.
 7. The active task or issue.
 8. Prior chat content and informal notes.
