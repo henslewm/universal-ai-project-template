@@ -253,5 +253,24 @@ class ClosedStreamTests(unittest.TestCase):
         self.assertTrue(reporter._disabled)
 
 
+class AbsentStreamTests(unittest.TestCase):
+    """With fd 2 closed at startup Python sets sys.stderr to None. The default reporter
+    must go quiet rather than raise AttributeError out of run-checks, which turned a passing
+    `acceptance.py run-checks … 2>&-` into exit 1 with nothing printed or recorded."""
+
+    def test_a_default_reporter_with_no_stderr_is_quiet_and_never_raises(self):
+        out = io.StringIO()
+        with mock.patch.object(sys, "stderr", None), mock.patch.object(sys, "stdout", out):
+            reporter = progress.StreamProgress()
+            reporter.start(1)
+            with reporter.checking(1, 1, "VAL-1"):
+                pass
+            reporter.check_result(1, 1, "VAL-1", "PASSED", 0.0)
+            reporter.finish(1, 1, True)
+        self.assertTrue(reporter._disabled)
+        self.assertFalse(reporter.interactive)
+        self.assertEqual(out.getvalue(), "")
+
+
 if __name__ == "__main__":
     unittest.main()
