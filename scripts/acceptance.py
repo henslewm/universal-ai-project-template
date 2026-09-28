@@ -673,28 +673,25 @@ class ProcessTree:
 
         Timeout, normal exit with a descendant still alive, refusal, and any exception raised
         inside the block all leave through the same `finally`, so nothing spawned by the check
-        can outlive it, and the caller learns whether the tree was confirmed stopped. An error
-        raised by the teardown itself propagates: it is never converted into a check result,
-        because a tree that could not be confirmed stopped must refuse the run, not fail the check.
-        Ctrl+C is one more exit (#31): the teardown holds a further interrupt until it has
-        finished, and an interrupt leaves as a cancellation only once the tree is confirmed
-        stopped; otherwise the run refuses, as it would on any other exit.
+        can outlive it. An error raised by the teardown itself propagates: it is never converted
+        into a check result, because a tree that could not be confirmed stopped must refuse the
+        run, not fail the check. That refusal is made here, on every exit, before any interrupt is
+        re-raised. Ctrl+C is one more exit (#31): the teardown holds a further interrupt until the
+        refusal is decided, so an interrupt leaves as a cancellation only once the tree is
+        confirmed stopped.
         """
         tree = cls(process)  # Refuses, with the suspended check killed, if it cannot be isolated.
         tree.stopped = None
-        interrupted = False
         try:
             yield tree
-        except KeyboardInterrupt:
-            interrupted = True
-            raise
         finally:
-            with cli_exit.interrupts_held() as held:
+            with cli_exit.interrupts_held():
                 if process.poll() is None:
                     tree.kill()
                 tree.stopped = tree.close()
-                require(tree.stopped or not (interrupted or held),
-                        "Interrupted, but the check's process tree could not be confirmed stopped; refusing")
+                # Nothing from the tree may still be running when the workspace is digested.
+                require(tree.stopped, "The check's process tree could not be confirmed stopped; "
+                                      "refuse to digest a moving workspace")
 
     def _windows_resume(self):
         import ctypes
@@ -916,8 +913,6 @@ def bounded_capture(argv, cwd, timeout, bound):
             tree.kill()
             for reader in readers:
                 reader.join(timeout=DRAIN_GRACE_SECONDS)
-    # Nothing from the tree may still be running when the workspace is scanned and digested.
-    require(tree.stopped, "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
     out, out_cut, out_hex = finish(sinks[0], abandoned)
     err, err_cut, err_hex = finish(sinks[1], abandoned)
     return {"exit_code": None if timed_out or abandoned else process.returncode,

@@ -488,6 +488,27 @@ class InterruptTests(AcceptanceBase):
         self.assertIsNone(self.state(ledger)["checks"])
 
 
+    def test_a_ctrl_c_after_the_stop_check_never_reports_an_unconfirmed_tree_as_cancelled(self):
+        # Codex P2 on PR #71, round 3: an interrupt arriving after the teardown's stop check had
+        # passed, but before the held block exited, was re-raised as a clean cancellation (130)
+        # although close() had not confirmed the tree stopped.
+        ledger, _ = self.start()
+        real_require = acceptance.require
+
+        def require(condition, message):
+            real_require(condition, message)
+            if "confirmed stopped" in message:
+                signal.raise_signal(signal.SIGINT)  # Ctrl+C lands just after the check passed.
+
+        with mock.patch.object(acceptance.ProcessTree, "close", return_value=False), \
+                mock.patch.object(acceptance, "require", require):
+            with self.assertRaises((ValueError, KeyboardInterrupt)) as raised:
+                acceptance.run_checks(ledger, self.workspace())
+        self.assertIsInstance(raised.exception, ValueError,
+                              "an unconfirmed tree was reported as a clean cancellation")
+        self.assertIsNone(self.state(ledger)["checks"])
+
+
 class InterruptingWriter:
     """A new record's stream on which Ctrl+C arrives just before the first write."""
 
