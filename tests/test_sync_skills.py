@@ -238,6 +238,21 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertTrue((asset / "README.md").exists() and (native / "SKILL.md").exists(), "produced content stays")
         self.assertEqual(sync_skills.sync(check=True), [])
 
+    def test_the_temp_write_name_never_collides_with_a_real_source(self):
+        # PR #61 round 11: a fixed target-name-derived temp path can collide with an actual
+        # tracked file that happens to share that literal name. The entrypoint copy into SKILL
+        # runs before the files_under(SKILL) loop that would otherwise treat this file as a
+        # legitimate source of its own; a collision destroys it before that loop ever sees it.
+        colliding = self.skill / "scripts/bootstrap_project.py.sync-tmp"
+        colliding.write_text("do not lose me\n", encoding="utf-8")
+        (self.root / "scripts/bootstrap_project.py").write_text("# changed\n", encoding="utf-8")
+        sync_skills.sync()
+        self.assertEqual(colliding.read_text(encoding="utf-8"), "do not lose me\n")
+        for native in (".agents/skills", ".claude/skills"):
+            mirrored = self.root / native / "complex-project-bootstrapper/scripts/bootstrap_project.py.sync-tmp"
+            self.assertTrue(mirrored.exists())
+            self.assertEqual(mirrored.read_text(encoding="utf-8"), "do not lose me\n")
+
     def test_wrong_type_entries_are_reported_without_reading_and_replaced(self):
         # PR #61 round 7: a directory where a file belongs crashed both modes with
         # IsADirectoryError, and a file where a directory belongs would crash the write.

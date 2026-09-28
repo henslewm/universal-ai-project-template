@@ -6,6 +6,7 @@ import argparse
 import os
 import shutil
 import stat
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -129,8 +130,13 @@ def sync(check: bool = False) -> list[str]:
                 path.unlink()
         target.parent.mkdir(parents=True, exist_ok=True)
         # Replace the directory entry rather than writing into the existing file, so a target that
-        # shares its inode with another name (a hard link) never changes that other file.
-        temporary = target.with_name(target.name + '.sync-tmp')
+        # shares its inode with another name (a hard link) never changes that other file. The name
+        # is allocated by mkstemp, not derived from the target's own name, so it can never collide
+        # with an actual source file that happens to share that name (round 11).
+        descriptor, temporary_name = tempfile.mkstemp(dir=target.parent, prefix=target.name + '.',
+                                                        suffix='.sync-tmp')
+        os.close(descriptor)
+        temporary = Path(temporary_name)
         try:
             shutil.copyfile(source, temporary)
             shutil.copymode(source, temporary)
