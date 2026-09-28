@@ -46,9 +46,16 @@
     "Consequential external legal action"
   ],
   "domain": {
-    "posture": "Fictional NC civil-rights research matter; source: synthetic case fixture.",
-    "defendants_and_theories": "Separate fictional actor roles and capacities in an issue matrix; no finding of liability.",
-    "evidence_and_remedies": "Synthetic source records; research limitations and potential remedies; no actual filing or deadline."
+    "forum_jurisdiction": "Fictional Synthetic District Court; forum label only; source: synthetic case fixture.",
+    "defendants_roles": "Fictional Officer Alpha (patrol officer), Director Beta (licensing director) and Town of Gamma (employer); no finding of liability.",
+    "capacities": "Officer Alpha individual and official; Director Beta official; Town of Gamma entity only.",
+    "alleged_rights": "Fictional stand-in rights against unreasonable seizure and to a pre-revocation hearing; no real authority asserted.",
+    "procedural_history": "Fictional pre-filing research; no proceeding commenced and nothing preserved yet.",
+    "evidence_sources": "Synthetic complaint, roster, dispatch log and stop log placeholders; authentication not yet assessed.",
+    "limitations_accrual": "Fictional accrual dates 2026-01-10 and 2026-02-01; tolling not yet researched; no actual deadline.",
+    "objectives_remedies": "Ranked fictional objectives: damages for the detention, then reinstatement of the license.",
+    "prior_proceedings": "No fictional prior or parallel proceeding is declared in this fixture.",
+    "reserved_actions": "Filing, service, contacting any court, party or witness, and disclosure are reserved to the user."
   },
   "approval": {
     "approved": false,

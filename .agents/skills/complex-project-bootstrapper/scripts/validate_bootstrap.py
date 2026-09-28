@@ -44,9 +44,16 @@ DOMAIN_FIELDS = {
         "reserved_actions": "Standing restrictions and user-reserved consequential actions (filing, service, external communication, disclosure)",
     },
     "civil-rights-nc": {
-        "posture": "Forum/jurisdiction and procedural history with source references",
-        "defendants_and_theories": "Potential defendants, roles/capacities and alleged rights/theories",
-        "evidence_and_remedies": "Evidence sources, limitations/accrual posture and requested remedies",
+        "forum_jurisdiction": "Forum/court, jurisdictional basis and venue, with source references",
+        "defendants_roles": "Potential defendants, each one's role and attributed conduct, with source references",
+        "capacities": "Individual/official/entity capacity analyzed for each potential defendant",
+        "alleged_rights": "Federal constitutional rights (42 U.S.C. § 1983) and North Carolina constitutional provisions (Corum) alleged, per defendant",
+        "procedural_history": "Procedural history to date and preservation posture, with source references",
+        "evidence_sources": "Evidence sources, locations, provenance, authentication and preservation constraints",
+        "limitations_accrual": "Limitations/accrual timeline and any notice, exhaustion or other prerequisites",
+        "objectives_remedies": "Ranked objectives and requested remedies (damages, declaratory, injunctive, fees)",
+        "prior_proceedings": "Prior and parallel proceedings (criminal, administrative, family-court or other) that may bar or affect a claim",
+        "reserved_actions": "Standing restrictions and user-reserved consequential actions (filing, service, contacting a court/party/witness, disclosure)",
     },
 }
 
