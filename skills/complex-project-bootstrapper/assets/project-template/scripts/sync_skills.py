@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import stat
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -27,7 +28,10 @@ def files_under(root: Path, every_file: bool = False):
     PRUNE_SKIPPED, so anything the copy filters would never have produced is found and removed."""
     skipped = PRUNE_SKIPPED if every_file else EXCLUDED
     for directory, dirs, files in os.walk(root):
-        dirs[:] = sorted(name for name in dirs if name not in skipped)
+        # os.walk does not stop at a Windows junction on its own (is_symlink() is False for one),
+        # so it is excluded from descent here explicitly, the same as an excluded/skipped name.
+        dirs[:] = sorted(name for name in dirs
+                         if name not in skipped and not is_junction(Path(directory) / name))
         for name in sorted(files):
             # EXCLUDED names are excluded as files too: in a git worktree or submodule `.git`
             # is a pointer file, and it must never become payload.
@@ -37,13 +41,16 @@ def files_under(root: Path, every_file: bool = False):
 
 
 def links_under(root: Path):
-    """Every symbolic link (file or directory) under `root`, outside PRUNE_SKIPPED; never followed."""
+    """Every symbolic link or junction (file or directory) under `root`, outside PRUNE_SKIPPED; never
+    followed. A Windows junction is not reported by is_symlink(), so it is checked separately."""
     for directory, dirs, files in os.walk(root):
         for name in sorted([*dirs, *files]):
-            if (Path(directory) / name).is_symlink():
-                yield Path(directory) / name
-        dirs[:] = sorted(name for name in dirs
-                         if name not in PRUNE_SKIPPED and not (Path(directory) / name).is_symlink())
+            path = Path(directory) / name
+            if path.is_symlink() or is_junction(path):
+                yield path
+        dirs[:] = sorted(name for name in dirs if name not in PRUNE_SKIPPED
+                         and not (Path(directory) / name).is_symlink()
+                         and not is_junction(Path(directory) / name))
 
 
 def is_junction(path: Path) -> bool:
@@ -62,11 +69,11 @@ def remove_link(path: Path):
 
 def refuse_linked_path(target: Path):
     """The sync never reads, writes or deletes through a link: refuse a destination that is, or sits
-    beneath, a symbolic link between ROOT and itself."""
+    beneath, a symbolic link or junction between ROOT and itself."""
     path = ROOT
     for part in target.relative_to(ROOT).parts:
         path = path / part
-        if path.is_symlink():
+        if path.is_symlink() or is_junction(path):
             raise ValueError(f'Refusing to sync through a link: {path.relative_to(ROOT).as_posix()}')
 
 
@@ -97,12 +104,19 @@ def sync(check: bool = False) -> list[str]:
         # made (a link, a directory where a file belongs, a file where a directory belongs) is drift.
         # It is reported without being read, and a sync removes it before writing.
         blocking = [ROOT / parent for parent in reversed(target.relative_to(ROOT).parents)
-                    if (ROOT / parent).is_symlink() or ((ROOT / parent).exists() and not (ROOT / parent).is_dir())]
-        if target.is_symlink() or (target.exists() and not target.is_file()):
+                    if (ROOT / parent).is_symlink() or is_junction(ROOT / parent)
+                    or ((ROOT / parent).exists() and not (ROOT / parent).is_dir())]
+        if target.is_symlink() or is_junction(target) or (target.exists() and not target.is_file()):
             blocking.append(target)
-        if (not blocking and target.is_file() and target.stat().st_nlink == 1
-                and source.read_bytes() == target.read_bytes()):
-            return
+        if not blocking:
+            try:
+                target_stat = target.stat()
+            except FileNotFoundError:
+                target_stat = None
+            if (target_stat is not None and stat.S_ISREG(target_stat.st_mode) and target_stat.st_nlink == 1
+                    and stat.S_IMODE(source.stat().st_mode) == stat.S_IMODE(target_stat.st_mode)
+                    and source.read_bytes() == target.read_bytes()):
+                return
         differences.append(target.relative_to(ROOT).as_posix())
         if check:
             return
@@ -144,16 +158,34 @@ def sync(check: bool = False) -> list[str]:
                     for parent in target.parents if parent.is_relative_to(mirror)}
         obsolete = []
         for directory, dirs, _ in os.walk(mirror):
-            dirs[:] = sorted(name for name in dirs if name not in PRUNE_SKIPPED)
+            # A junction is not stopped by PRUNE_SKIPPED and is not reported by is_symlink(), so
+            # it is found and excluded from descent here explicitly, the same as in
+            # files_under/links_under: this walk must not rely on unlink_all's earlier sweep of
+            # the same tree to have already removed it. A junction is never something the copy
+            # produced, so it is unconditionally obsolete, not merely absent from `produced`.
+            junctions = [name for name in dirs if is_junction(Path(directory) / name)]
+            obsolete.extend(Path(directory) / name for name in junctions)
+            dirs[:] = sorted(name for name in dirs if name not in PRUNE_SKIPPED and name not in junctions)
             for name in list(dirs):
                 path = Path(directory) / name
                 if path not in produced:
                     obsolete.append(path)
                     dirs.remove(name)  # the topmost obsolete directory covers everything below
         for path in obsolete:
-            differences.append(path.relative_to(ROOT).as_posix() + '/')
+            # A link or junction here is the same defense-in-depth case as copy()'s own removal
+            # loop: never follow it into shutil.rmtree, whatever swept the rest of the tree
+            # earlier. It is reported the same bare way unlink_all reports one (no trailing
+            # slash), so a junction --check finds here as well as via unlink_all's own earlier
+            # pass over the same still-present path (nothing is deleted under --check) collapses
+            # to the single entry the final dict.fromkeys dedup already promises, rather than
+            # being listed twice under two different spellings of the same path.
+            is_link = path.is_symlink() or is_junction(path)
+            differences.append(path.relative_to(ROOT).as_posix() + ('' if is_link else '/'))
             if not check:
-                shutil.rmtree(path)
+                if is_link:
+                    remove_link(path)
+                else:
+                    shutil.rmtree(path)
 
     for mirror in mirrors:
         unlink_all(mirror)

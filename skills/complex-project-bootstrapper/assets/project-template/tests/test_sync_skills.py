@@ -1,6 +1,7 @@
 """Payload synchronization: obsolete mirror files and worktree `.git` pointers (#49)."""
 from __future__ import annotations
 
+import shutil
 import sys
 import tempfile
 import unittest
@@ -115,6 +116,102 @@ class SyncSkillsTests(unittest.TestCase):
                     sync_skills.remove_link(linked)
                     moved.rename(linked)
         self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_a_junction_mirror_ancestor_is_refused(self):
+        # PR #61 round 10: a Windows junction is not reported by Path.is_symlink(), so the
+        # preflight must also check is_junction(), or a junction root/ancestor would go
+        # untouched by this guard exactly like a symlink root would (round 5). Junctions cannot
+        # be created on this host, so is_junction() is faked true for one real path instead.
+        linked = self.root / ".agents/skills/complex-project-bootstrapper"
+        with mock.patch.object(sync_skills, "is_junction", lambda path: path == linked):
+            for check in (True, False):
+                with self.assertRaisesRegex(ValueError, "Refusing to sync through a link"):
+                    sync_skills.sync(check=check)
+        self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_a_junction_in_a_mirror_is_detected_and_removed(self):
+        # A junction inside a mirror is exactly as much drift as a symlink there (round 4), but
+        # os.walk does not stop at one on its own; unlink_all must detect it via is_junction()
+        # before prune's directory walk could otherwise reach it.
+        asset = self.skill / "assets/project-template"
+        junction = asset / "linked-dir-junction"
+        junction.mkdir()
+        with mock.patch.object(sync_skills, "is_junction", lambda path: path == junction):
+            drift = sync_skills.sync(check=True)
+            # Nothing is deleted under --check, so the same still-present junction is found by
+            # both unlink_all's sweep and prune's own pass over the same mirror; it must collapse
+            # to one reported entry (self-review finding), not the bare path and a trailing-slash
+            # "directory" spelling of it counted as two different drift items.
+            self.assertEqual(drift.count(junction.relative_to(self.root).as_posix()), 1)
+            self.assertNotIn(junction.relative_to(self.root).as_posix() + "/", drift)
+            self.assertTrue(junction.exists(), "--check must not write")
+            sync_skills.sync()
+            self.assertFalse(junction.exists())
+        self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_prune_never_rmtrees_a_junction_either(self):
+        # prune()'s own obsolete-directory walk must refuse to shutil.rmtree a junction on its
+        # own terms too, not rely solely on unlink_all's earlier sweep of the same tree (which
+        # would ordinarily remove it first) -- simulated here as having missed it, the same way
+        # as the ancestor test above (self-review finding).
+        asset = self.skill / "assets/project-template"
+        junction = asset / "leftover-junction"
+        junction.mkdir()
+        real_links_under = sync_skills.links_under
+
+        def links_under_missing_junction(root):
+            return (path for path in real_links_under(root) if path != junction)
+
+        original_rmtree = shutil.rmtree
+
+        def guarded_rmtree(path, *args, **kwargs):
+            if Path(path) == junction:
+                raise AssertionError("prune() must never rmtree a junction")
+            return original_rmtree(path, *args, **kwargs)
+
+        with mock.patch.object(sync_skills, "is_junction", lambda path: path == junction), \
+                mock.patch.object(sync_skills, "links_under", links_under_missing_junction), \
+                mock.patch("shutil.rmtree", guarded_rmtree):
+            sync_skills.sync()
+        self.assertFalse(junction.exists())
+
+    def test_a_junction_ancestor_of_a_copy_target_is_removed_first(self):
+        # A junction ancestor reports is_dir() = True and is_symlink() = False, so it defeats the
+        # pre-existing "wrong type" ancestor check (which only catches a non-directory in the
+        # chain, round 6): without is_junction() there, the copy would write straight through a
+        # real junction into its external target instead of ever removing it. copy()'s own check
+        # must catch this independently of unlink_all's earlier sweep of the same tree -- which
+        # would ordinarily remove it first -- so that sweep is simulated as having missed it here
+        # (self-review finding: without this, the test passed even with copy()'s own check
+        # reverted, because unlink_all alone was already satisfying the assertion).
+        asset = self.skill / "assets/project-template"
+        ancestor = asset / "scripts"
+        self.assertTrue(ancestor.is_dir())
+        calls = []
+        real_links_under = sync_skills.links_under
+
+        def links_under_missing_ancestor(root):
+            return (path for path in real_links_under(root) if path != ancestor)
+
+        with mock.patch.object(sync_skills, "is_junction", lambda path: path == ancestor), \
+                mock.patch.object(sync_skills, "links_under", links_under_missing_ancestor), \
+                mock.patch.object(sync_skills, "remove_link", lambda path: calls.append(path)):
+            sync_skills.sync()
+        self.assertIn(ancestor, calls, "a junction ancestor must be removed, not written through")
+        self.assertEqual((ancestor / "bootstrap_project.py").read_text(encoding="utf-8"),
+                          "# bootstrap_project.py\n")
+
+    def test_the_fast_path_also_compares_permission_bits(self):
+        # An unchanged-bytes fast path that ignores mode bits would leave a mirror file's
+        # permissions stale after the source's executable bit changes with no content change.
+        source = self.root / "scripts/bootstrap_project.py"
+        target = self.skill / "scripts/bootstrap_project.py"
+        self.assertEqual(source.read_bytes(), target.read_bytes())
+        source.chmod(source.stat().st_mode | 0o111)
+        drift = sync_skills.sync(check=True)
+        self.assertIn(target.relative_to(self.root).as_posix(), drift)
+        sync_skills.sync()
+        self.assertTrue(target.stat().st_mode & 0o111)
 
     def test_obsolete_directories_are_pruned_even_when_empty(self):
         # PR #61 round 6: an empty obsolete directory yields no file, so it survived pruning and the
