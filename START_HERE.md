@@ -19,7 +19,7 @@ Choose the path that matches where you are working.
    ```
 
 4. Add `--answers verified-intake.json` if recovered intake is available. Interactive mode reuses supplied values and asks only missing common/profile orientation fields. The generator writes `config/bootstrap.json` in `INTAKE` with autonomy off and `BOOTSTRAP_REVIEW.md` with readiness gaps.
-5. Open the tailored repository; the client discovers `AGENTS.md` or `CLAUDE.md`. Complete the architecture package and approval flow in section D before autonomous substantive work.
+5. Open the tailored repository; the client discovers `AGENTS.md` or `CLAUDE.md`. Complete the architecture package and approval flow in section E before autonomous substantive work.
 6. Run `python scripts/validate_project.py` before completing material changes. A passing repository validator does not activate the project.
 
 The generator refuses rebootstrap when a destination already has bootstrap state or initialized project configuration. Preserve existing records and evidence through a retrofit; revise and review an existing package instead of overwriting it or deleting approval state.
@@ -31,7 +31,7 @@ The generator refuses rebootstrap when a destination already has bootstrap state
 3. Add the files listed in `.chatgpt/PROJECT_FILES.md`.
 4. Connect GitHub. Add Google Drive, Gmail, Calendar, Contacts, or a legal/research source only when the project actually needs them.
 5. Start with the prompt in `prompts/BOOTSTRAP_NEW_PROJECT.md`.
-6. Follow section D with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
+6. Follow section E with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
 
 ## C. Claude web Project
 
@@ -40,9 +40,18 @@ The generator refuses rebootstrap when a destination already has bootstrap state
 3. Add the GitHub repository through Claude's GitHub integration.
 4. Add only the active control files listed in `.claude-web/PROJECT_KNOWLEDGE.md` if the full repo is not connected.
 5. Start with `prompts/BOOTSTRAP_NEW_PROJECT.md`.
-6. Follow section D with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
+6. Follow section E with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
 
-## D. Review the architecture and record explicit approval
+## D. Mistral Vibe Project
+
+1. In Vibe's **Work** mode, create a dedicated Project for this repository.
+2. Paste `.mistral/PROJECT_INSTRUCTIONS.md` into the Project's custom instructions.
+3. Connect the **GitHub App** connector so chats can read the repository directly.
+4. If the repository cannot be connected, add the compact control files listed in `.mistral/PROJECT_KNOWLEDGE.md` to the Project or an attached Library.
+5. Start with the prompt in `prompts/BOOTSTRAP_NEW_PROJECT.md`.
+6. Follow section E with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
+
+## E. Review the architecture and record explicit approval
 
 1. Follow `prompts/INTERACTIVE_BOOTSTRAP.md` and `BOOTSTRAP_PROTOCOL.md`. Complete architecture boundaries, milestones/dependencies, sources, risks, routing, workflow, reserved human actions, and domain orientation in `config/bootstrap.json`. Resolve all `unresolved` architecture blockers and align the charter, connector plan, skill plan, domain profile, and project configuration.
 2. From the generated project's root, run `python scripts/bootstrap_gate.py review`. This revokes previous approval first, snapshots `config/project.json`, and computes SHA-256 hashes of `PROJECT_CHARTER.md`, `CONNECTOR_PLAN.md`, `SKILL_PLAN.md`, and `DOMAIN_PROFILE.md`. Only a ready package becomes `AWAITING_APPROVAL`; failure leaves autonomy off.
@@ -54,7 +63,7 @@ Run `--require-active` before autonomous substantive work in every session. The 
 
 The local gate detects normal bypass and stale approvals; it does not authenticate humans or constrain actors who rewrite gate code or approval records. It does not configure providers or expand permissions. Canonical templates include snapshots of existing domain documents; detailed domain work remains assigned to #9/#10/#11.
 
-## E. Publish this prepared local repo to GitHub
+## F. Publish this prepared local repo to GitHub
 
 Publishing is separate from setup and activation and requires explicit authority. See `docs/GITHUB_PUBLISH.md`. For this template repository, the documented command is:
 

@@ -64,7 +64,7 @@ def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
         raw[field] = [item.strip() for item in value]
 
     raw["deliverables"] = raw["deliverables"] or ["Project-specific analysis or implementation", "Current handoff and state records"]
-    raw["ai_clients"] = raw["ai_clients"] or ["chatgpt", "codex", "claude", "claude-code"]
+    raw["ai_clients"] = raw["ai_clients"] or ["chatgpt", "codex", "claude", "claude-code", "mistral"]
     raw["connectors"] = raw["connectors"] or ["github", "web"]
     raw["output_formats"] = raw["output_formats"] or ["markdown"]
     raw["domain"] = str(raw.get("domain") or "other").strip().lower()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
 import importlib.util
@@ -867,6 +868,98 @@ class DeterministicGateTests(AcceptanceBase):
             acceptance.run_checks(ledger, self.workspace(files=("one.txt", "two.txt")))
 
 
+class RecordingReporter:
+    """A fake `reporter` (progress.py's protocol) that records every call for assertion,
+    used to show run_checks drives progress reporting correctly (#27) without depending on
+    stderr formatting, which scripts/test_progress.py already covers on its own."""
+
+    def __init__(self):
+        self.events = []
+
+    def start(self, total):
+        self.events.append(("start", total))
+
+    @contextlib.contextmanager
+    def checking(self, index, total, validation_id):
+        self.events.append(("checking_enter", index, total, validation_id))
+        try:
+            yield
+        finally:
+            self.events.append(("checking_exit", index, total, validation_id))
+
+    def check_result(self, index, total, validation_id, outcome, duration):
+        self.events.append(("check_result", index, total, validation_id, outcome))
+
+    def finish(self, passed, total, satisfied):
+        self.events.append(("finish", passed, total, satisfied))
+
+
+class ProgressReporterTests(AcceptanceBase):
+    """run_checks with no reporter (every other test in this file) must be unaffected: #27's
+    reporter hook is purely additive and defaults to progress.NullProgress, a no-op."""
+
+    def test_default_reporter_is_a_no_op_and_does_not_change_the_recorded_result(self):
+        ledger, _ = self.start()
+        self.assertIsInstance(acceptance.progress.NullProgress(), acceptance.progress.NullProgress)
+        outcome = acceptance.run_checks(ledger, self.workspace())
+        self.assertTrue(outcome["satisfied"])
+
+    def test_passing_check_reports_start_checking_and_finish_in_order(self):
+        ledger, _ = self.start(argv=PASS_ARGV)
+        reporter = RecordingReporter()
+        outcome = acceptance.run_checks(ledger, self.workspace(), reporter=reporter)
+        self.assertEqual(reporter.events, [
+            ("start", 1),
+            ("checking_enter", 1, 1, "VAL-FRAMES"),
+            ("checking_exit", 1, 1, "VAL-FRAMES"),
+            ("check_result", 1, 1, "VAL-FRAMES", "PASSED"),
+            ("finish", 1, 1, True),
+        ])
+        self.assertTrue(outcome["satisfied"])
+
+    def test_failing_check_reports_failed_outcome(self):
+        ledger, _ = self.start(argv=FAIL_ARGV)
+        reporter = RecordingReporter()
+        acceptance.run_checks(ledger, self.workspace(), reporter=reporter)
+        self.assertIn(("check_result", 1, 1, "VAL-FRAMES", "FAILED"), reporter.events)
+        self.assertEqual(reporter.events[-1], ("finish", 0, 1, False))
+
+    def test_timed_out_check_reports_timed_out_outcome(self):
+        ledger, _ = self.start(argv=SLEEP_ARGV, timeout=1)
+        reporter = RecordingReporter()
+        acceptance.run_checks(ledger, self.workspace(), reporter=reporter)
+        self.assertIn(("check_result", 1, 1, "VAL-FRAMES", "TIMED OUT"), reporter.events)
+
+    def test_unrunnable_check_reports_needs_attestation_not_failed(self):
+        # A check with no command is not deterministically failing; it is pending attestation
+        # (DeterministicGateTests.test_unrunnable_validation_requires_attestation_and_not_from_an_implementer
+        # exercises the same fixture without a reporter). Reporting it as "FAILED" would read as
+        # an observed failure that never happened.
+        ledger, _ = self.start(argv=None)
+        reporter = RecordingReporter()
+        acceptance.run_checks(ledger, self.workspace(), reporter=reporter)
+        self.assertIn(("check_result", 1, 1, "VAL-FRAMES", "NEEDS ATTESTATION"), reporter.events)
+
+    def test_workspace_refusal_before_any_check_runs_reports_no_events(self):
+        # The symlink refusal (DeterministicGateTests) is raised by trusted_workspace(), before
+        # reporter.start() or any check's span; the reporter must not report progress on checks
+        # that never ran. Cleanup of a span raised into mid-run (a refusal or KeyboardInterrupt
+        # during a check) is progress.py's own concern and is covered in test_progress.py, where
+        # it can be triggered deterministically.
+        ledger, _ = self.start()
+        space = self.workspace()
+        outside = self.directory / "outside-for-reporter-refusal"
+        outside.mkdir()
+        try:
+            os.symlink(outside, space / "linked", target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"directory symlinks unavailable here: {exc}")
+        reporter = RecordingReporter()
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            acceptance.run_checks(ledger, space, reporter=reporter)
+        self.assertEqual(reporter.events, [])
+
+
 class ReviewFlowTests(AcceptanceBase):
     def test_reviewer_is_not_engaged_before_the_deterministic_gate_passes(self):
         ledger, _ = self.start(risk="medium")
@@ -1206,6 +1299,38 @@ class VerifyAndCliTests(AcceptanceBase):
                              capture_output=True, text=True)
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertTrue(json.loads(run.stdout)["valid"])
+
+    def test_run_checks_cli_prints_progress_on_stderr_and_valid_json_on_stdout(self):
+        # #27: stdout must stay exactly the machine-readable result; the new progress feedback
+        # belongs on stderr, wired in through the CLI's own reporter=progress.StreamProgress().
+        ledger, _ = self.start(argv=PASS_ARGV)
+        run = subprocess.run([sys.executable, str(ROOT / "scripts/acceptance.py"),
+                              "--config", str(ROOT / "config/acceptance.example.json"),
+                              "run-checks", str(ledger), "--workspace", str(self.workspace())],
+                             capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertTrue(json.loads(run.stdout)["satisfied"])
+        self.assertIn("Running 1 check(s)...", run.stderr)
+        self.assertIn("VAL-FRAMES: PASSED", run.stderr)
+        self.assertIn("run-checks: 1/1 passed, deterministic gate satisfied", run.stderr)
+
+    def test_keyboard_interrupt_returns_130_even_if_stderr_is_already_closed(self):
+        # Codex P2 round 3 on PR #68: the KeyboardInterrupt handler's own diagnostic print
+        # must not let a closed stderr replace the exit code 130 it exists to guarantee.
+        ledger, _ = self.start(argv=PASS_ARGV)
+
+        class BrokenStderr:
+            def write(self, _text):
+                raise ValueError("I/O operation on closed file.")
+
+            def flush(self):
+                pass
+
+        with mock.patch.object(acceptance, "run_checks", side_effect=KeyboardInterrupt), \
+             mock.patch.object(acceptance.sys, "stderr", BrokenStderr()):
+            code = acceptance.main(["--config", str(ROOT / "config/acceptance.example.json"),
+                                    "run-checks", str(ledger), "--workspace", str(self.workspace())])
+        self.assertEqual(code, 130)
 
 
 class FeedbackIntegrationTests(AcceptanceBase):
