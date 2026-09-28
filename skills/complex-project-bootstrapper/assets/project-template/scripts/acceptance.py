@@ -18,6 +18,7 @@ from pathlib import Path
 import execution_harness as harness
 import feedback
 import model_router as router
+import progress
 import work_packet as wp
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -991,14 +992,19 @@ def check_cwd(workspace, relative):
     return cwd
 
 
-def run_checks(directory, workspace, timestamp=None):
+def run_checks(directory, workspace, timestamp=None, reporter=None):
     """Execute the contract's declared validation commands and record what was observed.
 
     This is the one deliberate exception to the metadata-only pattern: independence requires
     observing the checks run, not transcribing a worker's claim that they ran. It executes
     only commands the architect declared in the contract; it never invokes a model, never
     runs a harness, and recording an observation is still not accepting work.
+
+    `reporter` (default `progress.NullProgress`, so an unmodified caller sees no output) is
+    purely cosmetic stderr feedback (#27): it never affects which commands run, their
+    timeouts, or the recorded result. See `scripts/progress.py`.
     """
+    reporter = reporter or progress.NullProgress()
     prior = replay(directory)
     state = prior[0]
     require(state["status"] == "GATES_PENDING", f"Check run refused at {state['status']}")
@@ -1007,14 +1013,18 @@ def run_checks(directory, workspace, timestamp=None):
     # first checked, at each cwd, before each command and before the digest.
     workspace = trusted_workspace(workspace, policy)
     results = []
-    for check in state["contract"]["validation"]:
+    validations = state["contract"]["validation"]
+    reporter.start(len(validations))
+    for index, check in enumerate(validations, start=1):
         command = check.get("command")
         if command is None:
-            empty = hashlib.sha256(b"").hexdigest()
-            results.append({"validation_id": check["id"], "machine_runnable": False, "passed": False,
-                            "argv": [], "exit_code": None, "duration_seconds": None, "timed_out": False,
-                            "stdout": "", "stderr": "", "output_truncated": False,
-                            "output_sha256": stream_digest(empty, empty)})
+            with reporter.checking(index, len(validations), check["id"]):
+                empty = hashlib.sha256(b"").hexdigest()
+                results.append({"validation_id": check["id"], "machine_runnable": False, "passed": False,
+                                "argv": [], "exit_code": None, "duration_seconds": None, "timed_out": False,
+                                "stdout": "", "stderr": "", "output_truncated": False,
+                                "output_sha256": stream_digest(empty, empty)})
+            reporter.check_result(index, len(validations), check["id"], "NEEDS ATTESTATION", 0.0)
             continue
         cwd = check_cwd(workspace, command.get("cwd", "."))
         # Scanned before every command: an earlier check could create a link, a later one read
@@ -1022,10 +1032,13 @@ def run_checks(directory, workspace, timestamp=None):
         scan_workspace(workspace, policy)
         timeout = command.get("timeout_seconds", policy["check_timeout_seconds"])
         started = time.monotonic()
-        observed = bounded_capture(command["argv"], cwd, timeout, policy["check_output_max_chars"])
+        with reporter.checking(index, len(validations), check["id"]):
+            observed = bounded_capture(command["argv"], cwd, timeout, policy["check_output_max_chars"])
         duration = time.monotonic() - started
-        results.append({"validation_id": check["id"], "machine_runnable": True,
-                        "passed": observed["exit_code"] == 0 and not observed["timed_out"],
+        passed = observed["exit_code"] == 0 and not observed["timed_out"]
+        outcome = "TIMED OUT" if observed["timed_out"] else ("PASSED" if passed else "FAILED")
+        reporter.check_result(index, len(validations), check["id"], outcome, duration)
+        results.append({"validation_id": check["id"], "machine_runnable": True, "passed": passed,
                         "argv": list(command["argv"]), "duration_seconds": round(duration, 3), **observed})
     # Scanned again after the commands, so a link created during execution is caught too.
     files = scan_workspace(workspace, policy)
@@ -1034,9 +1047,12 @@ def run_checks(directory, workspace, timestamp=None):
     checks = {"workspace": str(workspace), "workspace_digest": router.digest(listing),
               "workspace_files": len(files), "results": results}
     recorded = append(directory, "CHECKS", {"checks": checks}, timestamp, prior)
+    satisfied = deterministic_satisfied(recorded)
+    passed_count = sum(1 for entry in results if entry["passed"])
+    reporter.finish(passed_count, len(results), satisfied)
     return {"status": recorded["status"], "workspace_digest": checks["workspace_digest"],
             "deterministic": deterministic_status(recorded),
-            "satisfied": deterministic_satisfied(recorded)}
+            "satisfied": satisfied}
 
 
 def review_contract(paths, policy, used):
@@ -1362,7 +1378,7 @@ def main(argv=None):
                                wp.read_json(args.questions) if args.questions else [])
             result = summary(state)
         elif args.command == "run-checks":
-            result = run_checks(args.ledger, args.workspace)
+            result = run_checks(args.ledger, args.workspace, reporter=progress.StreamProgress())
         elif args.command == "attest":
             state = append(args.ledger, "ATTESTATION",
                            {"attestation": {"validation_id": args.validation_id, "operator": args.operator,
@@ -1411,6 +1427,18 @@ def main(argv=None):
                       "output": str(args.output)}
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0 if result.get("valid", True) and result.get("status") not in {"ESCALATION_REQUIRED", "ARCHITECTURE_CONFLICT", "USER_REJECTED"} else 2
+    except KeyboardInterrupt:
+        # ADR-072: 130 is the interrupted exit code. run_checks's own cleanup (killing the
+        # check's process tree, stopping any progress ticker) has already run by the time this
+        # is reached; nothing here needs to know whether a check was mid-run.
+        # Best-effort only (Codex P2 on PR #68): if stderr is itself closed by this point,
+        # this diagnostic print can raise OSError/ValueError; that must not replace the
+        # exit code 130 this handler exists to guarantee.
+        try:
+            print("Acceptance interrupted", file=sys.stderr)
+        except (OSError, ValueError):
+            pass
+        return 130
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print(f"Acceptance refused: {exc}", file=sys.stderr)
         return 1
