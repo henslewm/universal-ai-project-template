@@ -20,7 +20,7 @@ python scripts/github_ledger.py --config config/github-ledger.json --root . publ
 python scripts/github_ledger.py --config config/github-ledger.json audit
 ```
 
-`--config` and `--root` precede the subcommand. The CLI returns 0 for success, 2 for detected drift, and 1 for refusal/unavailable or incomplete evidence. A failed network operation is never evidence that a write did not happen.
+`--config` and `--root` precede the subcommand. The CLI returns 0 for success, 2 for detected drift, 1 for refusal/unavailable or incomplete evidence, and 130 for Ctrl+C (README.md, "CLI exit codes"). An interrupted publication is recovered like any other: with `reconcile`, below. A failed network operation is never evidence that a write did not happen.
 
 ## One task, one issue
 

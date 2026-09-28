@@ -2,6 +2,10 @@
 """Validate and record work contracts locally; never execute or authorize work."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import copy
 import hashlib
@@ -21,6 +25,8 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent.parent
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+import cli_exit  # noqa: E402  (a sibling, importable once this directory is on the path)
+
 SCHEMA = json.loads((ROOT / "config/work-packet.schema.json").read_text(encoding="utf-8"))
 PROFILES = tuple(SCHEMA["properties"]["domain_profile"]["enum"])
 # Profile-specific rules over the `domain` extension. A registered module adds structure and
@@ -480,8 +486,9 @@ def read_json(path):
 
 
 def write_new(path, text):
-    # Exclusive creation preserves input and all earlier revisions on any normal refusal.
-    with Path(path).open("x", encoding="utf-8", newline="\n") as stream:
+    # Exclusive creation preserves input and all earlier revisions on any normal refusal, and
+    # Ctrl+C is held until the new file is whole (#31).
+    with cli_exit.interrupts_held(), Path(path).open("x", encoding="utf-8", newline="\n") as stream:
         stream.write(text)
 
 
@@ -550,4 +557,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))
