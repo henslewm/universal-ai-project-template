@@ -138,7 +138,7 @@ Minimum domain orientation targets:
 
 - `software-hardware` (complete, #9): existing baseline, exact hardware identity and firmware, interfaces/protocols, authoritative specifications, host/deployment environment, known-good and known-failing paths, fixture/simulator/loopback/HIL resources, physical-access constraints, and the architecture boundaries requiring approval — each a required `domain` field enforced by `scripts/validate_bootstrap.py`.
 - `family-law`: court/case/procedural posture, controlling orders, pending matters/deadlines, evidence/discovery sources, ranked objectives, disputed issues and preservation constraints.
-- `civil-rights-nc`: forum/jurisdiction posture, potential defendants/roles/capacities, alleged rights/theories, procedural history, evidence sources, limitations/accrual posture and requested remedies.
+- `civil-rights-nc`: forum/jurisdiction posture, potential defendants and roles, individual/official/entity capacities, alleged rights/theories, procedural history, evidence sources, limitations/accrual posture, requested remedies, prior proceedings, and reserved consequential actions.
 
 The common implementation requires the profile orientation fields above. The software-hardware profile's detailed packet and acceptance rules are in `templates/software-hardware/PROFILE.md`, `config/domains/software-hardware.schema.json` and `scripts/software_hardware.py`; the family-law and civil-rights detailed schemas remain owned by #10 and #11, and their template snapshots do not represent completion of those workstreams.
 

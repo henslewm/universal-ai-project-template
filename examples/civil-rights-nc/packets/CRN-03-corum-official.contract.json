@@ -1,0 +1,368 @@
+{
+  "title": "Fictional direct state constitutional claim against Director Beta, official capacity",
+  "parent": {
+    "objective": "Maintain a source-pinned claim matrix for one fictional direct state constitutional claim against one official in official capacity.",
+    "milestone": "Claim matrix declared, adequate-state-remedy analyzed, and governing and adverse authority read"
+  },
+  "goal": "State the fictional claim's elements, adequate-state-remedy analysis, threshold defense, adverse authority, remedy, limitations and justiciability.",
+  "non_goals": [
+    "Predict the outcome of any claim or defense.",
+    "File, serve, or send anything to any person or court."
+  ],
+  "scope": {
+    "allowed": [
+      "Declare the claim matrix and check every cited source resolves.",
+      "Record primary-source reviews of the governing and adverse authority."
+    ],
+    "prohibited": [
+      "Cite a real statute, case, party, or authority.",
+      "Treat an allegation as fact before a bound primary-source review.",
+      "Omit the adequate-state-remedy analysis."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Fictional complaint and revocation order",
+      "description": "The fictional complaint and agency order. Fictional; establish nothing."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Claim matrix",
+      "description": "The elements/requirements matrix with the adequate-state-remedy analysis and every other track."
+    }
+  ],
+  "interface": {
+    "name": "fictional_state_claim_matrix",
+    "version": "1.0",
+    "description": "Input the fictional record; output one claim matrix."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "Every party, record, constitutional text, statute and case here is invented for this worked example."
+  ],
+  "sources": [
+    {
+      "id": "SRC-CRN-COMPLAINT",
+      "reference": "Fictional complaint in the synthetic matter Plaintiff Doe v. Officer Alpha et al. (illustrative only; no such filing exists)",
+      "authority": "The fictional plaintiff's own allegations; not independently established."
+    },
+    {
+      "id": "SRC-CRN-ROSTER",
+      "reference": "Fictional Town of Gamma 2026 personnel roster (illustrative only; no such record exists)",
+      "authority": "Would be an official personnel record if real; a synthetic placeholder here."
+    },
+    {
+      "id": "SRC-CRN-REVOCATION-ORDER",
+      "reference": "Fictional Gamma Licensing Office revocation order dated 2026-02-01 (illustrative only; no such order exists)",
+      "authority": "Would be an official agency record if real; a synthetic placeholder here."
+    },
+    {
+      "id": "SRC-CRN-STATE-CONSTITUTION",
+      "reference": "Fictional Synthetic State Constitution article 1 (illustrative only; no such constitution exists)",
+      "authority": "Fictional constitutional text invented for this worked example."
+    },
+    {
+      "id": "SRC-CRN-REVIEW-CODE",
+      "reference": "Fictional Synthetic Administrative Review Code section 5 (illustrative only; no such code exists)",
+      "authority": "Fictional statute invented for this worked example."
+    },
+    {
+      "id": "SRC-CRN-LIMITATIONS-CODE",
+      "reference": "Fictional Synthetic Limitations Code sections 2 and 4 (illustrative only; no such code exists)",
+      "authority": "Fictional statute invented for this worked example."
+    },
+    {
+      "id": "SRC-CRN-ADVERSE-DOE",
+      "reference": "Fictional Doe v. Gamma Licensing Office, Synthetic Ct. App. 2021 (illustrative only; no such case exists)",
+      "authority": "Fictional adverse authority invented for this worked example."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-MATRIX",
+      "description": "The claim names one defendant and one capacity and analyzes adequate state remedy."
+    },
+    {
+      "id": "AC-GOVERNING-READ",
+      "description": "The governing authority is checked against the fictional constitutional text."
+    },
+    {
+      "id": "AC-ADVERSE-READ",
+      "description": "The adverse authority is checked against the fictional case's text."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-MATRIX-STRUCTURE",
+      "description": "Check the claim has one defendant and capacity and an adequate-state-remedy analysis.",
+      "criterion_ids": [
+        "AC-MATRIX"
+      ],
+      "evidence_required": [
+        "Defendant, capacity and adequate-state-remedy presence results."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "claim = {'defendant': 'DEF-BETA', 'capacity': 'official', 'type': 'NC_CORUM', 'adequate_state_remedy': 'contested'}; assert claim['type'] != 'NC_CORUM' or claim['adequate_state_remedy']; print('state claim matrix structured')"
+        ]
+      }
+    },
+    {
+      "id": "VAL-CONSTITUTION-REVIEW",
+      "description": "A non-implementer reads fictional Synthetic State Constitution article 1 and records whether it supports the governing proposition.",
+      "criterion_ids": [
+        "AC-GOVERNING-READ"
+      ],
+      "evidence_required": [
+        "A source verification record binding the constitutional-text review."
+      ]
+    },
+    {
+      "id": "VAL-ADVERSE-REVIEW",
+      "description": "A non-implementer reads fictional Doe v. Gamma Licensing Office and records whether it holds what the matrix says it holds.",
+      "criterion_ids": [
+        "AC-ADVERSE-READ"
+      ],
+      "evidence_required": [
+        "A source verification record binding the case review."
+      ]
+    }
+  ],
+  "complexity": "medium",
+  "risk": "medium",
+  "routing": {
+    "min_tier": 2,
+    "max_tier": 4,
+    "reasoning_effort": "high",
+    "reviewer_tier": 3
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    4
+  ],
+  "context_scope": [
+    "This contract and its declared fictional sources.",
+    "The derived claim or defendant matrix."
+  ],
+  "architecture_boundaries": [
+    "Keep each claim tied to exactly one defendant and one capacity.",
+    "Make no legal determination and perform no external writes."
+  ],
+  "domain": {
+    "synthetic": true,
+    "workstream": "nc_corum",
+    "forum": "Fictional Synthetic State Superior Court; forum label only, no jurisdiction determination.",
+    "procedural_posture": "Fictional pre-filing research; no proceeding has been commenced.",
+    "claim_basis": "UNVERIFIED_CLAIM",
+    "defendants": [
+      {
+        "id": "DEF-BETA",
+        "identity": "Director Beta (fictional)",
+        "role": "Director of the fictional Gamma Licensing Office alleged to have revoked the plaintiff's license.",
+        "kind": "natural_person",
+        "capacities": [
+          "official"
+        ],
+        "assertion_ids": [
+          "AS-BETA-ROLE"
+        ]
+      }
+    ],
+    "assertions": [
+      {
+        "id": "AS-BETA-ROLE",
+        "assertion": "Director Beta directed the fictional Gamma Licensing Office on 2026-02-01.",
+        "fact_status": "ALLEGATION",
+        "source_id": "SRC-CRN-COMPLAINT",
+        "verified_by": [
+          "SRC-CRN-ROSTER"
+        ]
+      },
+      {
+        "id": "AS-DIRECT-CLAIM-RULE",
+        "assertion": "Under fictional Synthetic State Constitution article 1, a direct claim lies against an official in official capacity when no adequate state remedy exists.",
+        "fact_status": "LEGAL_PROPOSITION",
+        "source_id": "SRC-CRN-STATE-CONSTITUTION",
+        "verified_by": [
+          "SRC-CRN-STATE-CONSTITUTION"
+        ]
+      },
+      {
+        "id": "AS-NO-HEARING",
+        "assertion": "Director Beta revoked the plaintiff's fictional license on 2026-02-01 without a hearing.",
+        "fact_status": "DISPUTED_FACT",
+        "source_id": "SRC-CRN-COMPLAINT",
+        "verified_by": [
+          "SRC-CRN-REVOCATION-ORDER"
+        ]
+      },
+      {
+        "id": "AS-ADEQUATE-REMEDY-RULE",
+        "assertion": "Fictional Doe v. Gamma Licensing Office holds that review under fictional Synthetic Administrative Review Code section 5 is an adequate state remedy for a license revocation.",
+        "fact_status": "LEGAL_PROPOSITION",
+        "source_id": "SRC-CRN-ADVERSE-DOE",
+        "verified_by": [
+          "SRC-CRN-ADVERSE-DOE"
+        ]
+      },
+      {
+        "id": "AS-REVIEW-WINDOW",
+        "assertion": "Fictional Synthetic Administrative Review Code section 5 allows review only within ten days of a revocation.",
+        "fact_status": "LEGAL_PROPOSITION",
+        "source_id": "SRC-CRN-REVIEW-CODE",
+        "verified_by": [
+          "SRC-CRN-REVIEW-CODE"
+        ]
+      },
+      {
+        "id": "AS-REVIEW-CLOSED",
+        "assertion": "The fictional review window had closed before the plaintiff received notice of the revocation.",
+        "fact_status": "ALLEGATION",
+        "source_id": "SRC-CRN-COMPLAINT",
+        "verified_by": [
+          "SRC-CRN-REVOCATION-ORDER"
+        ]
+      },
+      {
+        "id": "AS-STATE-LIMITATIONS",
+        "assertion": "Fictional Synthetic Limitations Code section 4 sets a three-year period for a direct state constitutional claim.",
+        "fact_status": "LEGAL_PROPOSITION",
+        "source_id": "SRC-CRN-LIMITATIONS-CODE",
+        "verified_by": [
+          "SRC-CRN-LIMITATIONS-CODE"
+        ]
+      },
+      {
+        "id": "AS-REVOCATION-ACCRUAL",
+        "assertion": "The claim accrued on the fictional revocation date, 2026-02-01.",
+        "fact_status": "INFERENCE",
+        "source_id": "SRC-CRN-COMPLAINT",
+        "verified_by": [
+          "SRC-CRN-REVOCATION-ORDER"
+        ]
+      },
+      {
+        "id": "AS-REINSTATEMENT-RULE",
+        "assertion": "Under fictional Synthetic State Constitution article 1, reinstatement is available against an official in official capacity.",
+        "fact_status": "LEGAL_PROPOSITION",
+        "source_id": "SRC-CRN-STATE-CONSTITUTION",
+        "verified_by": [
+          "SRC-CRN-STATE-CONSTITUTION"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "id": "CLM-BETA-OFFICIAL",
+        "statement": "Director Beta, in an official capacity, revoked the plaintiff's fictional license without a hearing, violating a fictional state constitutional right.",
+        "legal_question": "Does the fictional revocation without a hearing support a direct claim against Director Beta officially under fictional Synthetic State Constitution article 1?",
+        "defendant_id": "DEF-BETA",
+        "capacity": "official",
+        "claim_type": "NC_CORUM",
+        "right": "Fictional state constitutional right to a hearing before a license revocation (a stand-in that states no real constitutional holding).",
+        "governing_authority": [
+          "AS-DIRECT-CLAIM-RULE"
+        ],
+        "elements": [
+          {
+            "id": "EL-OFFICIAL-ACTION",
+            "requirement": "Action by the official in an official capacity.",
+            "supported_by": [
+              "AS-BETA-ROLE"
+            ]
+          },
+          {
+            "id": "EL-NO-HEARING",
+            "requirement": "Deprivation of the fictional hearing right.",
+            "supported_by": [
+              "AS-NO-HEARING"
+            ]
+          }
+        ],
+        "missing_evidence": [],
+        "threshold_defenses": [
+          {
+            "id": "TD-ADEQUATE-REMEDY",
+            "category": "other",
+            "defense": "An adequate state remedy (fictional administrative review) bars the direct claim.",
+            "dismissal_risk": "high",
+            "rebuttal": "The fictional review window closed before notice, so the remedy was not available.",
+            "assertion_ids": [
+              "AS-ADEQUATE-REMEDY-RULE",
+              "AS-REVIEW-CLOSED"
+            ]
+          }
+        ],
+        "adverse_authority": [
+          {
+            "id": "ADV-DOE",
+            "assertion_id": "AS-ADEQUATE-REMEDY-RULE",
+            "dismissal_risk": "high"
+          }
+        ],
+        "remedies": [
+          {
+            "kind": "injunctive_relief",
+            "description": "Reinstatement of the fictional license.",
+            "assertion_ids": [
+              "AS-NO-HEARING",
+              "AS-REINSTATEMENT-RULE"
+            ]
+          }
+        ],
+        "limitations": {
+          "accrual": "Fictional revocation date, 2026-02-01.",
+          "posture": "timely",
+          "prerequisites": "No fictional notice-of-claim prerequisite is declared for this claim in this worked example.",
+          "assertion_ids": [
+            "AS-STATE-LIMITATIONS",
+            "AS-REVOCATION-ACCRUAL"
+          ]
+        },
+        "justiciability": {
+          "standing": "The fictional revocation is a present injury traceable to Director Beta and redressable by reinstatement.",
+          "mootness_and_prospective_relief": "The fictional license remains revoked, so reinstatement is not moot.",
+          "assertion_ids": [
+            "AS-REINSTATEMENT-RULE",
+            "AS-NO-HEARING"
+          ]
+        },
+        "adequate_state_remedy": {
+          "posture": "contested",
+          "summary": "Fictional administrative review exists, but its window closed before notice.",
+          "assertion_ids": [
+            "AS-ADEQUATE-REMEDY-RULE",
+            "AS-REVIEW-WINDOW",
+            "AS-REVIEW-CLOSED"
+          ]
+        },
+        "confidence": "medium",
+        "next_action": "Confirm from the fictional revocation order when notice was given relative to the review window."
+      }
+    ],
+    "source_references": [
+      "SRC-CRN-COMPLAINT",
+      "SRC-CRN-ROSTER",
+      "SRC-CRN-REVOCATION-ORDER",
+      "SRC-CRN-STATE-CONSTITUTION",
+      "SRC-CRN-REVIEW-CODE",
+      "SRC-CRN-LIMITATIONS-CODE",
+      "SRC-CRN-ADVERSE-DOE"
+    ],
+    "validation_levels": {
+      "VAL-MATRIX-STRUCTURE": "structural",
+      "VAL-CONSTITUTION-REVIEW": "primary_source_verified",
+      "VAL-ADVERSE-REVIEW": "primary_source_verified"
+    },
+    "validation_targets": {
+      "VAL-CONSTITUTION-REVIEW": "AS-DIRECT-CLAIM-RULE",
+      "VAL-ADVERSE-REVIEW": "AS-ADEQUATE-REMEDY-RULE"
+    },
+    "template_child_issue": 11
+  }
+}

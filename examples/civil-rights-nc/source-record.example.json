@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "task_id": "CRN-02-federal-individual",
+  "revision": 1,
+  "contract_hash": "a92d9cc1654417a1fa59ad9c49ffda86db176892c80b6c0ba4d636e23d4c79e3",
+  "dispatch_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "artifact_sha256": "ac618e384f1c0fa108e50dddc0765e510d33712dbcf57dee300b76774d59a2ff",
+  "validation_id": "VAL-ADVERSE-REVIEW",
+  "level": "primary_source_verified",
+  "assertion_id": "AS-IMMUNITY-RULE",
+  "source_id": "SRC-CRN-ADVERSE-ROE",
+  "source_type": "case_law",
+  "citation": "Fictional Roe v. Placeholder, Synthetic Cir. 2019, part II (illustrative only; no such case exists)",
+  "custodian_or_repository": "Fictional synthetic case-law reporter (illustrative only; not present in this repository)",
+  "expected_content": "A holding that an officer is immune from damages unless fictional precedent clearly established the right at the time.",
+  "observed_content": "Fictional part II states that holding in substance; the reviewer recorded the page reference, not a copy of the text.",
+  "outcome": "supports",
+  "observed_at": "2026-09-28T00:00:00Z",
+  "operator": "Reviewing associate (fictional)",
+  "artifacts": [
+    {
+      "reference": "Fictional reporter page image, part II (not stored in this repository)"
+    }
+  ]
+}

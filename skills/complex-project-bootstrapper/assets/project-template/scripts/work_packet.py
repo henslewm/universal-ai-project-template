@@ -31,7 +31,7 @@ SCHEMA = json.loads((ROOT / "config/work-packet.schema.json").read_text(encoding
 PROFILES = tuple(SCHEMA["properties"]["domain_profile"]["enum"])
 # Profile-specific rules over the `domain` extension. A registered module adds structure and
 # refusals for its profile; it can never relax the common contract, which is enforced first.
-DOMAIN_MODULES = {"software-hardware": "software_hardware", "family-law": "family_law"}
+DOMAIN_MODULES = {"software-hardware": "software_hardware", "family-law": "family_law", "civil-rights-nc": "civil_rights_nc"}
 Draft202012Validator.check_schema(SCHEMA)
 FORMATS = FormatChecker()
 

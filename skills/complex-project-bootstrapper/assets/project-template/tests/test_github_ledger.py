@@ -945,7 +945,8 @@ class LedgerTests(unittest.TestCase):
     def test_registry_rejects_packets_from_more_than_one_domain_profile(self):
         state = self.client.read()[0]
         first, second = task_row("A", 2), task_row("B", 3)
-        contract = copy.deepcopy(wp.current(second["packet"])["contract"])
+        # A valid packet of another registered profile: each profile's domain rules close its block.
+        contract = wp.read_json(ROOT / "examples/work-packets/civil-rights-nc.contract.json")
         second["packet"] = wp.create("B", "civil-rights-nc", contract, "Architect", "Synthetic profile mismatch", timestamp())
         for task_id, row in (("A", first), ("B", second)):
             state["tasks"][task_id] = row
@@ -1157,7 +1158,8 @@ class AuthorityAndAdapterTests(unittest.TestCase):
         client = ledger.Ledger(self.config, api)
         client.initialize(self.directory)
         row = task_row()
-        contract = copy.deepcopy(wp.current(row["packet"])["contract"])
+        # A valid packet of another registered profile: each profile's domain rules close its block.
+        contract = wp.read_json(ROOT / "examples/work-packets/civil-rights-nc.contract.json")
         row["packet"] = wp.create("TASK-001", "civil-rights-nc", contract, "Architect", "Synthetic profile mismatch", timestamp())
         self.assertNotEqual(row["packet"]["domain_profile"], approved)
         before = list(api.mutations)

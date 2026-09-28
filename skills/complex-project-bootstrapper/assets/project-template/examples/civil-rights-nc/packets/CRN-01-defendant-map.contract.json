@@ -1,0 +1,205 @@
+{
+  "title": "Fictional defendant and capacity map",
+  "parent": {
+    "objective": "Maintain a source-pinned, defendant-by-defendant map for the fictional Doe v. Officer Alpha matter, each defendant analyzed only in the capacities its kind permits.",
+    "milestone": "Defendant identities and roles declared and one role checked against a primary source"
+  },
+  "goal": "Declare each fictional defendant separately with its role and capacities, and check Officer Alpha's role against the fictional roster.",
+  "non_goals": [
+    "Predict the outcome of any claim or defense.",
+    "File, serve, or send anything to any person or court."
+  ],
+  "scope": {
+    "allowed": [
+      "Declare defendants, roles and capacities from the fictional complaint.",
+      "Record a primary-source check of the fictional roster."
+    ],
+    "prohibited": [
+      "Cite a real statute, case, party, or authority.",
+      "Treat an allegation as fact before a bound primary-source review.",
+      "Merge two defendants or capacities into one entry."
+    ]
+  },
+  "inputs": [
+    {
+      "name": "Fictional complaint",
+      "description": "Names Officer Alpha, Director Beta and the Town of Gamma as defendants. Fictional; establishes nothing."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Defendant map",
+      "description": "One entry per defendant with its role, kind, capacities and sourced identity assertions."
+    }
+  ],
+  "interface": {
+    "name": "fictional_defendant_map",
+    "version": "1.0",
+    "description": "Input the complaint; output the defendant/capacity map."
+  },
+  "dependencies": [],
+  "assumptions": [
+    "Every defendant, role and record here is invented for this worked example."
+  ],
+  "sources": [
+    {
+      "id": "SRC-CRN-COMPLAINT",
+      "reference": "Fictional complaint in the synthetic matter Plaintiff Doe v. Officer Alpha et al. (illustrative only; no such filing exists)",
+      "authority": "The fictional plaintiff's own allegations; not independently established."
+    },
+    {
+      "id": "SRC-CRN-ROSTER",
+      "reference": "Fictional Town of Gamma 2026 personnel roster (illustrative only; no such record exists)",
+      "authority": "Would be an official personnel record if real; a synthetic placeholder here."
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-MAP",
+      "description": "Each defendant appears once, and an entity is analyzed only in entity capacity."
+    },
+    {
+      "id": "AC-ROLE-SOURCED",
+      "description": "Officer Alpha's alleged role is checked against the fictional roster by a non-implementer."
+    }
+  ],
+  "validation": [
+    {
+      "id": "VAL-MAP-STRUCTURE",
+      "description": "Check defendant ids are unique and each capacity fits the defendant's kind.",
+      "criterion_ids": [
+        "AC-MAP"
+      ],
+      "evidence_required": [
+        "Unique ids and capacity-by-kind results."
+      ],
+      "command": {
+        "argv": [
+          "python",
+          "-c",
+          "rows = [('DEF-ALPHA', 'natural_person', ['individual', 'official']), ('DEF-BETA', 'natural_person', ['official']), ('DEF-GAMMA', 'entity', ['entity'])]; assert len({r[0] for r in rows}) == 3; assert all((kind == 'entity') == (caps == ['entity']) for _, kind, caps in rows); print('defendant map consistent')"
+        ]
+      }
+    },
+    {
+      "id": "VAL-ROSTER-REVIEW",
+      "description": "A non-implementer reads the fictional roster and records whether it supports Officer Alpha's alleged role.",
+      "criterion_ids": [
+        "AC-ROLE-SOURCED"
+      ],
+      "evidence_required": [
+        "A source verification record binding the roster review, its outcome and the reviewing operator."
+      ]
+    }
+  ],
+  "complexity": "low",
+  "risk": "low",
+  "routing": {
+    "min_tier": 1,
+    "max_tier": 3,
+    "reasoning_effort": "low",
+    "reviewer_tier": 2
+  },
+  "retry_budget": {
+    "max_attempts": 2
+  },
+  "escalation_path": [
+    2
+  ],
+  "context_scope": [
+    "This contract and its declared fictional sources.",
+    "The derived claim or defendant matrix."
+  ],
+  "architecture_boundaries": [
+    "Keep each claim tied to exactly one defendant and one capacity.",
+    "Make no legal determination and perform no external writes."
+  ],
+  "domain": {
+    "synthetic": true,
+    "workstream": "defendant_capacity",
+    "forum": "Fictional Synthetic District Court; forum label only, no jurisdiction determination.",
+    "procedural_posture": "Fictional pre-filing research; no proceeding has been commenced.",
+    "claim_basis": "NOT_CLAIM_ASSERTING",
+    "defendants": [
+      {
+        "id": "DEF-ALPHA",
+        "identity": "Officer Alpha (fictional)",
+        "role": "Patrol officer alleged to have conducted the fictional 2026-01-10 stop.",
+        "kind": "natural_person",
+        "capacities": [
+          "individual",
+          "official"
+        ],
+        "assertion_ids": [
+          "AS-ALPHA-ROLE"
+        ]
+      },
+      {
+        "id": "DEF-BETA",
+        "identity": "Director Beta (fictional)",
+        "role": "Director of the fictional Gamma Licensing Office alleged to have revoked the plaintiff's license.",
+        "kind": "natural_person",
+        "capacities": [
+          "official"
+        ],
+        "assertion_ids": [
+          "AS-BETA-ROLE"
+        ]
+      },
+      {
+        "id": "DEF-GAMMA",
+        "identity": "Town of Gamma (fictional municipality)",
+        "role": "Municipal employer of Officer Alpha.",
+        "kind": "entity",
+        "capacities": [
+          "entity"
+        ],
+        "assertion_ids": [
+          "AS-GAMMA-EMPLOYER"
+        ]
+      }
+    ],
+    "assertions": [
+      {
+        "id": "AS-ALPHA-ROLE",
+        "assertion": "Officer Alpha was an on-duty Town of Gamma patrol officer during the fictional 2026-01-10 stop.",
+        "fact_status": "ALLEGATION",
+        "source_id": "SRC-CRN-COMPLAINT",
+        "verified_by": [
+          "SRC-CRN-ROSTER"
+        ]
+      },
+      {
+        "id": "AS-BETA-ROLE",
+        "assertion": "Director Beta directed the fictional Gamma Licensing Office on 2026-02-01.",
+        "fact_status": "ALLEGATION",
+        "source_id": "SRC-CRN-COMPLAINT",
+        "verified_by": [
+          "SRC-CRN-ROSTER"
+        ]
+      },
+      {
+        "id": "AS-GAMMA-EMPLOYER",
+        "assertion": "The fictional Town of Gamma employed Officer Alpha on 2026-01-10.",
+        "fact_status": "INFERENCE",
+        "source_id": "SRC-CRN-COMPLAINT",
+        "verified_by": [
+          "SRC-CRN-ROSTER"
+        ]
+      }
+    ],
+    "claims": [],
+    "source_references": [
+      "SRC-CRN-COMPLAINT",
+      "SRC-CRN-ROSTER"
+    ],
+    "validation_levels": {
+      "VAL-MAP-STRUCTURE": "structural",
+      "VAL-ROSTER-REVIEW": "primary_source_verified"
+    },
+    "validation_targets": {
+      "VAL-ROSTER-REVIEW": "AS-ALPHA-ROLE"
+    },
+    "template_child_issue": 11
+  }
+}

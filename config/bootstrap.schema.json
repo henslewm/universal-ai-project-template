@@ -605,25 +605,77 @@
           "domain": {
             "type": "object",
             "required": [
-              "posture",
-              "defendants_and_theories",
-              "evidence_and_remedies"
+              "forum_jurisdiction",
+              "defendants_roles",
+              "capacities",
+              "alleged_rights",
+              "procedural_history",
+              "evidence_sources",
+              "limitations_accrual",
+              "objectives_remedies",
+              "prior_proceedings",
+              "reserved_actions"
             ],
             "properties": {
-              "posture": {
+              "forum_jurisdiction": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Forum/court, jurisdictional basis and venue, with source references"
               },
-              "defendants_and_theories": {
+              "defendants_roles": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Potential defendants, each one's role and attributed conduct, with source references"
               },
-              "evidence_and_remedies": {
+              "capacities": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "\\S"
+                "pattern": "\\S",
+                "description": "Individual/official/entity capacity analyzed for each potential defendant"
+              },
+              "alleged_rights": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Federal constitutional rights (42 U.S.C. § 1983) and North Carolina constitutional provisions (Corum) alleged, per defendant"
+              },
+              "procedural_history": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Procedural history to date and preservation posture, with source references"
+              },
+              "evidence_sources": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Evidence sources, locations, provenance, authentication and preservation constraints"
+              },
+              "limitations_accrual": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Limitations/accrual timeline and any notice, exhaustion or other prerequisites"
+              },
+              "objectives_remedies": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Ranked objectives and requested remedies (damages, declaratory, injunctive, fees)"
+              },
+              "prior_proceedings": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Prior and parallel proceedings (criminal, administrative, family-court or other) that may bar or affect a claim"
+              },
+              "reserved_actions": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S",
+                "description": "Standing restrictions and user-reserved consequential actions (filing, service, contacting a court/party/witness, disclosure)"
               }
             }
           }
