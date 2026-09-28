@@ -27,7 +27,9 @@ class SupportsColorTests(unittest.TestCase):
     def test_redirected_non_tty_has_no_color(self):
         self.assertFalse(cli_colors.supports_color(FakeStream(False), env={}))
 
-    def test_force_color_does_not_override_a_non_tty(self):
+    def test_only_no_color_is_inspected_other_env_vars_never_force_a_non_tty(self):
+        # supports_color reads NO_COLOR only; an unrelated env var (even one that
+        # looks like it might mean "force color") has no effect on a non-TTY stream.
         self.assertFalse(cli_colors.supports_color(FakeStream(False), env={"FORCE_COLOR": "1"}))
 
     def test_stream_without_isatty_has_no_color(self):

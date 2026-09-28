@@ -773,14 +773,21 @@ class HarnessCliColorTests(unittest.TestCase):
         self.assertIn("Execution harness refused:", err.getvalue())
 
     def test_a_blocked_or_stalled_dispatch_is_a_refusal_not_pending(self):
-        # Codex review of PR #67: BLOCKED/NEEDS_ARCHITECT/ARCHITECTURE_HOLD need
-        # reconciliation or architect action, not "in progress" pending styling.
-        for status in ("BLOCKED", "NEEDS_ARCHITECT", "ARCHITECTURE_HOLD"):
+        # Codex review of PR #67: BLOCKED/NEEDS_ARCHITECT need reconciliation or
+        # architect action, not "in progress" pending styling.
+        for status in ("BLOCKED", "NEEDS_ARCHITECT"):
             with self.subTest(status=status):
                 kind, _ = harness.status_style("dispatch", {"status": status})
                 self.assertEqual(kind, cli_colors.REFUSAL)
         kind, _ = harness.status_style("dispatch", {"status": "PREPARED"})
         self.assertEqual(kind, cli_colors.PENDING)
+
+    def test_needs_decision_from_a_stale_bootstrap_approval_is_a_refusal(self):
+        # /code-review finding: feedback.reserve() short-circuits straight to
+        # NEEDS_DECISION when the bootstrap approval no longer matches this
+        # task's anchor -- an architect decision is required, not "in progress."
+        kind, _ = harness.status_style("dispatch", {"status": "NEEDS_DECISION"})
+        self.assertEqual(kind, cli_colors.REFUSAL)
 
     def test_every_non_pass_report_outcome_is_a_refusal(self):
         # Codex review of PR #67: BLOCKED/NEEDS_ESCALATION/ARCHITECTURE_CONFLICT/

@@ -21,7 +21,6 @@ import sys
 
 # https://no-color.org
 _NO_COLOR_ENV = "NO_COLOR"
-_FORCE_COLOR_ENV = "FORCE_COLOR"
 
 _RESET = "\x1b[0m"
 _BOLD = "\x1b[1m"
@@ -75,11 +74,10 @@ def supports_color(stream=None, *, env=None) -> bool:
     """True only when styling `stream` (default stderr) is safe and wanted.
 
     Honors NO_COLOR (any non-empty value disables, per no-color.org) ahead of
-    everything else, requires an interactive TTY, and requires FORCE_COLOR to be
-    unset-or-empty from overriding a non-TTY (FORCE_COLOR is for tests, not a way
-    to break redirected/automated output). On Windows, a TTY only counts once VT
-    processing is confirmed enabled; otherwise this reports no color support
-    rather than emit escapes a legacy console cannot render.
+    everything else, and requires an interactive TTY regardless of NO_COLOR. On
+    Windows, a TTY only counts once VT processing is confirmed enabled; otherwise
+    this reports no color support rather than emit escapes a legacy console
+    cannot render.
     """
     stream = sys.stderr if stream is None else stream
     env = os.environ if env is None else env

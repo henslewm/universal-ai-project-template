@@ -552,7 +552,10 @@ def abandon(directory, config, reason):
 # result, not merely an unaccepted one, and a dispatch stopped at one of these
 # ledger statuses needs reconciliation or architect action, not "in progress."
 _REFUSAL_OUTCOMES = {"FAIL", "BLOCKED", "NEEDS_ESCALATION", "ARCHITECTURE_CONFLICT", "PROVIDER_UNAVAILABLE"}
-_REFUSAL_DISPATCH_STATUSES = {"BLOCKED", "NEEDS_ARCHITECT", "ARCHITECTURE_HOLD"}
+# feedback.plan() returns only DISPATCH/BLOCKED/NEEDS_ARCHITECT; feedback.reserve() can also
+# short-circuit straight to NEEDS_DECISION when the bootstrap approval no longer matches this
+# task's anchor (an architect decision is required before any reservation can be attempted).
+_REFUSAL_DISPATCH_STATUSES = {"BLOCKED", "NEEDS_ARCHITECT", "NEEDS_DECISION"}
 
 
 def status_style(command, result):
