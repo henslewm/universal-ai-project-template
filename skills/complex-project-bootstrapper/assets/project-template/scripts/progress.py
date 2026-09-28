@@ -77,20 +77,35 @@ class StreamProgress:
         self.style = style
         self.interactive = bool(getattr(self.stream, "isatty", lambda: False)())
         self._line_open = False
+        self._disabled = False  # Codex P2 on PR #68: an I/O failure here is cosmetic-only
+
+    def _safe_write(self, raw):
+        """Write raw text, or quietly stop reporting forever if the stream itself is bad.
+
+        A closed stderr or a downstream pipe that hung up must never escape into
+        run_checks(): this is stderr feedback, not a gate, and the checks it decorates
+        must keep running and get recorded whether or not anyone is still reading it.
+        """
+        if self._disabled:
+            return False
+        try:
+            self.stream.write(raw)
+            self.stream.flush()
+            return True
+        except OSError:
+            self._disabled = True
+            return False
 
     def _write(self, text):
-        self.stream.write(self.style(text) + "\n")
-        self.stream.flush()
+        self._safe_write(self.style(text) + "\n")
 
     def _redraw(self, text):
-        self.stream.write("\r" + self.style(text).ljust(_REDRAW_WIDTH))
-        self.stream.flush()
-        self._line_open = True
+        if self._safe_write("\r" + self.style(text).ljust(_REDRAW_WIDTH)):
+            self._line_open = True
 
     def _clear_redraw(self):
         if self._line_open:
-            self.stream.write("\r" + " " * _REDRAW_WIDTH + "\r")
-            self.stream.flush()
+            self._safe_write("\r" + " " * _REDRAW_WIDTH + "\r")
             self._line_open = False
 
     def start(self, total):

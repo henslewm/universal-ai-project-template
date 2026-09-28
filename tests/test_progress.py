@@ -25,6 +25,21 @@ def interactive_stream():
     return stream
 
 
+class BrokenStream:
+    """A stream whose write() always raises, as a closed stderr or a hung-up downstream
+    pipe would (Codex P2 on PR #68): StreamProgress must treat this as cosmetic-only and
+    never let it escape into the caller."""
+
+    def isatty(self):
+        return False
+
+    def write(self, _text):
+        raise OSError("write failed")
+
+    def flush(self):
+        pass
+
+
 class FormatElapsedTests(unittest.TestCase):
     def test_seconds_under_a_minute(self):
         self.assertEqual(progress.format_elapsed(2.34), "2.3s")
@@ -162,6 +177,50 @@ class CleanupTests(unittest.TestCase):
         length_after_exit = len(out.getvalue())
         time.sleep(0.05)  # A still-alive ticker thread would have redrawn again by now.
         self.assertEqual(len(out.getvalue()), length_after_exit)
+
+
+class BrokenStreamTests(unittest.TestCase):
+    """Codex P2 on PR #68: a closed stderr or a downstream pipe that hangs up must not
+    abort the checks this reporter only decorates. Every public method must swallow the
+    write failure rather than let OSError/BrokenPipeError escape into the caller."""
+
+    def test_start_does_not_raise_on_a_broken_stream(self):
+        progress.StreamProgress(stream=BrokenStream()).start(1)
+
+    def test_checking_does_not_raise_entering_or_exiting(self):
+        reporter = progress.StreamProgress(stream=BrokenStream())
+        with reporter.checking(1, 1, "VAL-1"):
+            pass  # Neither the enter (an immediate "running" line) nor the exit may raise.
+
+    def test_checking_still_propagates_the_caller_s_own_exception(self):
+        # A broken progress stream must go quiet, not swallow an unrelated real failure.
+        reporter = progress.StreamProgress(stream=BrokenStream())
+        with self.assertRaises(ValueError):
+            with reporter.checking(1, 1, "VAL-1"):
+                raise ValueError("the check itself failed, not the progress stream")
+
+    def test_check_result_and_finish_do_not_raise(self):
+        reporter = progress.StreamProgress(stream=BrokenStream())
+        reporter.start(1)  # finish() needs its own recorded start time.
+        reporter.check_result(1, 1, "VAL-1", "PASSED", 1.0)
+        reporter.finish(1, 1, True)
+
+    def test_reporter_goes_quiet_after_the_first_failure_and_stays_quiet(self):
+        writes = []
+
+        class CountingBrokenStream(BrokenStream):
+            def write(self, text):
+                writes.append(text)
+                raise OSError("write failed")
+
+        reporter = progress.StreamProgress(stream=CountingBrokenStream())
+        reporter.start(1)
+        with reporter.checking(1, 1, "VAL-1"):
+            pass
+        reporter.check_result(1, 1, "VAL-1", "PASSED", 1.0)
+        reporter.finish(1, 1, True)
+        self.assertEqual(len(writes), 1)  # Only the first write is ever attempted.
+        self.assertTrue(reporter._disabled)
 
 
 if __name__ == "__main__":
