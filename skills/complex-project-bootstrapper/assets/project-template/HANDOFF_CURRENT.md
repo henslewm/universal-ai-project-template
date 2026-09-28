@@ -42,11 +42,13 @@ The maintainer approved an open-issue triage on 2026-09-27, ranked by value per 
   - #33 and #42 were closed as not planned.
   - Overlapping wants were cross-linked: #31/#32; #38/#43 under #12; #36, #37, #40 and #41 blocked on #25.
   - Refresh comments went onto #11, #13, #28, #29, #39, #44 and #49.
+  - #49 (packaging defects, ADR-071) was fixed through [PR #61](https://github.com/henslewm/universal-ai-project-template/pull/61). The maintainer chose one workflow file whose payload check runs only where the payload folder exists. If PR #61 is still open, finish its Codex review and merge it before starting #11.
 - **Next, in order:**
-  1. **#49 (packaging defects), PR #61.** The CI decision stands as ADR-071 (one workflow; the payload check skips without a payload). Another session is finishing PR #61's review rounds; do not touch it here.
-  2. **Decisions recorded 2026-09-27 (OL-022):** ADR-072 fixes the exit-code policy for #32/#31, and ADR-073 fixes the #25 execution boundary (an operator-run `launch` only; `dispatch` stays preparation-only). #36, #37, #40 and #41 are unblocked for design against ADR-073.
-  3. **Quick closures that need no further decision:** #47, #26, #29, #27, #46.
-  4. **#11** under master #14, on a normal branch from `main` (OL-021), then #12 → #13. Pull #43 and #38 into #12 as local-tier calibration runs.
+  1. **Decisions recorded 2026-09-27 (OL-022):** ADR-072 fixes the exit-code policy for #32/#31, and ADR-073 fixes the #25 execution boundary (an operator-run `launch` only; `dispatch` stays preparation-only). #36, #37, #40 and #41 are unblocked for design against ADR-073.
+  2. **Quick closures that need no further decision:** #47, #26, #29, #27, #46.
+  3. **#11** under master #14, on a normal branch from `main` (OL-021), then #12 → #13. Pull #43 and #38 into #12 as local-tier calibration runs.
+
+If PR #61 (#49) is still open when you read this, finish its Codex review rounds and merge before starting #11.
 
 PR #52 (the ESP32 rules) merged at `6c3c0ee`; its open Codex finding was #56, now fixed. #46 and #47 (Mistral) remain open.
 

@@ -2,6 +2,10 @@
 """Gate and record independent acceptance of reviewed work; execute only architect-declared checks."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import contextlib
 import copy
@@ -15,6 +19,7 @@ import threading
 import time
 from pathlib import Path
 
+import cli_exit
 import execution_harness as harness
 import feedback
 import model_router as router
@@ -520,11 +525,12 @@ def append(directory, kind, data, timestamp=None, previous_state=None):
     next_state = apply(copy.deepcopy(state), event)
     event["hash"] = router.digest(event)
     serialized = json.dumps(event, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-    with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
-        output.write(serialized)
-        output.flush()
-        os.fsync(output.fileno())
-    feedback.sync_directory(directory)
+    with cli_exit.interrupts_held():  # Ctrl+C never leaves an event cut short (#31).
+        with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
+            output.write(serialized)
+            output.flush()
+            os.fsync(output.fileno())
+        feedback.sync_directory(directory)
     return next_state
 
 
@@ -540,9 +546,11 @@ def initialize(directory, config, packet, result, artifact, controller, architec
             "architect": architect, "implementers": implementers, "result": result,
             "artifact": artifact, "open_questions": open_questions}
     apply(None, {"kind": "INIT", "data": data, "timestamp": timestamp or wp.now()})
-    Path(directory).mkdir(exist_ok=False)
-    feedback.sync_directory(Path(directory).parent)
-    return append(directory, "INIT", data, timestamp)
+    # Ctrl+C is held until INIT is written, so a new ledger is never left empty (#31).
+    with cli_exit.interrupts_held():
+        Path(directory).mkdir(exist_ok=False)
+        feedback.sync_directory(Path(directory).parent)
+        return append(directory, "INIT", data, timestamp)
 
 
 def stream_digest(stdout_hex, stderr_hex):
@@ -553,6 +561,9 @@ def stream_digest(stdout_hex, stderr_hex):
 # After a check ends or is terminated, its pipes are drained for at most this long; a
 # descendant that still holds them after that is killed with the whole tree, not waited on.
 DRAIN_GRACE_SECONDS = 5
+# A running check is waited on in slices this long: on Windows one long wait cannot see Ctrl+C
+# until it returns, so a check that ignores the interrupt would hold the controller to its timeout.
+WAIT_SLICE_SECONDS = 0.2
 PROC_ROOT = Path("/proc")
 
 
@@ -671,18 +682,25 @@ class ProcessTree:
 
         Timeout, normal exit with a descendant still alive, refusal, and any exception raised
         inside the block all leave through the same `finally`, so nothing spawned by the check
-        can outlive it, and the caller learns whether the tree was confirmed stopped. An error
-        raised by the teardown itself propagates: it is never converted into a check result,
-        because a tree that could not be confirmed stopped must refuse the run, not fail the check.
+        can outlive it. An error raised by the teardown itself propagates: it is never converted
+        into a check result, because a tree that could not be confirmed stopped must refuse the
+        run, not fail the check. That refusal is made here, on every exit, before any interrupt is
+        re-raised. Ctrl+C is one more exit (#31): the teardown holds a further interrupt until the
+        refusal is decided, so an interrupt leaves as a cancellation only once the tree is
+        confirmed stopped.
         """
         tree = cls(process)  # Refuses, with the suspended check killed, if it cannot be isolated.
         tree.stopped = None
         try:
             yield tree
         finally:
-            if process.poll() is None:
-                tree.kill()
-            tree.stopped = tree.close()
+            with cli_exit.interrupts_held():
+                if process.poll() is None:
+                    tree.kill()
+                tree.stopped = tree.close()
+                # Nothing from the tree may still be running when the workspace is digested.
+                require(tree.stopped, "The check's process tree could not be confirmed stopped; "
+                                      "refuse to digest a moving workspace")
 
     def _windows_resume(self):
         import ctypes
@@ -867,24 +885,34 @@ def bounded_capture(argv, cwd, timeout, bound):
     # Only a launch failure is a check result. Once the check exists, an OSError from owning or
     # tearing it down propagates and refuses the run (Codex P1, round 16): converting it into a
     # failed-check record would let the digest run over a tree never confirmed stopped.
-    try:
-        process = ProcessTree.launch(argv, cwd)
-    except OSError as exc:
-        message = str(exc).encode("utf-8")
-        text = message.decode("utf-8")
-        return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
-                "output_truncated": len(text) > bound,
-                "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(), hashlib.sha256(message).hexdigest())}
-    with ProcessTree.own(process) as tree:
-        readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
-                   threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
-        for reader in readers:
-            reader.start()
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            tree.kill()
+    with contextlib.ExitStack() as owned:
+        # Launch, ownership and draining are one step for Ctrl+C (#31): an interrupt while the
+        # check starts is held until its owner holds the tree, so no launched check is left unowned.
+        with cli_exit.interrupts_held():
+            try:
+                process = ProcessTree.launch(argv, cwd)
+            except OSError as exc:
+                message = str(exc).encode("utf-8")
+                text = message.decode("utf-8")
+                return {"exit_code": None, "timed_out": False, "stdout": "", "stderr": text[:bound],
+                        "output_truncated": len(text) > bound,
+                        "output_sha256": stream_digest(hashlib.sha256(b"").hexdigest(),
+                                                       hashlib.sha256(message).hexdigest())}
+            tree = owned.enter_context(ProcessTree.own(process))
+            readers = [threading.Thread(target=drain, args=(process.stdout, sinks[0]), daemon=True),
+                       threading.Thread(target=drain, args=(process.stderr, sinks[1]), daemon=True)]
+            for reader in readers:
+                reader.start()
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                process.wait(timeout=max(0.0, min(WAIT_SLICE_SECONDS, deadline - time.monotonic())))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    timed_out = True
+                    tree.kill()
+                    break
         # A descendant that inherited the pipes — whether the check timed out or exited normally
         # and left it behind — would hold the readers open forever. The drain is bounded; a reader
         # still alive after the grace period means the tree is killed and the check is recorded
@@ -894,8 +922,6 @@ def bounded_capture(argv, cwd, timeout, bound):
             tree.kill()
             for reader in readers:
                 reader.join(timeout=DRAIN_GRACE_SECONDS)
-    # Nothing from the tree may still be running when the workspace is scanned and digested.
-    require(tree.stopped, "The check's process tree could not be confirmed stopped; refuse to digest a moving workspace")
     out, out_cut, out_hex = finish(sinks[0], abandoned)
     err, err_cut, err_hex = finish(sinks[1], abandoned)
     return {"exit_code": None if timed_out or abandoned else process.returncode,
@@ -1434,19 +1460,15 @@ def main(argv=None):
     except KeyboardInterrupt:
         # ADR-072: 130 is the interrupted exit code. run_checks's own cleanup (killing the
         # check's process tree, stopping any progress ticker) has already run by the time this
-        # is reached; nothing here needs to know whether a check was mid-run.
-        # Best-effort only (Codex P2 on PR #68): if stderr is itself closed by this point,
-        # this diagnostic print can raise OSError/ValueError; that must not replace the
-        # exit code 130 this handler exists to guarantee.
-        try:
-            print("Acceptance interrupted", file=sys.stderr)
-        except (OSError, ValueError):
-            pass
-        return 130
+        # is reached; nothing here needs to know whether a check was mid-run. The report and
+        # code are the shared ones (#31), and the report is best-effort (Codex P2 on PR #68):
+        # a closed stderr must not replace the exit code 130 this handler exists to guarantee.
+        cli_exit.report()
+        return cli_exit.INTERRUPTED
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print(f"Acceptance refused: {exc}", file=sys.stderr)
         return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

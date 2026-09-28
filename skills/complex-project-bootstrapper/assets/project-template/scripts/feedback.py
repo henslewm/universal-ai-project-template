@@ -2,6 +2,10 @@
 """Reserve bounded worker attempts and replay their local evidence; no model calls."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import copy
 import json
@@ -11,6 +15,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import cli_exit
 import model_router as router
 import validate_bootstrap as bootstrap
 import work_packet as wp
@@ -510,11 +515,12 @@ def append(directory, kind, data, timestamp=None, previous_state=None):
     next_state = apply(copy.deepcopy(state), event)
     event["hash"] = router.digest(event)
     serialized = json.dumps(event, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
-    with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
-        output.write(serialized)
-        output.flush()
-        os.fsync(output.fileno())
-    sync_directory(directory)
+    with cli_exit.interrupts_held():  # Ctrl+C never leaves an event cut short (#31).
+        with (Path(directory) / f"{sequence + 1:08d}.json").open("x", encoding="utf-8", newline="\n") as output:
+            output.write(serialized)
+            output.flush()
+            os.fsync(output.fileno())
+        sync_directory(directory)
     return next_state
 
 
@@ -525,10 +531,12 @@ def initialize(directory, packet, graph, policy, config, root, architect, timest
             "anchor": anchor, "architect": architect}
     # Validate before creating the ledger. A partial initialization fails closed.
     apply(None, {"kind": "INIT", "data": data, "timestamp": timestamp or wp.now()})
-    # The caller supplies an existing parent; persist the ledger name there too.
-    Path(directory).mkdir(exist_ok=False)
-    sync_directory(Path(directory).parent)
-    return append(directory, "INIT", data, timestamp)
+    # The caller supplies an existing parent; persist the ledger name there too. Ctrl+C is held
+    # until INIT is written, so a new ledger is never left empty and unreplayable (#31).
+    with cli_exit.interrupts_held():
+        Path(directory).mkdir(exist_ok=False)
+        sync_directory(Path(directory).parent)
+        return append(directory, "INIT", data, timestamp)
 
 
 def reserve(directory, config, options, root, timestamp=None):
@@ -663,4 +671,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

@@ -3,12 +3,17 @@
 
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import json
 import re
 import sys
 import tomllib
 from pathlib import Path
 
+import cli_exit
 from validate_bootstrap import validate as validate_bootstrap
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -189,4 +194,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

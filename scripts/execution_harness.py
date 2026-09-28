@@ -2,6 +2,10 @@
 """Prepare and ingest bounded worker runs for a replaceable execution harness; never invoke a model."""
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import hashlib
 import json
@@ -11,6 +15,7 @@ import sys
 from decimal import ROUND_CEILING
 from pathlib import Path, PureWindowsPath
 
+import cli_exit
 import feedback
 import model_router as router
 import work_packet as wp
@@ -601,4 +606,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))
