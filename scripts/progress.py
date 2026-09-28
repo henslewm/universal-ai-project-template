@@ -77,6 +77,12 @@ class StreamProgress:
         self.style = style
         self._line_open = False
         self._disabled = False  # Codex P2 on PR #68: an I/O failure here is cosmetic-only
+        if self.stream is None:
+            # fd 2 closed at startup leaves sys.stderr as None: stay quiet, as
+            # cli_colors.write_status does, instead of raising AttributeError on write.
+            self.interactive = False
+            self._disabled = True
+            return
         try:
             # A stream already closed at construction time (Codex P2 round 2) can raise
             # here too, not only from write()/flush(); treated the same way: go quiet,
