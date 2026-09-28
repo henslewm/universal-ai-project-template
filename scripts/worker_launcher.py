@@ -5,6 +5,10 @@ Optional and operator-invoked only: no controller calls this, and it never write
 """
 from __future__ import annotations
 
+if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 130 (#31).
+    import cli_exit
+    cli_exit.guard_startup()
+
 import argparse
 import json
 import os
@@ -16,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import acceptance
+import cli_exit
 import execution_harness as harness
 import feedback
 import work_packet as wp
@@ -253,16 +258,10 @@ def main(argv=None):
     run.add_argument("rundir", type=Path)
     run.add_argument("--timeout-seconds", type=int, help="Shorten the reservation's own deadline")
     args = parser.parse_args(argv)
+    # An interrupt outside the owned run (nothing started yet, or the tree already confirmed
+    # stopped) propagates to cli_exit.run, which reports it and exits 130 like every command.
     try:
         result = launch(args.ledger, wp.read_json(args.config), args.rundir, args.root, args.timeout_seconds)
-    except KeyboardInterrupt:
-        # Outside the owned run: either nothing was started, or the tree was already confirmed stopped.
-        # Best-effort, as in acceptance.py: a closed stderr must not replace the exit code (ADR-072).
-        try:
-            print("Worker launcher interrupted; no harness it started is still running.", file=sys.stderr)
-        except (OSError, ValueError):
-            pass
-        return 130
     except (ValueError, OSError, KeyError, TypeError) as exc:
         print(f"Worker launcher refused: {exc}", file=sys.stderr)
         return 1
@@ -274,4 +273,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli_exit.run(main))

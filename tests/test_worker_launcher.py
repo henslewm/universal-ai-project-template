@@ -584,14 +584,15 @@ class LauncherBoundaryTests(unittest.TestCase):
 
 
     def test_an_interrupt_exits_130_even_when_stderr_is_closed(self):
-        # The convention PR #68 set for acceptance.py: the diagnostic print is best-effort, so it
-        # can never replace the interrupted exit code (ADR-072).
+        # An interrupt outside the owned run goes through the shared wrapper (ADR-072, #31), whose
+        # report is best-effort, so a closed stderr never replaces the interrupted exit code.
         closed = io.StringIO()
         closed.close()
         with mock.patch.object(launcher, "launch", side_effect=KeyboardInterrupt), \
                 mock.patch.object(launcher.wp, "read_json", return_value={}), \
                 contextlib.redirect_stderr(closed):
-            self.assertEqual(launcher.main(["--config", "unused.json", "launch", "ledger", "rundir"]), 130)
+            self.assertEqual(launcher.cli_exit.run(launcher.main,
+                                                   ["--config", "unused.json", "launch", "ledger", "rundir"]), 130)
 
 
     def test_no_controller_invokes_the_launcher(self):
