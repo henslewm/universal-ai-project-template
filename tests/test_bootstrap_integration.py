@@ -396,6 +396,15 @@ class ApprovalInteractionTests(unittest.TestCase):
         self.assertIn("blank", banner.lower())
         self.assertNotIn("\x1b", banner)
 
+    def test_banner_escapes_control_characters_and_wraps_long_names(self):
+        data = read(self.state)
+        data["project"]["name"] = "Evil\x1b[2J\r\u202eName " + "X" * 200
+        banner = bootstrap_gate.approval_banner(data, self.fingerprint)
+        self.assertTrue(all(ch.isprintable() for line in banner.splitlines() for ch in line), repr(banner))
+        self.assertIn("\\x1b[2J\\r\\u202eName", banner)
+        self.assertTrue(all(len(line) <= 80 for line in banner.splitlines()), max(map(len, banner.splitlines())))
+        self.assertEqual(1, banner.count("   APPROVE " + self.fingerprint))
+
     def test_exact_confirmation_activates_and_banner_precedes_prompts(self):
         banner = bootstrap_gate.approval_banner(read(self.state), self.fingerprint)
         exc, data, output, prompts = self.activate("Synthetic test user", f"APPROVE {self.fingerprint}")

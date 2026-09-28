@@ -98,8 +98,10 @@ def approval_banner(data: dict, fingerprint: str) -> str:
                              break_long_words=False, break_on_hyphens=False)
 
     def field(label: str, value: str) -> list[str]:
-        return textwrap.wrap(value, BANNER_WIDTH - 15, initial_indent=f" {label:<13}", subsequent_indent=" " * 14,
-                             break_long_words=False, break_on_hyphens=False) or [f" {label}"]
+        # Package values are user-authored: escape anything a terminal could act on, and hard-wrap long tokens.
+        visible = "".join(ch if ch.isprintable() else ch.encode("unicode_escape").decode("ascii") for ch in value)
+        return textwrap.wrap(visible, BANNER_WIDTH - 15, initial_indent=f" {label:<13}", subsequent_indent=" " * 14,
+                             break_on_hyphens=False) or [f" {label}"]
 
     heavy, light = "=" * BANNER_WIDTH, "-" * BANNER_WIDTH
     project = data.get("project") if isinstance(data.get("project"), dict) else {}
