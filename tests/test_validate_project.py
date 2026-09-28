@@ -97,6 +97,10 @@ class IssueTemplateGuidanceTests(unittest.TestCase):
         self.assertIn("If you cannot name the canonical task, master issue, packet binding", text)
         self.assertIn("contract_sha256: <64-hex sha256>", text)
         self.assertIn("https://github.com/henslewm/universal-ai-project-template/issues/11", text)
+        self.assertIn("Missing evidence: signed order entered on 2026-09-21", text)
+        self.assertIn("Search 2026-09-28 05:30 UTC: county eCourts portal query", text)
+        self.assertIn("Required source: county clerk docket export or filed PDF", text)
+        self.assertIn("Owner: Winston", text)
         self.assertEqual(text, mirrored.read_text(encoding="utf-8"))
 
 
