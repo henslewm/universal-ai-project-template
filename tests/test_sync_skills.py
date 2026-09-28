@@ -222,6 +222,16 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertEqual(target.read_text(encoding="utf-8"), "# Template\n")
         self.assertEqual(sibling.read_text(encoding="utf-8"), "# Template\n")
 
+    def test_a_replaced_file_keeps_the_sources_executable_bit(self):
+        # The write path replaces the target via a temp file; the temp file's own (umask) mode
+        # must not silently drop the source's executable bit onto the mirror.
+        source = self.root / "scripts/bootstrap_project.py"
+        source.write_text("# bootstrap_project.py\nexecutable\n", encoding="utf-8")
+        source.chmod(source.stat().st_mode | 0o111)
+        target = self.skill / "scripts/bootstrap_project.py"
+        sync_skills.sync()
+        self.assertTrue(target.stat().st_mode & 0o111, "executable bit was not copied onto the mirror")
+
     def test_regenerated_caches_in_a_mirror_are_not_drift(self):
         # Running the suite executes scripts from the native mirrors, which leaves __pycache__
         # there; CI runs the payload check after the tests, so caches must not count as drift.

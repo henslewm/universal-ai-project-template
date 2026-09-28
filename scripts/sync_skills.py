@@ -119,6 +119,7 @@ def sync(check: bool = False) -> list[str]:
         temporary = target.with_name(target.name + '.sync-tmp')
         try:
             shutil.copyfile(source, temporary)
+            shutil.copymode(source, temporary)
             os.replace(temporary, target)
         finally:
             if temporary.exists():
