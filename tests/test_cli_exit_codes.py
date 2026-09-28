@@ -88,6 +88,13 @@ def cli(script, *args, cwd=None):
                           text=True, encoding="utf-8", timeout=120, env=ENV)
 
 
+def entry_points():
+    """Every scripts/*.py command line: a module that defines `main()`; the rest are libraries."""
+    return [path for path in sorted(SCRIPTS.glob("*.py"))
+            if any(isinstance(node, ast.FunctionDef) and node.name == "main"
+                   for node in ast.parse(path.read_text(encoding="utf-8")).body)]
+
+
 def write_json(path, value):
     path.write_text(json.dumps(value, indent=2), encoding="utf-8")
     return path
@@ -194,9 +201,7 @@ class SharedWrapperTests(unittest.TestCase):
     def test_ctrl_c_while_a_cli_is_still_importing_also_exits_130_without_a_traceback(self):
         # Codex P2 on PR #71, rounds 4 and 5: an interrupt during a CLI's module imports, or
         # during the import of `cli_exit` itself, arrived before any handler and printed a traceback.
-        for path in sorted(SCRIPTS.glob("*.py")):
-            if path.name == "cli_exit.py":
-                continue
+        for path in entry_points():
             with self.subTest(script=path.name):
                 completed = subprocess.run([sys.executable, "-c", STARTUP_RUNNER, str(path)], capture_output=True,
                                            text=True, encoding="utf-8", timeout=120, env=ENV)
@@ -238,8 +243,9 @@ class SharedWrapperTests(unittest.TestCase):
                       and ast.unparse(node.test) in ("__name__ == '__main__'", '__name__ == "__main__"')]
             if guards:
                 guarded[path.name] = [ast.unparse(guard) for guard in guards]
-        self.assertEqual(sorted(path.name for path in SCRIPTS.glob("*.py") if path.name not in guarded),
-                         ["cli_exit.py"])
+        # Every command line is guarded; a module without one is a library (cli_exit, progress).
+        self.assertEqual(sorted(guarded), sorted(path.name for path in entry_points()))
+        self.assertGreaterEqual(len(guarded), 14)
         for name, guards in guarded.items():
             with self.subTest(script=name):
                 # The first statement after the future import guards startup; the last runs main.

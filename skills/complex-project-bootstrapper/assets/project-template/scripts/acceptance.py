@@ -1456,15 +1456,11 @@ def main(argv=None):
     except KeyboardInterrupt:
         # ADR-072: 130 is the interrupted exit code. run_checks's own cleanup (killing the
         # check's process tree, stopping any progress ticker) has already run by the time this
-        # is reached; nothing here needs to know whether a check was mid-run.
-        # Best-effort only (Codex P2 on PR #68): if stderr is itself closed by this point,
-        # this diagnostic print can raise OSError/ValueError; that must not replace the
-        # exit code 130 this handler exists to guarantee.
-        try:
-            print("Acceptance interrupted", file=sys.stderr)
-        except (OSError, ValueError):
-            pass
-        return 130
+        # is reached; nothing here needs to know whether a check was mid-run. The report and
+        # code are the shared ones (#31), and the report is best-effort (Codex P2 on PR #68):
+        # a closed stderr must not replace the exit code 130 this handler exists to guarantee.
+        cli_exit.report()
+        return cli_exit.INTERRUPTED
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print(f"Acceptance refused: {exc}", file=sys.stderr)
         return 1
