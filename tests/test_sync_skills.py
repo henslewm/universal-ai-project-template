@@ -200,6 +200,28 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertEqual(target.read_text(encoding="utf-8"), "# Template\n")
         self.assertEqual(sibling.read_text(encoding="utf-8"), "keep me\n")
 
+    def test_a_hard_linked_target_with_matching_content_is_still_replaced(self):
+        # A mirror file whose content already equals the source, but which shares its inode with
+        # another name, must still be reported and replaced: leaving it linked means a later write
+        # through the sibling would silently change this mirror file too, with no drift ever shown.
+        target = self.skill / "assets/project-template/README.md"
+        sibling = self.root.parent / (self.root.name + "-hardlink-sibling-matching.md")
+        self.addCleanup(lambda: sibling.unlink() if sibling.exists() else None)
+        target.unlink()
+        sibling.write_text("# Template\n", encoding="utf-8")
+        try:
+            __import__("os").link(sibling, target)
+        except (OSError, NotImplementedError):
+            self.skipTest("Hard links are unavailable on this host")
+        self.assertEqual(target.stat().st_ino, sibling.stat().st_ino)
+        drift = sync_skills.sync(check=True)
+        self.assertIn("skills/complex-project-bootstrapper/assets/project-template/README.md", drift)
+        sync_skills.sync()
+        self.assertNotEqual(target.stat().st_ino, sibling.stat().st_ino)
+        self.assertEqual(target.stat().st_nlink, 1)
+        self.assertEqual(target.read_text(encoding="utf-8"), "# Template\n")
+        self.assertEqual(sibling.read_text(encoding="utf-8"), "# Template\n")
+
     def test_regenerated_caches_in_a_mirror_are_not_drift(self):
         # Running the suite executes scripts from the native mirrors, which leaves __pycache__
         # there; CI runs the payload check after the tests, so caches must not count as drift.

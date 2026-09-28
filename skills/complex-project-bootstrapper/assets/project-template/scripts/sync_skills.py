@@ -46,6 +46,13 @@ def links_under(root: Path):
                          if name not in PRUNE_SKIPPED and not (Path(directory) / name).is_symlink())
 
 
+def is_junction(path: Path) -> bool:
+    """True for a Windows junction. `Path.is_junction` exists from Python 3.12; on an older
+    Python, or on a platform without junctions, there is none to detect."""
+    method = getattr(path, 'is_junction', None)
+    return bool(method and method())
+
+
 def remove_link(path: Path):
     try:
         path.unlink()
@@ -93,13 +100,14 @@ def sync(check: bool = False) -> list[str]:
                     if (ROOT / parent).is_symlink() or ((ROOT / parent).exists() and not (ROOT / parent).is_dir())]
         if target.is_symlink() or (target.exists() and not target.is_file()):
             blocking.append(target)
-        if not blocking and target.is_file() and source.read_bytes() == target.read_bytes():
+        if (not blocking and target.is_file() and target.stat().st_nlink == 1
+                and source.read_bytes() == target.read_bytes()):
             return
         differences.append(target.relative_to(ROOT).as_posix())
         if check:
             return
         for path in blocking:
-            if path.is_symlink() or os.path.isjunction(path):
+            if path.is_symlink() or is_junction(path):
                 remove_link(path)
             elif path.is_dir():
                 shutil.rmtree(path)
