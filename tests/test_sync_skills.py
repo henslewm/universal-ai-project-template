@@ -141,6 +141,65 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertTrue((asset / "README.md").exists() and (native / "SKILL.md").exists(), "produced content stays")
         self.assertEqual(sync_skills.sync(check=True), [])
 
+    def test_wrong_type_entries_are_reported_without_reading_and_replaced(self):
+        # PR #61 round 7: a directory where a file belongs crashed both modes with
+        # IsADirectoryError, and a file where a directory belongs would crash the write.
+        asset = self.skill / "assets/project-template"
+        (asset / "README.md").unlink()
+        (asset / "README.md").mkdir()
+        (asset / "README.md/inner.txt").write_text("stale\n", encoding="utf-8")
+        native = self.root / ".claude/skills/complex-project-bootstrapper"
+        (self.skill / "references").mkdir()
+        (self.skill / "references/guide.md").write_text("# Guide\n", encoding="utf-8")
+        (native / "references").write_text("a file where a directory belongs\n", encoding="utf-8")
+        drift = sync_skills.sync(check=True)
+        self.assertIn("skills/complex-project-bootstrapper/assets/project-template/README.md", drift)
+        self.assertIn(".claude/skills/complex-project-bootstrapper/references/guide.md", drift)
+        self.assertTrue((asset / "README.md").is_dir(), "--check must not write")
+        sync_skills.sync()
+        self.assertEqual((asset / "README.md").read_text(encoding="utf-8"), "# Template\n")
+        self.assertEqual((native / "references/guide.md").read_text(encoding="utf-8"), "# Guide\n")
+        self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_check_mode_never_reads_through_a_link_at_an_expected_path(self):
+        # PR #61 round 7: --check reported the link, then compared contents by reading its target.
+        outside = self.root.parent / (self.root.name + "-outside-read")
+        outside.mkdir()
+        self.addCleanup(lambda: __import__("shutil").rmtree(outside, ignore_errors=True))
+        secret = outside / "unreadable.md"
+        secret.write_text("outside\n", encoding="utf-8")
+        link = self.skill / "assets/project-template/README.md"
+        link.unlink()
+        try:
+            link.symlink_to(secret)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symbolic links are unavailable on this host")
+        original = Path.read_bytes
+
+        def guarded(path):
+            if Path(path).resolve() == secret.resolve():
+                raise AssertionError("check mode read through a link")
+            return original(path)
+
+        with mock.patch.object(Path, "read_bytes", guarded):
+            drift = sync_skills.sync(check=True)
+        self.assertIn("skills/complex-project-bootstrapper/assets/project-template/README.md", drift)
+
+    def test_a_hard_linked_target_is_replaced_not_written_through(self):
+        # A mirror file sharing its inode with another name must not change that other file (#62).
+        target = self.skill / "assets/project-template/README.md"
+        sibling = self.root.parent / (self.root.name + "-hardlink-sibling.md")
+        self.addCleanup(lambda: sibling.unlink() if sibling.exists() else None)
+        target.unlink()
+        sibling.write_text("keep me\n", encoding="utf-8")
+        try:
+            __import__("os").link(sibling, target)
+        except (OSError, NotImplementedError):
+            self.skipTest("Hard links are unavailable on this host")
+        sync_skills.sync()
+        self.assertEqual(target.read_text(encoding="utf-8"), "# Template\n")
+        self.assertEqual(sibling.read_text(encoding="utf-8"), "keep me\n")
+
     def test_regenerated_caches_in_a_mirror_are_not_drift(self):
         # Running the suite executes scripts from the native mirrors, which leaves __pycache__
         # there; CI runs the payload check after the tests, so caches must not count as drift.

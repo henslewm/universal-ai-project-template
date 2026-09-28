@@ -86,12 +86,35 @@ def sync(check: bool = False) -> list[str]:
 
     def copy(source: Path, target: Path):
         expected.add(target)
-        if target.exists() and source.read_bytes() == target.read_bytes():
+        # Anything at the target, or at a directory above it, that is not what the copy would have
+        # made (a link, a directory where a file belongs, a file where a directory belongs) is drift.
+        # It is reported without being read, and a sync removes it before writing.
+        blocking = [ROOT / parent for parent in reversed(target.relative_to(ROOT).parents)
+                    if (ROOT / parent).is_symlink() or ((ROOT / parent).exists() and not (ROOT / parent).is_dir())]
+        if target.is_symlink() or (target.exists() and not target.is_file()):
+            blocking.append(target)
+        if not blocking and target.is_file() and source.read_bytes() == target.read_bytes():
             return
         differences.append(target.relative_to(ROOT).as_posix())
-        if not check:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, target)
+        if check:
+            return
+        for path in blocking:
+            if path.is_symlink() or os.path.isjunction(path):
+                remove_link(path)
+            elif path.is_dir():
+                shutil.rmtree(path)
+            elif path.exists():
+                path.unlink()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Replace the directory entry rather than writing into the existing file, so a target that
+        # shares its inode with another name (a hard link) never changes that other file.
+        temporary = target.with_name(target.name + '.sync-tmp')
+        try:
+            shutil.copyfile(source, temporary)
+            os.replace(temporary, target)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
 
     for name in ('bootstrap_project.py', 'bootstrap_gate.py', 'validate_bootstrap.py', 'validate_project.py'):
         copy(ROOT / 'scripts' / name, SKILL / 'scripts' / name)
@@ -136,7 +159,7 @@ def sync(check: bool = False) -> list[str]:
     for source in files_under(ROOT):
         copy(source, asset / source.relative_to(ROOT))
     prune(asset)
-    return differences
+    return list(dict.fromkeys(differences))  # a path reported by two passes is listed once
 
 
 def main() -> int:
