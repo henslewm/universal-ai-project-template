@@ -23,11 +23,19 @@
 
 ## Exact next action
 
-1. Review PR #88's diff for the four intended changed files only:
-   - `.github/ISSUE_TEMPLATE/evidence-gap.yml`
-   - `tests/test_validate_project.py`
-   - `skills/complex-project-bootstrapper/assets/project-template/.github/ISSUE_TEMPLATE/evidence-gap.yml`
-   - `skills/complex-project-bootstrapper/assets/project-template/tests/test_validate_project.py`
+1. Review PR #88's diff for both the functional changes and the required bookkeeping updates:
+   - Functional/template files:
+     - `.github/ISSUE_TEMPLATE/evidence-gap.yml`
+     - `tests/test_validate_project.py`
+     - `skills/complex-project-bootstrapper/assets/project-template/.github/ISSUE_TEMPLATE/evidence-gap.yml`
+     - `skills/complex-project-bootstrapper/assets/project-template/tests/test_validate_project.py`
+   - Required closeout/state files on both the root branch and payload mirror:
+     - `CHANGELOG.md`
+     - `DECISIONS.md`
+     - `HANDOFF_CURRENT.md`
+     - `OPEN_LOOPS.md`
+     - `PROJECT_STATE.md`
+     - `SOURCE_INDEX.md`
 2. Run automated PR review per ADR-074 on the current head.
 3. Merge PR #88 if the review is clean or all actionable findings are answered.
 4. Return to the quick-closure queue and then child #11 under master #14.
