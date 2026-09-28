@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-28 — PR #71: CLI exit codes and Ctrl+C → 130 (#32, #31; ADR-075)
+
+- README "CLI exit codes" lists every command's 0/1/2 outcomes and the 130 behavior; the protocols point to it. No existing outcome changed code (ADR-072).
+- Every `scripts/*.py` command line routes through `scripts/cli_exit.py`: Ctrl+C exits 130 with no traceback, including while a command is still loading.
+- `acceptance.py run-checks` stops the check's whole process tree before reporting an interrupt, and refuses (exit 1) if it cannot confirm the tree stopped.
+- Ledger creation, ledger events and new output files are written whole under Ctrl+C.
+- Merged at `bb0e629` after seven Codex rounds (five with findings, each fixed with a regression; the last clean). 491 tests pass.
+
 ## 2026-09-27 — PR #63: PlatformIO example shipped with the software-hardware template
 
 - `templates/software-hardware/platformio.example.ini` is an Arduino-ESP32 2.0.x (espressif32 6.9.0) variant for the ESP32-S3-DevKitC-1 N16R8. It conforms to `docs/PLATFORMIO.md`: an exact pin, an app-partition `maximum_size`, quiet `dev`/verbose `debug`/silent `release` environments, and the arduino-cli equivalent. It replaces the untracked root `platformio.ini`.
