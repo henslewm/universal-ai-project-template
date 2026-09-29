@@ -1,46 +1,34 @@
 # Current Handoff
 
-- **Prepared:** 2026-09-28 UTC
+- **Prepared:** 2026-09-29 UTC
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `copilot/fix-evidence-gap-issue`
-- **Scope:** Quick closure for [issue #87](https://github.com/henslewm/universal-ai-project-template/issues/87) via PR #88.
+- **Branch:** `claude/relaxed-heisenberg-94d1yp` (draft PR for the records pass)
+- **Scope:** Records pass for PRs merged since the last handoff, plus the #84 fix and the #11 records.
 
 ## Outcome on this branch
 
-- Hardened `.github/ISSUE_TEMPLATE/evidence-gap.yml` so the form now:
-  - tells a reporter to stop and open/update a blocker instead if they cannot identify the canonical task, master issue, packet binding, and exact blocked criterion;
-  - explicitly rejects placeholder text such as `Blocker`, `unknown`, or “I am not sure what the problem is”;
-  - provides concrete placeholders for task/master links, packet binding, missing-evidence statements, provenance/search logs, verification requirements, and ownership.
-- Added a narrow regression in `tests/test_validate_project.py` that asserts the new anti-placeholder guidance and sample packet/task fields remain present.
-- Ran `python scripts/sync_skills.py`, which updated the payload mirror copies automatically.
+- Fixed [#84](https://github.com/henslewm/universal-ai-project-template/issues/84) in `scripts/family_law.py` (ADR-080): a legal proposition's `verified_by` must be exactly its own authority, and an allegation may not list its own filing. Two regressions failed first; examples already comply.
+- Recorded ADR-077 (launcher, PR #70), ADR-078 (`cli_colors`, PR #67), ADR-079 (civil-rights-nc, PR #83), ADR-080, SRC-033 to SRC-036, and OL-022 to OL-028.
+- Appended the mechanism, verification ladder and known limits to `templates/civil-rights-nc/PROFILE.md`.
+- Refreshed `PROJECT_STATE.md` and `CHANGELOG.md`; the stale "merge PR #88 next" instruction is gone (#88 merged).
 
 ## Verified state
 
-- `python -m unittest discover -s tests -p 'test_validate_project.py'` ✅
-- `python scripts/sync_skills.py --check` ✅
-- `python scripts/validate_project.py` ✅
-- Bootstrap gate remains intentionally inactive here: `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` reports `BOOTSTRAP INVALID: no such file`, consistent with template-maintenance mode.
+- `python -m unittest discover -s tests`: 621 tests OK (3 skipped).
+- `python scripts/validate_project.py`: passes, 84 required paths.
+- `python scripts/sync_skills.py --check`: 0 files differ.
+- `main` and `origin/main` are at `6ab49c8`; there were no open PRs before this branch's. Bootstrap gate inactive by design (template-maintenance mode).
 
 ## Exact next action
 
-1. Review PR #88's diff for both the functional changes and the required bookkeeping updates:
-   - Functional/template files:
-     - `.github/ISSUE_TEMPLATE/evidence-gap.yml`
-     - `tests/test_validate_project.py`
-     - `skills/complex-project-bootstrapper/assets/project-template/.github/ISSUE_TEMPLATE/evidence-gap.yml`
-     - `skills/complex-project-bootstrapper/assets/project-template/tests/test_validate_project.py`
-   - Required closeout/state files on both the root branch and payload mirror:
-     - `CHANGELOG.md`
-     - `DECISIONS.md`
-     - `HANDOFF_CURRENT.md`
-     - `OPEN_LOOPS.md`
-     - `PROJECT_STATE.md`
-     - `SOURCE_INDEX.md`
-2. Run automated PR review per ADR-074 on the current head.
-3. Merge PR #88 if the review is clean or all actionable findings are answered.
-4. Return to the quick-closure queue and then child #11 under master #14.
+1. Request an automated review on this PR's head (`@codex review` or `@coderabbitai review`, ADR-074); answer every actionable finding; the maintainer gives the merge go-ahead.
+2. #11: request a review of the merged civil-rights-nc code scoped to **high-impact bugs only**; run the repeat-dogfood acceptance with a non-Claude reviewer, following `docs/ISSUE_10_VALIDATION.md`; then close #11. A simulated review does not count.
+3. #82: get an automated review of PR #67's two unreviewed commits (`7efe0fd`, `746ec0e`), or record why it is not needed. Then close #82; #73's records are written and its limits remain follow-ups.
+4. Then #12 and #13 (telemetry, dry runs), then the documentation sweep in OL-027.
+5. Owner: decide charter items A-D and F, and write down the combined-ledger decision (OL-028).
 
 ## Notes
 
-- This fix is intentionally template-only. GitHub issue forms can require a field but do not offer a good way to validate provenance-rich freeform text; stronger guidance/examples at the form itself are the smallest effective control.
-- Preserve the standing warning from ADR-062: before substantive multi-file work in a shared checkout, confirm no other unattended agent is writing to the same tree.
+- Preserve ADR-062: confirm no other unattended agent is writing to the same tree before multi-file work.
+- Local `main` was 94 commits behind `origin/main` when this session began; it was not moved.
+- PRs #91 and #92 merged with no changes; nothing to act on.
