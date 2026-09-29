@@ -118,7 +118,7 @@
                   "$ref": "#/$defs/identifier"
                 },
                 "uniqueItems": true,
-                "description": "The contract sources whose primary-source review can verify this claim (ADR-068). A source verification record covers the assertion only when its source_id is one of these. A legal proposition must list its own source_id: the authority it rests on is the one that has to be read. Empty means the claim is tracked but nothing declared can verify it."
+                "description": "The contract sources whose primary-source review can verify this claim (ADR-068). A source verification record covers the assertion only when its source_id is one of these. A legal proposition's verified_by must be exactly [its own source_id] (ADR-080): the authority it rests on is the only source that verifies it, so a secondary source listed beside it is refused. An allegation must not list its own source_id: the filing that makes it is its provenance, not its proof. Empty means the claim is tracked but nothing declared can verify it."
               }
             }
           },
