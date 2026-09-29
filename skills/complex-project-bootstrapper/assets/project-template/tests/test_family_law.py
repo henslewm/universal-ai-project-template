@@ -381,6 +381,21 @@ class AttestationRuleTests(AcceptanceBase):
         self.assertTrue(any("fact_assertions/1: duplicates the assertion text of fact_assertions/0" in e
                             for e in errors_for(contract)))
 
+    def test_a_legal_proposition_is_verified_only_by_its_own_authority(self):
+        """#84: a secondary source listed beside the authority would cover the proposition unread."""
+        contract = wp.read_json(EXAMPLES / "packets/FAM-04-issue-brief.contract.json")
+        contract["domain"]["fact_assertions"][0]["verified_by"] = ["SRC-FAM10-CODE-10-100", "SRC-FAM10-ADVERSE-CASE"]
+        self.assertTrue(any("a legal proposition is verified only by its own authority" in e
+                            for e in errors_for(contract)))
+
+    def test_an_allegation_is_not_verified_by_the_filing_that_makes_it(self):
+        """#84: reading the pleading would otherwise 'support' the allegation it makes."""
+        contract = wp.read_json(EXAMPLES / "packets/FAM-03-custody.contract.json")
+        self.assertEqual(errors_for(contract), [])
+        contract["domain"]["fact_assertions"][0]["verified_by"] = ["SRC-FAM10-ALLEGATION", "SRC-FAM10-TRANSCRIPT"]
+        self.assertTrue(any("an allegation cannot be verified by the filing that alleges it" in e
+                            for e in errors_for(contract)))
+
     def test_a_legal_proposition_must_be_verifiable_by_its_own_authority(self):
         contract = wp.read_json(EXAMPLES / "packets/FAM-04-issue-brief.contract.json")
         self.assertEqual(errors_for(contract), [])

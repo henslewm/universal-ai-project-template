@@ -169,11 +169,17 @@ def validate_contract_domain(contract: dict) -> list[str]:
         for source in item["verified_by"]:
             if source not in sources:
                 errors.append(f"fact_assertions/{index}/verified_by: unknown source {source}")
-        # ADR-068: the authority a legal proposition rests on is the source that has to be read to
-        # verify it, so a proposition cannot be verified by some other source alone.
-        if item["fact_status"] == "LEGAL_PROPOSITION" and item["source_id"] not in item["verified_by"]:
+        # ADR-068, tightened by #84: the authority a legal proposition rests on is the only source
+        # that verifies it. `covers()` accepts any listed source, so a secondary source listed
+        # beside the authority would cover the proposition without the authority being read.
+        if item["fact_status"] == "LEGAL_PROPOSITION" and item["verified_by"] != [item["source_id"]]:
             errors.append(f"fact_assertions/{index}/verified_by: a legal proposition must be verifiable by "
-                          f"its own authority {item['source_id']}")
+                          f"its own authority {item['source_id']}; a legal proposition is verified only by "
+                          f"its own authority, so verified_by must be exactly [{item['source_id']}]")
+        # #84: the filing that makes an allegation is its provenance, never its proof.
+        if item["fact_status"] == "ALLEGATION" and item["source_id"] in item["verified_by"]:
+            errors.append(f"fact_assertions/{index}/verified_by: an allegation cannot be verified by the "
+                          f"filing that alleges it ({item['source_id']})")
     for index, item in enumerate(domain["source_references"]):
         if item not in sources:
             errors.append(f"source_references/{index}: unknown source {item}")
