@@ -37,8 +37,10 @@ validated:
   with its category (`ALLEGATION`, `DISPUTED_FACT`, `INFERENCE`, `LEGAL_PROPOSITION`, or
   `UNKNOWN`) and citing a contract source (`source_id`: where the claim is made). Each also lists
   `verified_by`, the contract sources whose primary-source review can verify it; the filing that
-  makes an allegation is its provenance, not its proof. A `LEGAL_PROPOSITION` must list its own
-  authority in `verified_by`, because that authority is what has to be read. Empty means the claim
+  makes an allegation is its provenance, not its proof, so an `ALLEGATION` must not list its own
+  `source_id`. A `LEGAL_PROPOSITION`'s `verified_by` must be exactly its own authority
+  (`[source_id]`), because that authority is what has to be read and a secondary source listed
+  beside it would otherwise cover the proposition unread (ADR-080). Empty means the claim
   is tracked and nothing declared can verify it. Each assertion's text is declared once: a record
   names its claim by text, so two entries sharing text are refused. An empty `fact_assertions` list means the packet
   asserts no material fact and is `NOT_FACT_ASSERTING`.

@@ -25,6 +25,50 @@ Maintain separate but linked workstreams for:
 
 Do not merge distinct defendants or theories into a single broad allegation. Each proposed claim gets an elements/requirements matrix and an evidence map.
 
+## Mechanism (`scripts/civil_rights_nc.py`, issue #11)
+
+The module adds structure to a `civil-rights-nc` contract's `domain` block through the same generic
+hooks as the software-hardware and family-law modules; the acceptance controller is unchanged. It
+requires each track to be addressed and sourced and never encodes the legal answer. Every worked
+example under `examples/civil-rights-nc/` declares `synthetic: true`.
+
+- **One bounded packet per claim, defendant and capacity.** The block holds a `workstream` (one of
+  the twelve tracks above), `forum` and `procedural_posture`, `defendants` (identity, role, kind,
+  capacities, sourced identity assertions), a flat list of id-bound `assertions`, at most one
+  `claim`, and `validation_targets` naming the one assertion each primary-source check verifies.
+- **Claim level versus case level.** Immunities and threshold defenses, justiciability, adequate
+  state remedy and entity liability vary by defendant, capacity and claim type, so they live on the
+  claim. Forum, evidence authentication and procedural history live in the orientation fields and
+  their own workstream packets.
+- **A claim carries** its governing authority, elements each tied to evidence, missing evidence,
+  mandatory threshold defenses and adverse authority, remedies with causation, limitations and
+  accrual, and justiciability. `adequate_state_remedy` is required for `NC_CORUM` claims and
+  `entity_liability` (policy or custom) for entity capacity; otherwise both are optional.
+- **Binding is by declared id, never by text.** A source verification record's `assertion_id` must
+  equal the contract's target for its check, and a mismatch is refused when it is appended. A legal
+  proposition is verified only by its own authority, read from a primary-law source type; an
+  allegation is never verified by the filing that makes it; governing and adverse authority are
+  distinct propositions, each read by its own primary-source check.
+
+### Verification ladder
+
+`structural` and `citation_linked` checks declare a command and are re-executed by the
+deterministic gate. `primary_source_verified` declares no command: it is a non-implementer's
+attestation binding a source verification record by digest, and it is an operator action, never
+dispatched to a worker. `status` derives the earned statuses per assertion and per claim from the
+ledger with a fixed precedence, and a contradiction names the assertion's role in the matrix.
+`SOURCE_VERIFIED_CLAIM` means every assertion the claim rests on was read in a declared verifying
+primary source for this exact submission. It is not a prediction on the merits. It is never earned
+by a synthetic contract, or from attestations alone (`--evidence-dir` re-verifies each record).
+
+### Known limits
+
+- The material-change human gate above (forum, defendant set, capacity theory, controlling claim
+  theory, requested relief, evidence architecture) cannot be mechanized inside a domain module
+  without a controller hook. It stays with the bootstrap gates and the architect role.
+- Reading a primary source, and every legal conclusion drawn from it, remains a human or
+  strong-model act. The module records that the reading was bound and by whom, not that it was right.
+
 ## Legal work packet
 Each issue states the precise legal question, forum/jurisdiction, defendant and capacity, procedural posture, governing elements/threshold rules, strongest adverse authority, supporting authority, facts/evidence supporting each element, missing evidence, likely defenses, rebuttal issues, requested relief, limitations implications, confidence, and next action.
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-29 — Records pass for PRs #67, #70, #83 and #88 to #92; #84 fixed (ADR-077 to ADR-080)
+
+- ADR-077 (launcher, PR #70), ADR-078 (`cli_colors`, PR #67) and ADR-079 (civil-rights-nc, PR #83) are recorded from their PR descriptions and the #11 comment, with SRC-033 to SRC-036. PR #83 merged without an automated review; that is stated in ADR-079, and its post-merge review is still open.
+- #84 (ADR-080): a `family_law` legal proposition's `verified_by` must be exactly its own authority, and an allegation may not list its own filing. Two regressions were shown failing first; the four family-law example packets already comply. Only new contracts are refused.
+- `templates/civil-rights-nc/PROFILE.md` gains an appended mechanism, verification-ladder and known-limits section.
+- PRs #91 and #92 ("[WIP] Copilot Request") merged with only "Initial plan" commits and no file changes. PRs #72 and #78 were closed unmerged.
+- 621 tests pass (3 skipped); `validate_project.py` passes with 84 required paths; `sync_skills.py --check` reports 0 differing files.
+
 ## 2026-09-28 — #87: evidence-gap issue form hardened against placeholder reports (ADR-076)
 
 - `.github/ISSUE_TEMPLATE/evidence-gap.yml` now tells a reporter to stop and open or update a blocker instead if they cannot yet identify the canonical task, master issue, packet binding, and blocked criterion.
