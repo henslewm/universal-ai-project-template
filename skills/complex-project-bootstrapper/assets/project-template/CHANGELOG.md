@@ -4,6 +4,7 @@
 
 - ADR-000 to ADR-069 (except ADR-006, ADR-062, ADR-063) moved verbatim to `archive/DECISIONS_ARCHIVE_ADR-000-069.md`; `DECISIONS.md` now opens with an index of all 82 ADRs. Changelog entries before 2026-09-27 moved verbatim to `archive/CHANGELOG_ARCHIVE_2026-08-29_to_2026-09-23.md`.
 - `scripts/validate_project.py` requires both archive files. No content edited; the track split is not part of this change.
+- PR #99 merged at `7329030` at the maintainer's instruction with no Codex review on its final head `ce05374` and CI still running; see ADR-081's Status. Codex's P1 (generated projects must not carry template archives), P2 (empty archives) and P2 (truncated `SECURITY.md`, restored in the root file) were answered in `ebfc631`, `0156187` and `ce05374`.
 
 ## 2026-09-29 — Records pass for PRs #67, #70, #83 and #88 to #92; #84 fixed (ADR-077 to ADR-080)
 
