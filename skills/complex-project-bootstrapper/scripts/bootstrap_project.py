@@ -30,7 +30,8 @@ EXCLUDE_NAMES = {
 }
 # The template's own build evidence. A generated project starts its own history, so these are
 # removed rather than inherited (#49); reusable docs, examples and templates stay.
-TEMPLATE_HISTORY = ("docs/ISSUE_*_VALIDATION.md", "docs/WORKER_STARTUP_VALIDATION.md")
+TEMPLATE_HISTORY = ("docs/ISSUE_*_VALIDATION.md", "docs/WORKER_STARTUP_VALIDATION.md",
+                    "archive/*_ARCHIVE_*.md")
 
 
 def slugify(value: str) -> str:

@@ -18,12 +18,16 @@ from validate_bootstrap import validate as validate_bootstrap
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Template history that a generated project deliberately does not carry (bootstrap_project.py TEMPLATE_HISTORY).
+TEMPLATE_ONLY_REQUIRED = [
+    "archive/DECISIONS_ARCHIVE_ADR-000-069.md", "archive/CHANGELOG_ARCHIVE_2026-08-29_to_2026-09-23.md",
+]
+
 REQUIRED = [
     "MASTER_INSTRUCTIONS.md", "MASTER_CHATGPT.md", "MASTER_CODEX.md",
     "MASTER_CLAUDE.md", "MASTER_CLAUDE_CODE.md", "MASTER_MISTRAL.md",
     "AGENTS.md", "CLAUDE.md",
     "PROJECT_CHARTER.md", "PROJECT_STATE.md", "OPEN_LOOPS.md", "DECISIONS.md",
-    "archive/DECISIONS_ARCHIVE_ADR-000-069.md", "archive/CHANGELOG_ARCHIVE_2026-08-29_to_2026-09-23.md",
     "FACTS_AND_ASSUMPTIONS.md", "SOURCE_INDEX.md", "RISK_REGISTER.md",
     "HANDOFF_CURRENT.md", "CONNECTOR_PLAN.md", "SKILL_PLAN.md",
     "config/project.json", ".chatgpt/PROJECT_INSTRUCTIONS.md",
@@ -121,6 +125,10 @@ def main() -> int:
             error(errors, f"CLAUDE.md imports missing file: {match}")
 
     template_mode = bool(project.get("template_mode", True)) if project else True
+    if template_mode:
+        for rel in TEMPLATE_ONLY_REQUIRED:
+            if not (ROOT / rel).is_file():
+                error(errors, f"Missing required path: {rel}")
     bootstrap_path = ROOT / "config/bootstrap.json"
     if bootstrap_path.exists():
         try:
