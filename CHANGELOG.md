@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-30 — Four tracks, first slice (ADR-082)
+
+- `instructions/tracks/` holds `hardware`, `family-law`, `civil-suit` and `web-ui`. A generated project's `CLAUDE.md` now imports its own track only (hardware for `software-hardware`, civil-suit for `civil-rights-nc`). `validate_project.py` requires the four files.
+- `.claude/rules/05-modular-code.md` and `06-platformio.md` load only when firmware paths are touched.
+- Not done: charter and `MASTER_INSTRUCTIONS.md` slimming (bound documents), a `web-ui` bootstrap profile, non-Claude platform track loading, SatLink3 content. See ADR-082's Status.
+
 ## 2026-09-30 — Archive old decisions and changelog entries (ADR-081)
 
 - ADR-000 to ADR-069 (except ADR-006, ADR-062, ADR-063) moved verbatim to `archive/DECISIONS_ARCHIVE_ADR-000-069.md`; `DECISIONS.md` now opens with an index of all 82 ADRs. Changelog entries before 2026-09-27 moved verbatim to `archive/CHANGELOG_ARCHIVE_2026-08-29_to_2026-09-23.md`.

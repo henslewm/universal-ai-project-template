@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/MODULES.md"
+  - "**/*.ino"
+  - "**/*.cpp"
+  - "**/*.h"
+---
+
 # Modular Code
 
 - Before firmware work, read the `MODULES.md` index beside the sources and open only the modules that own the state you are changing. Don't read the whole sketch folder by default.

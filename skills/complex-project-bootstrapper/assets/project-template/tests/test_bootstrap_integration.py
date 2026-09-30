@@ -97,6 +97,11 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertEqual(sorted(p.name for p in (root / "archive").glob("*_ARCHIVE_*.md")) if (root / "archive").exists() else [], [],
                                      "template ADR and changelog archives are template history, not the project's")
                     self.assertTrue((root / "docs/PLATFORMIO.md").exists(), "reusable docs stay")
+                    # ADR-082: a generated project imports its own track, and only that one.
+                    track = {"software-hardware": "hardware", "family-law": "family-law", "civil-rights-nc": "civil-suit"}[profile]
+                    imports = [l for l in (root / "CLAUDE.md").read_text(encoding="utf-8").splitlines() if l.startswith("@instructions/tracks/")]
+                    self.assertEqual(imports, [f"@instructions/tracks/{track}.md"])
+                    self.assertTrue((root / f"instructions/tracks/{track}.md").is_file())
                     self.assertFalse((root / "skills/complex-project-bootstrapper/assets/project-template").exists(),
                                      "a generated project has no payload, so CI skips the payload check")
                     self.active_check(root, False)
