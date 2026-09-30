@@ -94,6 +94,8 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertIn("ADR-000", decisions)
                     self.assertNotIn("ADR-001", decisions)
                     self.assertEqual(sorted(p.name for p in (root / "docs").glob("*VALIDATION.md")), [])
+                    self.assertEqual(sorted(p.name for p in (root / "archive").glob("*_ARCHIVE_*.md")) if (root / "archive").exists() else [], [],
+                                     "template ADR and changelog archives are template history, not the project's")
                     self.assertTrue((root / "docs/PLATFORMIO.md").exists(), "reusable docs stay")
                     self.assertFalse((root / "skills/complex-project-bootstrapper/assets/project-template").exists(),
                                      "a generated project has no payload, so CI skips the payload check")
