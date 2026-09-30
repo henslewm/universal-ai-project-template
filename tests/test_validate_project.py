@@ -104,5 +104,30 @@ class IssueTemplateGuidanceTests(unittest.TestCase):
         self.assertEqual(text, mirrored.read_text(encoding="utf-8"))
 
 
+class ArchiveHistoryTests(unittest.TestCase):
+    """ADR-081: the archives hold the ADR rows and changelog entries moved out of the
+    startup files, so a missing or zero-byte archive must fail validation (PR #99)."""
+
+    def _validate_with_archive(self, name: str, empty: bool) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as temp:
+            destination = Path(temp) / "checkout"
+            repository_copy(destination)
+            target = destination / "archive" / name
+            if empty:
+                target.write_text("", encoding="utf-8")
+            else:
+                target.unlink()
+            return subprocess.run([sys.executable, str(destination / "scripts/validate_project.py")],
+                                  cwd=destination, text=True, capture_output=True)
+
+    def test_validator_refuses_missing_or_empty_archives(self) -> None:
+        for name in validate_project.TEMPLATE_ONLY_REQUIRED:
+            for empty in (False, True):
+                with self.subTest(archive=name, empty=empty):
+                    result = self._validate_with_archive(Path(name).name, empty)
+                    self.assertNotEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+                    self.assertIn(name, result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

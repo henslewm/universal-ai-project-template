@@ -127,8 +127,11 @@ def main() -> int:
     template_mode = bool(project.get("template_mode", True)) if project else True
     if template_mode:
         for rel in TEMPLATE_ONLY_REQUIRED:
-            if not (ROOT / rel).is_file():
+            archive = ROOT / rel
+            if not archive.is_file():
                 error(errors, f"Missing required path: {rel}")
+            elif archive.stat().st_size == 0:
+                error(errors, f"Required file is empty: {rel}")
     bootstrap_path = ROOT / "config/bootstrap.json"
     if bootstrap_path.exists():
         try:
