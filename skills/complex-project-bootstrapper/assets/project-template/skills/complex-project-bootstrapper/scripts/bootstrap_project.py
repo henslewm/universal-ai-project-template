@@ -30,6 +30,7 @@ EXCLUDE_NAMES = {
 }
 # The template's own build evidence. A generated project starts its own history, so these are
 # removed rather than inherited (#49); reusable docs, examples and templates stay.
+TRACK_FOR_PROFILE = {"software-hardware": "hardware", "family-law": "family-law", "civil-rights-nc": "civil-suit"}
 TEMPLATE_HISTORY = ("docs/ISSUE_*_VALIDATION.md", "docs/WORKER_STARTUP_VALIDATION.md",
                     "archive/*_ARCHIVE_*.md")
 
@@ -439,6 +440,12 @@ Append material decisions. Do not rewrite prior decisions without recording supe
 |---|---|---|---|---|---|---|
 | ADR-000 | {today} | Use GitHub as the durable project state and native instruction files as platform adapters | Enables cross-model continuity and reviewable history | Chat-only memory; separate vendor projects | Requires disciplined closeout and commits | Accepted |
 """, encoding="utf-8")
+    # ADR-082: a generated project imports its own track and no other.
+    claude_md = dest / "CLAUDE.md"
+    lines = claude_md.read_text(encoding="utf-8").split("\n")
+    last_import = max(i for i, line in enumerate(lines) if line.startswith("@"))
+    lines.insert(last_import + 1, f"@instructions/tracks/{TRACK_FOR_PROFILE[answers['domain_profile']]}.md")
+    claude_md.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     for pattern in TEMPLATE_HISTORY:
         for path in dest.glob(pattern):
             path.unlink()

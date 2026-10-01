@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/platformio.ini"
+  - "**/*.ino"
+---
+
 # PlatformIO
 
 - Every Arduino/ESP32 project keeps a root `platformio.ini`. Create or update it by following `docs/PLATFORMIO.md`.

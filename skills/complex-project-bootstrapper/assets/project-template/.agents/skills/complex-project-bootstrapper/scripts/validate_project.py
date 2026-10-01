@@ -53,6 +53,8 @@ REQUIRED = [
     "scripts/execution_harness.py", "templates/harness/BOUNDED_WORKER_RULES.md",
     "ACCEPTANCE_PROTOCOL.md", "config/acceptance.schema.json", "config/acceptance.example.json",
     "scripts/acceptance.py", "templates/acceptance/REVIEWER_RULES.md",
+    "instructions/tracks/hardware.md", "instructions/tracks/family-law.md",
+    "instructions/tracks/civil-suit.md", "instructions/tracks/web-ui.md",
     "DOMAIN_PROFILE.md", "templates/software-hardware/PROFILE.md",
     "config/domains/software-hardware.schema.json", "scripts/software_hardware.py",
     "examples/software-hardware/README.md", "examples/software-hardware/hardware-evidence.example.json",
