@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-01 — Mistral Vibe CLI settings
+
+- `.vibe/config.toml` sets `default_agent = "default"` and `[tools.bash] permission = "ask"`; `MASTER_MISTRAL.md` gains a Vibe CLI section; `validate_project.py` requires the file. Keys are from the official configuration page; nothing beyond them is set.
+
 ## 2026-09-30 — Four tracks, first slice (ADR-082)
 
 - `instructions/tracks/` holds `hardware`, `family-law`, `civil-suit` and `web-ui`. A generated project's `CLAUDE.md` now imports its own track only (hardware for `software-hardware`, civil-suit for `civil-rights-nc`). `validate_project.py` requires the four files.

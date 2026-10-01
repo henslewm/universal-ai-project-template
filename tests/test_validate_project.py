@@ -129,5 +129,17 @@ class ArchiveHistoryTests(unittest.TestCase):
                     self.assertIn(name, result.stdout)
 
 
+class VibeCliConfigTests(unittest.TestCase):
+    """The Mistral Vibe CLI reads ./.vibe/config.toml (docs.mistral.ai/vibe/code/cli/configuration)."""
+
+    def test_project_config_is_valid_toml_that_keeps_approval_prompts(self) -> None:
+        import tomllib
+
+        data = tomllib.loads((ROOT / ".vibe/config.toml").read_text(encoding="utf-8"))
+        self.assertEqual(data["default_agent"], "default", "default asks before running tools")
+        self.assertEqual(data["tools"]["bash"]["permission"], "ask")
+        self.assertIn(".vibe/config.toml", validate_project.REQUIRED)
+
+
 if __name__ == "__main__":
     unittest.main()

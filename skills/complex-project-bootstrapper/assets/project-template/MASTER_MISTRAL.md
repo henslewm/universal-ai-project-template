@@ -12,6 +12,10 @@ Use Mistral Vibe (formerly Le Chat) for synthesis, research, drafting, and conne
 - If the repository cannot be connected, add the compact control files listed in `.mistral/PROJECT_KNOWLEDGE.md` to the Project or an attached Library.
 - Keep durable rules in this repository: account-wide custom instructions apply only to new tasks and are overridden by active Skills.
 
+## Vibe CLI
+
+The Vibe command-line tool reads `.vibe/config.toml` (project level, over `~/.vibe/config.toml`) and the repository's `AGENTS.md` from trusted folders, so it follows the same startup protocol as Codex. The shipped config keeps the `default` agent and asks before running `bash`. Widening it (for example `accept-edits` or `auto-approve`) is the user's decision. Settings reference: https://docs.mistral.ai/vibe/code/cli/configuration
+
 ## Startup
 
 Read `PROJECT_CHARTER.md`, `PROJECT_STATE.md`, `OPEN_LOOPS.md`, `DECISIONS.md`, `FACTS_AND_ASSUMPTIONS.md`, `SOURCE_INDEX.md`, and `HANDOFF_CURRENT.md` before substantive work — through the GitHub connector when available. Prefer the newest repository versions over files uploaded to the Project or a Library.

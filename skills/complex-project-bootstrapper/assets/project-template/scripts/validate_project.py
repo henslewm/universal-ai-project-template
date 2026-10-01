@@ -34,6 +34,7 @@ REQUIRED = [
     ".claude-web/PROJECT_INSTRUCTIONS.md",
     ".mistral/PROJECT_INSTRUCTIONS.md", ".mistral/PROJECT_KNOWLEDGE.md",
     ".codex/config.toml",
+    ".vibe/config.toml",
     ".claude/settings.json", "prompts/BOOTSTRAP_NEW_PROJECT.md",
     "skills/complex-project-bootstrapper/SKILL.md",
     ".agents/skills/complex-project-bootstrapper/SKILL.md",
