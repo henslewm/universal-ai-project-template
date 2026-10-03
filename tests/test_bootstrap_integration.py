@@ -125,6 +125,9 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertFalse((root / "skills/complex-project-bootstrapper/assets/project-template").exists(),
                                      "a generated project has no payload, so CI skips the payload check")
                     self.assertFalse((root / "archive/legal").exists(), "ADR-083: retired legal profiles are not served")
+                    charter_text = (root / "PROJECT_CHARTER.md").read_text(encoding="utf-8")
+                    self.assertNotIn("legal", charter_text.lower(), "OL-031: no legal wording in a generated charter")
+                    self.assertNotIn("Jurisdiction", charter_text)
                     self.active_check(root, False)
                     self.activate(root)
                     self.run_cli(root / "scripts/validate_project.py")
