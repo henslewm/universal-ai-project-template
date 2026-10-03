@@ -16,8 +16,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from validate_bootstrap import BOUND_DOCUMENTS, DOMAIN_FIELDS, architecture_fingerprint
+from validate_bootstrap import BOUND_DOCUMENTS, DOMAIN_FIELDS, NO_HARDWARE, architecture_fingerprint
 import bootstrap_gate
+from bootstrap_project import track_for
 
 FIXTURES = {"software-hardware": "config/bootstrap.example.json"}
 
@@ -75,6 +76,26 @@ class BootstrapIntegrationTests(unittest.TestCase):
                      stdin=f"Synthetic test user\nAPPROVE {fingerprint}\n")
         self.active_check(root, True)
 
+    def test_no_hardware_selects_the_web_ui_track_and_fills_the_hardware_intake(self):
+        data = answers("software-hardware")
+        data["hardware_in_scope"] = False
+        for key in ("hardware_identity", "physical_access"):
+            data["bootstrap"]["domain"][key] = "TBD"
+        root = self.generate(data=data)
+        imports = [l for l in (root / "CLAUDE.md").read_text(encoding="utf-8").splitlines() if l.startswith("@instructions/tracks/")]
+        self.assertEqual(imports, ["@instructions/tracks/web-ui.md"])
+        state = read(root / "config/bootstrap.json")
+        self.assertEqual(state["domain"]["hardware_identity"], NO_HARDWARE)
+        self.assertEqual(state["domain"]["physical_access"], NO_HARDWARE)
+        self.assertFalse(read(root / "config/project.json")["hardware_in_scope"] is True)
+        self.activate(root)
+        # The flag may not be a string; it silently disabling the hardware intake would be unsafe.
+        data["hardware_in_scope"] = "false"
+        dest = self.base / "bad-flag"
+        write(self.base / "bad-flag.json", data)
+        self.run_cli(ROOT / "scripts/bootstrap_project.py", "--answers", self.base / "bad-flag.json",
+                     "--destination", dest, "--no-git", ok=False)
+
     def test_all_profiles_through_root_native_and_standalone_entrypoints(self):
         standalone = self.base / "installed-skill"
         shutil.copytree(ROOT / "skills/complex-project-bootstrapper", standalone, ignore=shutil.ignore_patterns("__pycache__"))
@@ -97,7 +118,7 @@ class BootstrapIntegrationTests(unittest.TestCase):
                                      "template ADR and changelog archives are template history, not the project's")
                     self.assertTrue((root / "docs/PLATFORMIO.md").exists(), "reusable docs stay")
                     # ADR-082: a generated project imports its own track, and only that one.
-                    track = {"software-hardware": "hardware"}[profile]
+                    track = track_for({})
                     imports = [l for l in (root / "CLAUDE.md").read_text(encoding="utf-8").splitlines() if l.startswith("@instructions/tracks/")]
                     self.assertEqual(imports, [f"@instructions/tracks/{track}.md"])
                     self.assertTrue((root / f"instructions/tracks/{track}.md").is_file())
@@ -191,6 +212,7 @@ class BootstrapIntegrationTests(unittest.TestCase):
             with self.subTest(profile=profile):
                 raw = answers(profile)
                 responses = ["; ".join(raw[key]) if isinstance(raw[key], list) else raw[key] for key in keys]
+                responses.append("y")  # Does the project involve hardware?
                 responses += [raw["bootstrap"]["domain"][key] for key in DOMAIN_FIELDS[profile]]
                 root = self.base / profile
                 self.run_cli(ROOT / "scripts/bootstrap_project.py", "--interactive", "--profile", profile,

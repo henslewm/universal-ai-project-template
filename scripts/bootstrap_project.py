@@ -20,7 +20,7 @@ from typing import Any
 
 import cli_exit
 from bootstrap_gate import collect_intake, new_state, profile_from_template, render_review, write_state
-from validate_bootstrap import PROFILES, validate
+from validate_bootstrap import PROFILES, apply_no_hardware, validate
 
 EXCLUDE_NAMES = {
     ".git", "dist", "build", "__pycache__", ".pytest_cache",
@@ -28,9 +28,13 @@ EXCLUDE_NAMES = {
     # Approval belongs only to its original project, even if generation fails.
     "bootstrap.json", "bootstrap.json.tmp", "BOOTSTRAP_REVIEW.md",
 }
+def track_for(answers: dict) -> str:
+    """The track a generated project imports: web-ui when the software-hardware profile has no hardware."""
+    return "hardware" if answers.get("hardware_in_scope", True) else "web-ui"
+
+
 # The template's own build evidence. A generated project starts its own history, so these are
 # removed rather than inherited (#49); reusable docs, examples and templates stay.
-TRACK_FOR_PROFILE = {"software-hardware": "hardware"}
 TEMPLATE_HISTORY = ("archive/docs/ISSUE_*_VALIDATION.md", "archive/docs/WORKER_STARTUP_VALIDATION.md",
                     "archive/*_ARCHIVE_*.md")
 
@@ -91,6 +95,9 @@ def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
         raw["connector_permissions"].setdefault(connector, "read")
     if "github" in raw["connectors"]:
         raw["connector_permissions"].setdefault("github", "read-and-project-write")
+    if not isinstance(raw.get("hardware_in_scope", True), bool):
+        raise ValueError("hardware_in_scope must be true or false")
+    raw["hardware_in_scope"] = raw.get("hardware_in_scope", True)
     raw["template_mode"] = False
     raw["template_version"] = "1.0.0"
     raw["created"] = date.today().isoformat()
@@ -444,7 +451,7 @@ Append material decisions. Do not rewrite prior decisions without recording supe
     claude_md = dest / "CLAUDE.md"
     lines = claude_md.read_text(encoding="utf-8").split("\n")
     last_import = max(i for i, line in enumerate(lines) if line.startswith("@"))
-    lines.insert(last_import + 1, f"@instructions/tracks/{TRACK_FOR_PROFILE[answers['domain_profile']]}.md")
+    lines.insert(last_import + 1, f"@instructions/tracks/{track_for(answers)}.md")
     claude_md.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     for pattern in TEMPLATE_HISTORY:
         for path in dest.glob(pattern):
@@ -522,6 +529,7 @@ def main() -> int:
     parser.add_argument("--interactive", action="store_true", help="Ask the concise intake questions")
     parser.add_argument("--answers", help="Path to JSON answers")
     parser.add_argument("--profile", choices=sorted(PROFILES), help="Canonical domain; otherwise recovered from the intake or template")
+    parser.add_argument("--no-hardware", action="store_true", help="Software-only project: skip the hardware intake and load the web-ui track")
     parser.add_argument("--destination", required=True, help="New project directory, or . to tailor a GitHub-template repository in place")
     parser.add_argument("--template-root", help="Explicit template root")
     parser.add_argument("--no-git", action="store_true", help="Do not initialize Git")
@@ -550,11 +558,15 @@ def main() -> int:
     profile = args.profile or raw.get("domain_profile") or (raw.get("domain") if raw.get("domain") in PROFILES else None) or profile_from_template(source)
     if profile not in PROFILES:
         parser.error("Select a canonical domain with --profile")
+    if args.no_hardware:
+        raw["hardware_in_scope"] = False
     if args.interactive:
         raw = collect_intake(raw, profile)
     proposal = raw.pop("bootstrap", {})
     if not isinstance(proposal, dict):
         parser.error("bootstrap proposal must be an object")
+    if raw.get("hardware_in_scope") is False:
+        apply_no_hardware(proposal.setdefault("domain", {}))
     raw["domain_profile"] = profile
     raw["domain"] = profile
     answers = normalize_answers(raw)
