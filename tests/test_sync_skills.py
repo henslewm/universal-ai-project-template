@@ -1,6 +1,7 @@
 """Payload synchronization: obsolete mirror files and worktree `.git` pointers (#49)."""
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
@@ -201,6 +202,7 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertEqual((ancestor / "bootstrap_project.py").read_text(encoding="utf-8"),
                           "# bootstrap_project.py\n")
 
+    @unittest.skipIf(os.name == "nt", "Windows has no POSIX executable bit for chmod to set")
     def test_the_fast_path_also_compares_permission_bits(self):
         # An unchanged-bytes fast path that ignores mode bits would leave a mirror file's
         # permissions stale after the source's executable bit changes with no content change.
@@ -384,6 +386,7 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertEqual(target.read_text(encoding="utf-8"), "# Template\n")
         self.assertEqual(sibling.read_text(encoding="utf-8"), "# Template\n")
 
+    @unittest.skipIf(os.name == "nt", "Windows has no POSIX executable bit for chmod to set")
     def test_a_replaced_file_keeps_the_sources_executable_bit(self):
         # The write path replaces the target via a temp file; the temp file's own (umask) mode
         # must not silently drop the source's executable bit onto the mirror.
