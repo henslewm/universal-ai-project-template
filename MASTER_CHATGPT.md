@@ -37,7 +37,7 @@ Enable only as needed:
 - Calendar for deadlines and scheduling facts.
 - Contacts for person resolution.
 - Web search for current public information.
-- Legal or scientific databases for controlling domain authority.
+- Scientific or technical databases for controlling domain authority.
 - PDF, DOCX, spreadsheet, slide, and image skills when the requested deliverable requires them.
 
 ## Session close

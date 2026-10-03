@@ -14,7 +14,7 @@ Once activated, routine work within the approved scope and existing permissions 
 
 - Start Claude Code at the repository root so shared settings and instructions load.
 - Inspect the branch, working tree, and recent relevant commits before edits.
-- Use plan mode for multi-file, destructive, legal, security, migration, or architecture changes.
+- Use plan mode for multi-file, destructive, security, migration, or architecture changes.
 - Use `.claude/agents/` for distinct research, review, implementation, and source-audit roles.
 - Use `.claude/skills/` for repeatable procedures; keep side-effecting skills user-invoked.
 - Use `.claude/rules/` for stable project-wide or path-scoped standards.

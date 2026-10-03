@@ -18,7 +18,7 @@ The generator records `INTAKE` with autonomy off. Only `scripts/bootstrap_gate.p
 
 Before questioning the user:
 
-- identify the selected canonical profile: `software-hardware`, `family-law`, or `civil-rights-nc`;
+- identify the selected canonical profile: `software-hardware` (the only profile; legal profiles are archived under `archive/legal/`);
 - inspect repository instructions, project state, decisions, open loops, sources, risks, branch and recent relevant history;
 - inspect authorized connectors/sources when they can answer an intake question without user repetition;
 - classify recovered information as verified, proposed/defaulted, unresolved, or conflicting;
@@ -49,11 +49,11 @@ Save recovered intake in an optional JSON answers file. Select one canonical pro
 python scripts/bootstrap_project.py --interactive --answers verified-intake.json --profile software-hardware --destination ../my-project --no-git
 ```
 
-Omit `--answers verified-intake.json` when no answers file exists. Substitute `family-law` or `civil-rights-nc` for the profile as appropriate. Use `--destination .` only for an uninitialized template repository. The interactive collector reuses supplied fields and asks only missing common intake and profile orientation fields; it does not invent the architecture. Optional proposal data belongs under the answers file's `bootstrap` object.
+Omit `--answers verified-intake.json` when no answers file exists. Add `--no-hardware` for a software-only project: it skips the hardware intake fields and selects the `web-ui` track (`instructions/tracks/web-ui.md`) instead of `hardware`. Use `--destination .` only for an uninitialized template repository. The interactive collector reuses supplied fields and asks only missing common intake and profile orientation fields; it does not invent the architecture. Optional proposal data belongs under the answers file's `bootstrap` object.
 
 The generator writes tailored project files, `config/project.json`, `config/bootstrap.json` in `INTAKE` with false/null approval metadata, and an initial `BOOTSTRAP_REVIEW.md` listing readiness gaps. `--no-git` keeps this preparation separate from Git initialization. Approval records and old review packets are excluded from template copies, including unsuccessful generation from an already-approved source. Neither generated files, a passing repository validator, nor a commit or push activates the project.
 
-Domain-specific intake is supplied through the `domain` extension. This common protocol requires the extension point but does not preempt the detailed domain work assigned to #9, #10 and #11.
+Domain-specific intake is supplied through the `domain` extension. This common protocol requires the extension point but does not preempt the detailed domain work in the software-hardware profile.
 
 ## Stage 3 — ARCHITECT
 
@@ -137,10 +137,8 @@ Every canonical branch may add structured fields under `domain`, but may not wea
 Minimum domain orientation targets:
 
 - `software-hardware` (complete, #9): existing baseline, exact hardware identity and firmware, interfaces/protocols, authoritative specifications, host/deployment environment, known-good and known-failing paths, fixture/simulator/loopback/HIL resources, physical-access constraints, and the architecture boundaries requiring approval — each a required `domain` field enforced by `scripts/validate_bootstrap.py`.
-- `family-law`: court/case/procedural posture, controlling orders, pending matters/deadlines, evidence/discovery sources, ranked objectives, disputed issues and preservation constraints.
-- `civil-rights-nc`: forum/jurisdiction posture, potential defendants and roles, individual/official/entity capacities, alleged rights/theories, procedural history, evidence sources, limitations/accrual posture, requested remedies, prior proceedings, and reserved consequential actions.
 
-The common implementation requires the profile orientation fields above. The software-hardware profile's detailed packet and acceptance rules are in `templates/software-hardware/PROFILE.md`, `config/domains/software-hardware.schema.json` and `scripts/software_hardware.py`; the family-law and civil-rights detailed schemas remain owned by #10 and #11, and their template snapshots do not represent completion of those workstreams.
+The common implementation requires the profile orientation fields above. The software-hardware profile's detailed packet and acceptance rules are in `templates/software-hardware/PROFILE.md`, `config/domains/software-hardware.schema.json` and `scripts/software_hardware.py`.
 
 ## Autonomy after activation
 

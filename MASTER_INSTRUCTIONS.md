@@ -14,8 +14,9 @@ Apply instructions in this order, highest first:
 4. This file.
 5. The active platform master: `MASTER_CHATGPT.md`, `MASTER_CODEX.md`, `MASTER_CLAUDE.md`, `MASTER_CLAUDE_CODE.md`, or `MASTER_MISTRAL.md`.
 6. A selected profile under `instructions/profiles/`.
-7. The active task or issue.
-8. Prior chat content and informal notes.
+7. The track file under `instructions/tracks/` that a generated project's `CLAUDE.md` imports (`hardware` or `web-ui`).
+8. The active task or issue.
+9. Prior chat content and informal notes.
 
 When two sources conflict, do not silently choose. Identify the conflict, preserve both sources, and use the higher-authority source unless the user resolves it differently.
 
@@ -68,7 +69,7 @@ Use the lightest process that preserves correctness:
 - Parallelizable task: delegate distinct, non-overlapping work to subagents and consolidate once.
 - High-risk task: add an independent review pass before finalizing.
 
-Do not create process artifacts that add no decision value. Do create a decision record when a choice affects scope, architecture, legal posture, cost, schedule, evidence, or future work.
+Do not create process artifacts that add no decision value. Do create a decision record when a choice affects scope, architecture, cost, schedule, evidence, or future work.
 
 ## Work-packet contracts
 

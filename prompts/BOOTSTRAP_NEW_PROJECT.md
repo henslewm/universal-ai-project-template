@@ -8,14 +8,14 @@ The intake must cover, only where missing:
 
 1. Project name and one-sentence desired outcome.
 2. Observable definition of done, required deliverables, and target date or urgency.
-3. Canonical profile (`software-hardware`, `family-law`, or `civil-rights-nc`), jurisdiction/version where relevant, risk tier, and sensitivity.
+3. Canonical profile (`software-hardware`), version where relevant, risk tier, and sensitivity.
 4. Authoritative source locations and which sources control when they conflict.
 5. AI surfaces to support: ChatGPT, Codex, Claude web, Claude Code, or others.
 6. External systems/connectors needed and the read/write boundary for each.
 7. Repeated workflows that deserve a skill, plus required output formats.
 8. Non-negotiable constraints, exclusions, approval gates, and people responsible.
 
-Reuse my supplied answers and verified repository/source facts. Ask only missing common intake and profile orientation fields. Propose nonmaterial defaults transparently; do not invent architecture, source access, or permission grants to fill gaps. Detailed domain design remains assigned to #9/#10/#11; the canonical templates carry snapshots of existing domain documents.
+Reuse my supplied answers and verified repository/source facts. Ask only missing common intake and profile orientation fields. Propose nonmaterial defaults transparently; do not invent architecture, source access, or permission grants to fill gaps. The canonical templates carry snapshots of existing domain documents.
 
 Then perform the setup:
 
@@ -41,6 +41,6 @@ python scripts/bootstrap_project.py --interactive --answers verified-intake.json
 python scripts/bootstrap_project.py --interactive --profile software-hardware --destination . --no-git
 ```
 
-Omit `--answers` and its filename if no answers file exists. Replace the example profile with `family-law` or `civil-rights-nc` as appropriate.
+Omit `--answers` and its filename if no answers file exists. Add `--no-hardware` for a software-only project (selects the `web-ui` track).
 
 The local gate prevents normal workflow bypass and detects stale approvals. It does not authenticate the approving human or constrain actors who rewrite gate code or approval records. Automated activation tests must use disposable fixtures, never a real project.

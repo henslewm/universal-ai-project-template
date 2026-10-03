@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import cli_exit
-from validate_bootstrap import (DOMAIN_FIELDS, PROFILES, activation_errors,
-                                architecture_fingerprint, document_hashes, validate)
+from validate_bootstrap import (DOMAIN_FIELDS, PROFILES, activation_errors, apply_no_hardware,
+                                HARDWARE_ONLY_FIELDS, architecture_fingerprint, document_hashes, validate)
 
 
 def inactive_approval() -> dict:
@@ -53,6 +53,11 @@ def collect_intake(known: dict[str, Any], profile: str) -> dict[str, Any]:
             data[key] = [item.strip() for item in value.split(";") if item.strip()] if is_list else value
     proposal = data.setdefault("bootstrap", {})
     domain = proposal.setdefault("domain", {})
+    # Asked only while a hardware-only field is still unanswered, so a supplied intake is never re-asked.
+    if "hardware_in_scope" not in data and any(not domain.get(key) for key in HARDWARE_ONLY_FIELDS):
+        data["hardware_in_scope"] = input("Does the project involve hardware? [Y/n]: ").strip().lower() not in {"n", "no"}
+    if data.get("hardware_in_scope") is False:
+        apply_no_hardware(domain)
     print("\nDomain orientation")
     for key, question in DOMAIN_FIELDS[profile].items():
         if not domain.get(key):

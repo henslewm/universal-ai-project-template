@@ -74,36 +74,15 @@ status is the one derivation that refuses (ADR-032).
 
 ## Code structure
 
-Keep code modular so a model can change one part without re-reading the whole codebase. Firmware
-lives in single-responsibility modules listed in a `MODULES.md` index beside the sources: one row
-per module naming what it owns, its public API and what it depends on. Each module's header is its
-contract. An Arduino `.ino` holds only `setup()`/`loop()`. Shared state is written only by its
-owning module. New behavior goes in its owning module or a new one, never back into a monolithic
-file, and the index changes in the same commit. Scripts follow the same rule: one focused module
-or helper per concern. Splitting an existing monolith is a mechanical move with an equivalence
-check (for example, comparing the built binaries), never a rewrite. See `.claude/rules/05-modular-code.md`.
+Keep firmware in single-responsibility modules indexed by a `MODULES.md` beside the sources
+(template: `templates/software-hardware/MODULES.md`). The rules are in
+`.claude/rules/05-modular-code.md`.
 
 ## Build configuration (Arduino / ESP32)
 
-Every Arduino or ESP32 firmware project keeps a root `platformio.ini`, generated under
-`docs/PLATFORMIO.md` from observed hardware (`esptool flash-id`: chip, flash size, embedded PSRAM)
-and the project's pinned core. Stock `espressif32@6.x` ships Arduino-ESP32 2.0.x. Core 3.x needs a
-pinned pioarduino release URL, never a floating version. Ports are selected by USB VID:PID, not
-COM number. The default environment's log level respects the project's boot and log rules. The
-equivalent arduino-cli FQBN is recorded, and evidence names the toolchain, build identifier and ELF
-hash of every flashed artifact.
+Every Arduino or ESP32 firmware project keeps a root `platformio.ini` generated under
+`docs/PLATFORMIO.md`. BLE/NimBLE and Windows-pairing lessons: `docs/BLE_NOTES.md`.
 
-Hardware-facing lessons from a composite BLE HID project (template issue #51):
-
-- A pinned-core defect can look like a descriptor or host problem. Print the actual GATT handles,
-  and log raw stack events (including ones the framework wrapper ignores), before editing report
-  maps or blaming the host. Add observation-only diagnostics before any fix.
-- Arduino-ESP32 3.3.12 with NimBLE silently drops a second characteristic with the same UUID, for
-  example a second HID input report (0x2A4D). Its handle stays 0xFFFF.
-- A Windows desktop process pairs a BLE peripheral through exact-address
-  `BluetoothLEDevice.FromBluetoothAddressAsync` and custom `ConfirmOnly` pairing. Association
-  endpoint enumeration and plain `PairAsync()` are unreliable without pairing UI.
-- Leaving a peripheral mode must end the host link, not only advertising.
 ## Cost posture
 
 Pure functions, codecs, parsers, fixtures, fakes, tests, log analysis and repetitive adapters route

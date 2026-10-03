@@ -48,11 +48,11 @@ After activation, routine execution proceeds without asking for permission at ea
 
 The system stops and requests approval when the architect determines that an **architecture change** is required.
 
-An architecture change includes a material change to any approved system boundary, claim/case theory framework, public interface, evidence schema, security model, dependency topology, persistence model, deployment topology, controlling legal theory, jurisdictional posture, or project scope that would invalidate existing task contracts or materially alter downstream work.
+An architecture change includes a material change to any approved system boundary, public interface, evidence schema, security model, dependency topology, persistence model, deployment topology, or project scope that would invalidate existing task contracts or materially alter downstream work.
 
 An implementation detail, ordinary bug fix, bounded refactor, test change, task reprioritization, model escalation, or clarification that remains inside an approved contract is **not** an architecture change.
 
-The system must also stop when an action is outside repository autonomy and is independently consequential, such as filing a court document, sending an external communication, deleting or altering original evidence, exposing a secret, making a purchase, changing access permissions, or taking another irreversible external action. Drafting and preparation remain autonomous; execution of the external act requires explicit authority.
+The system must also stop when an action is outside repository autonomy and is independently consequential, such as sending an external communication, deleting or altering original evidence, exposing a secret, making a purchase, changing access permissions, or taking another irreversible external action. Drafting and preparation remain autonomous; execution of the external act requires explicit authority.
 
 ## Architect role
 
@@ -110,7 +110,7 @@ Local inference has zero marginal API charge but not zero cost: repeated failure
 | T0 Utility | deterministic cleanup, indexing, formatting, narrow extraction | small LM Studio model |
 | T1 Local Coder/Analyst | bounded implementation or analysis with objective tests | strongest suitable LM Studio model |
 | T2 Economical Cloud | moderate reasoning where local models stall | Mistral API |
-| T3 Strong Specialist | difficult implementation, legal analysis, debugging, adversarial review | Claude or Codex/OpenAI |
+| T3 Strong Specialist | difficult implementation, debugging, adversarial review | Claude or Codex/OpenAI |
 | T4 Architect | architecture, decomposition, integration diagnosis, high-impact review | strongest available Claude/OpenAI reasoning model |
 
 The task contract specifies a **capability tier**, not a vendor name. Provider mappings may change without changing architecture.

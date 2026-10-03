@@ -6,7 +6,7 @@ Choose the path that matches where you are working.
 
 1. Clone or unzip the base template, or create a repository with GitHub **Use this template**.
 2. Open a terminal at the repository root.
-3. Choose `software-hardware`, `family-law`, or `civil-rights-nc`. For an uninitialized GitHub-template repository, tailor it in place:
+3. Use the `software-hardware` profile (add `--no-hardware` for a software-only project, which loads the `web-ui` track instead of `hardware`). For an uninitialized GitHub-template repository, tailor it in place:
 
    ```bash
    python scripts/bootstrap_project.py --interactive --profile software-hardware --destination . --no-git
@@ -29,7 +29,7 @@ The generator refuses rebootstrap when a destination already has bootstrap state
 1. Create a new ChatGPT Project, preferably with project-only memory for sensitive or bounded work.
 2. Paste `.chatgpt/PROJECT_INSTRUCTIONS.md` into Project settings.
 3. Add the files listed in `.chatgpt/PROJECT_FILES.md`.
-4. Connect GitHub. Add Google Drive, Gmail, Calendar, Contacts, or a legal/research source only when the project actually needs them.
+4. Connect GitHub. Add Google Drive, Gmail, Calendar, Contacts, or a research source only when the project actually needs them.
 5. Start with the prompt in `prompts/BOOTSTRAP_NEW_PROJECT.md`.
 6. Follow section E with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
 
@@ -61,7 +61,7 @@ The generator refuses rebootstrap when a destination already has bootstrap state
 
 Run `--require-active` before autonomous substantive work in every session. The fingerprint includes domain, workflow, unresolved blockers, configuration, and document hashes alongside project/architecture fields, and validation checks the current files. Missing, invalid, or inactive state, stale bindings, or unavailable runtime means no autonomy; resume bootstrap/review or a runtime handoff. After activation, routine work within approved scope and existing permissions may proceed without repeated approval. Reserved actions and consequential external writes retain their explicit-authority requirements.
 
-The local gate detects normal bypass and stale approvals; it does not authenticate humans or constrain actors who rewrite gate code or approval records. It does not configure providers or expand permissions. Canonical templates include snapshots of existing domain documents; detailed domain work remains assigned to #9/#10/#11.
+The local gate detects normal bypass and stale approvals; it does not authenticate humans or constrain actors who rewrite gate code or approval records. It does not configure providers or expand permissions. Canonical templates include snapshots of existing domain documents.
 
 ## F. Publish this prepared local repo to GitHub
 

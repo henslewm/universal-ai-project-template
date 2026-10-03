@@ -23,7 +23,7 @@ The implementation uses [jsonschema's Draft 2020-12 validator and format checker
 | Field | Meaning |
 |---|---|
 | `schema_version` | Packet format, currently `1.0`; unrelated to provider/model versions. |
-| `task_id`, `domain_profile` | Stable task identity and one of `software-hardware`, `family-law`, `civil-rights-nc`. |
+| `task_id`, `domain_profile` | Stable task identity and `software-hardware`. |
 | `revision_history` | Ordered complete contract snapshots with consecutive version, hash, actor, timestamp and reason. The **last snapshot is the sole current contract**. |
 | `state` | Current recorded state; it must match replay of all lifecycle events. |
 | `events` | Consecutive events with kind, from/to, version/hash, declared actor/role, time, reason and evidence references. |
@@ -47,7 +47,7 @@ All required descriptions are nonblank. Every acceptance criterion must have a s
 
 ## Create and render a contract
 
-Three complete, fictional contract examples are under `examples/work-packets/`. The legal examples demonstrate record indexing/extraction, not legal conclusions or real matters. The software example is a synthetic protocol, not physical hardware evidence; its `domain` block is the structural form the software-hardware profile now requires.
+A complete, fictional contract example is under `examples/work-packets/`. It is a synthetic protocol, not physical hardware evidence; its `domain` block is the structural form the software-hardware profile now requires.
 
 Run from the project root; use a new output filename for every operation:
 
@@ -60,7 +60,7 @@ python scripts/work_packet.py render task-1-proposed.json --output task-1-issue.
 
 Exit codes are listed in README.md, "CLI exit codes"; Ctrl+C never leaves a partly written output file. For another domain, use its contract file and matching `--profile`. Creation requires a complete contract and always records version 1 at `PROPOSED`. No command infers approval from an example or from successful validation.
 
-`render` produces a deterministic GitHub issue body containing the entire current contract, identity/version/hash, revision provenance and latest recorded event. Domain extensions appear as fenced JSON so arbitrary keys, nested arrays and scalar types retain their exact meaning. It omits old contract bodies to keep worker context bounded. Keep the canonical JSON in the project's controlled work-record location and link it when publishing the generated issue. Do not maintain an independently edited copy of the issue contract. `templates/TASK.md` points to this generation workflow; automatic GitHub publishing and the broader issue-form family belong to #6.
+`render` produces a deterministic GitHub issue body containing the entire current contract, identity/version/hash, revision provenance and latest recorded event. Domain extensions appear as fenced JSON so arbitrary keys, nested arrays and scalar types retain their exact meaning. It omits old contract bodies to keep worker context bounded. Keep the canonical JSON in the project's controlled work-record location and link it when publishing the generated issue. Do not maintain an independently edited copy of the issue contract. `templates/TASK.md` points to this generation workflow; automatic GitHub publishing is not provided.
 
 ## Record the lifecycle
 
@@ -132,4 +132,4 @@ python scripts/validate_project.py
 python scripts/sync_skills.py --check
 ```
 
-The test suite exercises all three profiles, malformed contracts/history, legal and illegal state transitions, actor separation, revisions, dependency failures, deterministic rendering, command-line errors and preservation of prior files. Synthetic records do not establish real legal, hardware, provider or deployment outcomes.
+The test suite exercises malformed contracts/history, legal and illegal state transitions, actor separation, revisions, dependency failures, deterministic rendering, command-line errors and preservation of prior files. Synthetic records do not establish real hardware, provider or deployment outcomes.

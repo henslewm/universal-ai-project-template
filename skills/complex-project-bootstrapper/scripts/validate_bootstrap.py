@@ -32,6 +32,15 @@ DOMAIN_FIELDS = {
         "architecture_boundaries": "Architecture boundaries whose change requires user approval",
     },
 }
+# A software-only project (no hardware) still uses the software-hardware profile; these two intake
+# fields are answered with a fixed statement instead of being asked.
+NO_HARDWARE = "None: software-only project; no hardware is in scope"
+HARDWARE_ONLY_FIELDS = ("hardware_identity", "physical_access")
+
+
+def apply_no_hardware(domain: dict[str, Any]) -> None:
+    for field in HARDWARE_ONLY_FIELDS:
+        domain[field] = NO_HARDWARE
 
 
 def meaningful(value: Any) -> bool:

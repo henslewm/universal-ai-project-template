@@ -10,7 +10,7 @@
 | Gmail | Conditional | Email is evidence, instruction, or an open-loop source | Relevant senders, recipients, dates, and terms | Search/read by default; no send without explicit request |
 | Google Calendar | Conditional | Deadlines, hearings, meetings, availability | Relevant calendars and date windows | Read/free-busy by default |
 | Google Contacts | Conditional | Identity or recipient resolution is needed | Named people or organizations | Read only |
-| Specialist database | Conditional | Controlling legal, scientific, technical, or financial authority is needed | Named database and task scope | Read only |
+| Specialist database | Conditional | Controlling scientific, technical, or financial authority is needed | Named database and task scope | Read only |
 
 ## Rules
 

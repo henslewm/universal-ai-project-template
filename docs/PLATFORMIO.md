@@ -59,7 +59,7 @@ build_flags =
     -DARDUINO_USB_CDC_ON_BOOT=1
 upload_port  = hwgrep://303A:1001
 monitor_port = hwgrep://303A:1001
-monitor_speed = 921600
+monitor_speed = 115200            ; equals Serial.begin(115200) in the sketch below
 monitor_filters = esp32_exception_decoder, time
 
 [env:dev]
@@ -81,7 +81,7 @@ arduino-cli compile -b esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashMode=qio
 
 To add an optional label with arduino-cli, append `--build-property "compiler.cpp.extra_flags='-DFIRMWARE_BUILD_ID=\"<label>\"'"`. The single quotes are needed to keep the double quotes through arduino-cli's argument splitter. Verified on hardware in the downstream project described in issue #51.
 
-Firmware side: print the runtime artifact identity, plus the optional label with a visible fallback. The `.ino` holds only `setup()` and `loop()`, so the printer lives in its own module, `build_identity.h` plus `build_identity.cpp`. Arduino's automatic `.ino` preprocessing (includes and generated prototypes) does not reach a `.cpp` file. So the module includes the Arduino declarations itself (`Serial` from `Arduino.h`, `ESP_ARDUINO_VERSION_STR` from `esp_arduino_version.h`), and the `.ino` includes the module's header to call it.
+Firmware side (Arduino-ESP32 3.x / ESP-IDF 5.x): print the runtime artifact identity, plus the optional label with a visible fallback. The `.ino` holds only `setup()` and `loop()`, so the printer lives in its own module, `build_identity.h` plus `build_identity.cpp`. Arduino's automatic `.ino` preprocessing (includes and generated prototypes) does not reach a `.cpp` file. So the module includes the Arduino declarations itself (`Serial` from `Arduino.h`, `ESP_ARDUINO_VERSION_STR` from `esp_arduino_version.h`), and the `.ino` includes the module's header to call it.
 
 ```cpp
 // build_identity.h
@@ -106,7 +106,7 @@ void loop() {}
 #include "build_identity.h"
 #include <Arduino.h>
 #include "esp_arduino_version.h"
-#include "esp_app_desc.h"
+#include "esp_app_desc.h"   // core 3.x (ESP-IDF 5.x) only; see the 2.0.x note below
 #ifndef FIRMWARE_BUILD_ID
 #define FIRMWARE_BUILD_ID "unlabeled"
 #endif
@@ -118,5 +118,7 @@ void printBuildIdentity() {
   Serial.printf("Build: %s core=%s elf_sha256=%s\n", FIRMWARE_BUILD_ID, ESP_ARDUINO_VERSION_STR, elf);
 }
 ```
+
+The `esp_app_desc.h` include and `esp_app_get_description()` are for Arduino-ESP32 3.x (ESP-IDF 5.x). The ESP-IDF 4.4 headers behind Arduino-ESP32 2.0.x are not reproduced in this repository, so no 2.0.x header or function name is given here and none was verified offline. On a 2.0.x core, take the app description from that core's own ESP-IDF headers and confirm that `app_elf_sha256` equals the ELF SHA-256 on hardware before relying on it.
 
 Downstream, the printed `elf_sha256` equalled the SHA-256 of the flashed `firmware.elf` exactly.

@@ -4,7 +4,7 @@ A worker harness executes one architected work packet and nothing else. Cline is
 
 The harness sits in exactly one gap: between the reservation the feedback controller grants and the result it records. Everything around that gap already exists and is reused rather than duplicated. `WORK_PACKET_PROTOCOL.md` owns the contract and its revisions. `MODEL_ROUTING.md` owns tier and effort selection and its replayable decision ledger. `FEEDBACK_PROTOCOL.md` owns the reservation, the attempt budget, failure evidence and escalation. No routing decision, attempt counter or scope rule lives inside the harness or inside Cline.
 
-`scripts/execution_harness.py` never invokes a model, never runs the harness command, and never verifies that reported work actually happened. It prepares a bounded brief, emits the exact invocation, and ingests a report. The operator runs the harness, by hand or through the separate operator launcher described below. Any automated launcher needs a later, separate decision (ADR-073).
+`scripts/execution_harness.py` never invokes a model, never runs the harness command, and never verifies that reported work actually happened. It prepares a bounded brief, emits the exact invocation, and ingests a report. The operator runs the harness by hand. Any automated launcher needs a later, separate decision (ADR-073); the earlier operator launcher was removed.
 
 ## Setup and authority
 

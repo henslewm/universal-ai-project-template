@@ -10,7 +10,7 @@ Software that talks to physical hardware. Loaded for projects whose domain profi
 
 ## Rules that matter most
 
-- No claim of hardware success from compilation or simulation. `VERIFIED_ON_HARDWARE` is earned by an attested hardware-in-loop rung bound to the flashed artifact's SHA-256 (`artifact_sha256` in the hardware evidence record, checked by `scripts/software_hardware.py`), never authored in a contract. Printing the firmware's runtime ELF hash and recording it beside that artifact is practice (`docs/PLATFORMIO.md`), not a field the controller verifies.
+- No claim of hardware success from compilation or simulation. The verification ladder and the rule that `VERIFIED_ON_HARDWARE` is earned, never authored, are in `templates/software-hardware/PROFILE.md`. Printing the firmware's runtime ELF hash is practice (`docs/PLATFORMIO.md`), not a field the controller verifies.
 - Before firmware work, read the `MODULES.md` index beside the sources and open only the modules that own the state you change.
 
 ## SatLink3
