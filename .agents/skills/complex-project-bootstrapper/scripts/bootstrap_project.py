@@ -33,6 +33,7 @@ def track_for(answers: dict) -> str:
     return "hardware" if answers.get("hardware_in_scope", True) else "web-ui"
 
 
+
 # The template's own build evidence. A generated project starts its own history, so these are
 # removed rather than inherited (#49); reusable docs, examples and templates stay.
 TEMPLATE_HISTORY = ("archive/docs/ISSUE_*_VALIDATION.md", "archive/docs/WORKER_STARTUP_VALIDATION.md",
@@ -125,7 +126,7 @@ def locate_template_root(explicit: str | None) -> Path:
         if (candidate / ".ai-project-template").exists():
             return candidate
 
-    raise SystemExit("Could not locate the project template. Use --template-root.")
+    raise SystemExit("Could not locate the project template. Use --template-root, or build the skill payload with scripts/sync_skills.py (the tracked skill folder alone carries no payload; ADR-083).")
 
 
 def ignore_copy(directory: str, names: list[str]) -> set[str]:
@@ -134,6 +135,9 @@ def ignore_copy(directory: str, names: list[str]) -> set[str]:
     # Prevent recursive template assets when copying from a packaged skill or repo.
     if path.name == "assets" and "project-template" in names:
         ignored.add("project-template")
+    # ADR-083: the archived legal profiles are not served, so a generated project does not carry them.
+    if path.name == "archive" and "legal" in names:
+        ignored.add("legal")
     return ignored
 
 
@@ -151,6 +155,9 @@ def copy_template(source: Path, destination: Path) -> None:
         payload = destination / "skills/complex-project-bootstrapper/assets/project-template"
         if payload.is_dir():
             shutil.rmtree(payload)
+        legal = destination / "archive/legal"
+        if legal.is_dir():
+            shutil.rmtree(legal)
         return
 
     if destination.exists() and any(destination.iterdir()):

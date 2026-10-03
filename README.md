@@ -144,7 +144,7 @@ Every `scripts/*.py` command follows one exit-code policy (ADR-072). Adopting it
 | `feedback.py` | JSON result. `next` exits 0 only for `DISPATCH`; every other command exits 0 whatever state it records | `Feedback control refused: …` | `next` with any other `status`, a recorded hold such as `BLOCKED`, `NEEDS_ARCHITECT` or `NEEDS_DECISION` |
 | `hash_file.py` | File metadata | — | `Not a file` (an argparse error) |
 | `model_router.py` | `validate-config`, `verify`, and `route` when `ROUTED` | `Model routing failed: …` | `route` JSON `status` `STOP`; the record is still saved |
-| `sync_skills.py` | Synchronized, or verified with `--check` | `BOOTSTRAP PAYLOAD DRIFT` with `--check` | — |
+| `sync_skills.py` | Synchronized, or verified with `--check`; it also builds the untracked standalone-skill payload, so distribute the skill as a release zip built by running it (ADR-083) | `BOOTSTRAP PAYLOAD DRIFT` with `--check` | — |
 | `validate_bootstrap.py` | `BOOTSTRAP VALID` | `BOOTSTRAP INVALID` with reasons, or `--require-active` on a path that is not a project's `config/bootstrap.json` | `BOOTSTRAP INVALID: <read error>`: the file is missing, unreadable or not JSON |
 | `validate_project.py` | `VALIDATION PASSED` | `VALIDATION FAILED` | — (it takes no arguments) |
 | `work_packet.py` | Valid, rendered or recorded | `WORK PACKET INVALID: …` | — |

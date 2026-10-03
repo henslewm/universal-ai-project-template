@@ -4,7 +4,7 @@ Recover verified facts from the repository and authorized sources first. Classif
 
 1. Project name and one-sentence outcome.
 2. Definition of done, deliverables, and target date/urgency.
-3. Canonical profile (`software-hardware`, `family-law`, or `civil-rights-nc`), jurisdiction/version, risk tier, and sensitivity.
+3. Canonical profile (`software-hardware`; pass `--no-hardware` for a software-only project), jurisdiction/version, risk tier, and sensitivity.
 4. Authoritative source locations and source-conflict authority.
 5. AI clients to support.
 6. Connectors and read/write boundary for each.
@@ -18,12 +18,10 @@ Choose `--profile` explicitly or recover `domain_profile` from supplied intake/t
 | Profile | Orientation fields under `bootstrap.domain` | Content |
 |---|---|---|
 | `software-hardware` | `baseline`, `hardware_identity`, `interfaces`, `specifications`, `environment`, `known_paths`, `validation_resources`, `physical_access`, `architecture_boundaries` | Repository/software baseline with sources; exact hardware models, revisions and firmware; protocols and interfaces with versions; authoritative manuals and datasheets; host, toolchain and deployment environment; known-good and known-failing paths; fixtures, simulators, loopback and HIL resources; physical-access and safety limits; architecture boundaries whose change needs approval (the nine required by `scripts/validate_bootstrap.py`) |
-| `family-law` | `case_identity`, `controlling_orders`, `objectives_and_deadlines`, `discovery`, `evidence`, `financial_support`, `parenting_custody`, `adverse_facts`, `appellate_preservation`, `reserved_actions` | Court/county, case number(s), parties and procedural posture; controlling orders/judgments in effect; ranked objectives, disputed issues and deadlines; discovery served/received/outstanding; evidence/exhibit sources and preservation; financial/support inputs; parenting/custody inputs; known adverse facts; appellate preservation posture; standing restrictions and reserved consequential actions |
-| `civil-rights-nc` | `forum_jurisdiction`, `defendants_roles`, `capacities`, `alleged_rights`, `procedural_history`, `evidence_sources`, `limitations_accrual`, `objectives_remedies`, `prior_proceedings`, `reserved_actions` | Forum/jurisdiction and venue with sources; potential defendants and roles; individual/official/entity capacities; alleged federal (§1983) and NC (Corum) rights; procedural history and preservation; evidence sources and authentication; limitations/accrual timeline and prerequisites; ranked objectives and remedies; prior and parallel proceedings; standing restrictions and reserved consequential actions |
 
-These are the orientation requirements `validate_bootstrap.DOMAIN_FIELDS` enforces; a placeholder such as `TBD` is refused before review. The software-hardware set was completed in #9; the family-law set was completed in #10; the civil-rights-nc set was completed in #11.
+These are the orientation requirements `validate_bootstrap.DOMAIN_FIELDS` enforces; a placeholder such as `TBD` is refused before review.
 
-Run new setup with `python scripts/bootstrap_project.py --interactive --answers verified-intake.json --profile software-hardware --destination ../my-project --no-git`, substituting the selected profile and destination. Omit `--answers` and its filename if absent. A destination must be new/empty or an uninitialized template repository; initialized projects require preservation-oriented retrofit/review instead of rebootstrap.
+Run new setup with `python scripts/bootstrap_project.py --interactive --answers verified-intake.json --profile software-hardware --destination ../my-project --no-git`, substituting the destination. Omit `--answers` and its filename if absent. A destination must be new/empty or an uninitialized template repository; initialized projects require preservation-oriented retrofit/review instead of rebootstrap.
 
 The generator normalizes common answers into `config/project.json` and creates `config/bootstrap.json` in inactive `INTAKE`. Common `source_locations` become `sources` in the bootstrap package. Optional proposal fields under the answers file's `bootstrap` object seed `architecture`, `risks`, `routing`, `workflow`, `human_gates`, `domain`, and `unresolved`; the architect must complete and verify the resulting package. The CLI collects facts and does not invent component architecture.
 

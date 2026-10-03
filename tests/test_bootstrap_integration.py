@@ -124,6 +124,7 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertTrue((root / f"instructions/tracks/{track}.md").is_file())
                     self.assertFalse((root / "skills/complex-project-bootstrapper/assets/project-template").exists(),
                                      "a generated project has no payload, so CI skips the payload check")
+                    self.assertFalse((root / "archive/legal").exists(), "ADR-083: retired legal profiles are not served")
                     self.active_check(root, False)
                     self.activate(root)
                     self.run_cli(root / "scripts/validate_project.py")
