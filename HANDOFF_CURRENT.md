@@ -2,7 +2,7 @@
 
 - **Prepared:** 2026-10-03
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `claude/trim-to-sw-hw-tracks` (five commits since `main`: `53de2db`, `ac371d3`, `0bfd28a`, `d58473a`, `3b63fe6`). No PR is open yet. The records pass is uncommitted.
+- **Branch:** `claude/trim-to-sw-hw-tracks` (six commits since `main`, through the ADR-083 records commit). No PR is open yet.
 - **Scope:** Trim to software and hardware tracks, owner-approved 2026-10-03 (ADR-083).
 
 ## What changed
@@ -18,7 +18,7 @@
 - 434 tests; 2 expected Windows-only failures (exec-bit tests in `tests/test_sync_skills.py`).
 - `python scripts/validate_project.py` passes with 81 required paths.
 - Tracked lines about 43k, down from about 92k.
-- The records pass itself was not re-validated after these edits.
+- `validate_project.py` and `sync_skills.py --check` re-run clean after the records pass.
 
 ## Exact next action
 
