@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 — Draft ADR-084 to ADR-088 for charter decisions A-D and F
+
+- Proposed, not in force: review cap (A), worker attempts (B), approvals and action ledger (C), single ledger and settings file (D), automatic delegation (F). Each awaits owner sign-off; the current rules still apply. Open owner questions are listed in each row, including question 2 for D.
+
 ## 2026-10-03 — Trim to software and hardware tracks (ADR-083)
 
 - Legal profiles archived to `archive/legal/` and no longer served. `scripts/worker_launcher.py` and `scripts/github_ledger.py` removed (supersedes ADR-077, the launcher part of ADR-073, and the GitHub-ledger ADRs).
