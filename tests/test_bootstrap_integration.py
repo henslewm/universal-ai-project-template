@@ -18,9 +18,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from validate_bootstrap import BOUND_DOCUMENTS, DOMAIN_FIELDS, architecture_fingerprint
 import bootstrap_gate
-import github_ledger
 
-FIXTURES = {"software-hardware": "config/bootstrap.example.json", "family-law": "tests/fixtures/bootstrap-family-law-awaiting.json", "civil-rights-nc": "tests/fixtures/bootstrap-civil-rights-awaiting.json"}
+FIXTURES = {"software-hardware": "config/bootstrap.example.json"}
 
 
 def read(path):
@@ -98,7 +97,7 @@ class BootstrapIntegrationTests(unittest.TestCase):
                                      "template ADR and changelog archives are template history, not the project's")
                     self.assertTrue((root / "docs/PLATFORMIO.md").exists(), "reusable docs stay")
                     # ADR-082: a generated project imports its own track, and only that one.
-                    track = {"software-hardware": "hardware", "family-law": "family-law", "civil-rights-nc": "civil-suit"}[profile]
+                    track = {"software-hardware": "hardware"}[profile]
                     imports = [l for l in (root / "CLAUDE.md").read_text(encoding="utf-8").splitlines() if l.startswith("@instructions/tracks/")]
                     self.assertEqual(imports, [f"@instructions/tracks/{track}.md"])
                     self.assertTrue((root / f"instructions/tracks/{track}.md").is_file())
@@ -169,17 +168,6 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.run_cli(root / "scripts/feedback.py", "render", feedback_ledger)
                     published_packet = json.loads(self.run_cli(root / "scripts/feedback.py", "packet", feedback_ledger).stdout)
                     raw_events = [read(path) for path in sorted(feedback_ledger.glob("*.json"))]
-                    github_config = read(root / "config/github-ledger.example.json")
-                    row = {"issue": 2, "packet": published_packet, "feedback": raw_events,
-                           "branch": "synthetic-task", "pr": None, "superseded_prs": [],
-                           "acceptance": None, "discoveries": {}}
-                    registry = {"schema_version": 1, "config": github_config, "anchor": raw_events[0]["data"]["anchor"],
-                                "tasks": {data["task_id"]: row}, "outbox": [github_ledger.entry_for(data["task_id"], row)]}
-                    snapshot = root / "synthetic-github-state.json"
-                    write(snapshot, registry)
-                    verified = self.run_cli(root / "scripts/github_ledger.py", "--config", root / "config/github-ledger.example.json",
-                                            "validate-state", snapshot)
-                    self.assertFalse(json.loads(verified.stdout)["external_state_verified"])
 
     def test_interactive_only_asks_missing_material_domain_field(self):
         for profile in FIXTURES:

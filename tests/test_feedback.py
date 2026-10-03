@@ -694,11 +694,9 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(following["status"], "DISPATCH")
         self.assertEqual(len(feedback.replay(directory)[0]["attempts"]), 2)
 
-    def test_initialization_rejects_mixed_profile_or_missing_target_graph(self):
+    def test_initialization_rejects_missing_target_graph(self):
         packet = make_packet()
-        contract = wp.read_json(ROOT / "examples/work-packets/family-law.contract.json")
-        other = wp.create("FAMILY-SYN-001", "family-law", contract, "Architect", "Synthetic indexing fixture", timestamp())
-        for index, graph in enumerate(([packet, other], [])):
+        for index, graph in enumerate(([],)):
             with self.subTest(graph_size=len(graph)):
                 directory = self.directory / f"invalid-graph-{index}"
                 with self.assertRaises(ValueError):
@@ -893,15 +891,6 @@ class ActualBootstrapGateTests(unittest.TestCase):
         self.assertEqual(state["reason"], "CURRENT_APPROVAL_REQUIRED")
         self.assertEqual(sequence, 2)
         self.assertEqual(state["attempts"], [])
-
-    def test_packet_profile_must_match_the_actual_approved_project(self):
-        contract = wp.read_json(ROOT / "examples/work-packets/family-law.contract.json")
-        packet = wp.create("FAMILY-SYN-001", "family-law", contract, "Architect", "Synthetic indexing fixture", timestamp())
-        for target in ("ARCHITECTED", "READY"):
-            packet = wp.transition(packet, target, "architect", "Architect", "Synthetic readiness", ["Synthetic evidence"], timestamp=timestamp())
-        with self.assertRaisesRegex(ValueError, "profile differs"):
-            feedback.initialize(self.ledger, packet, [packet], policy(), self.settings, self.root, "Architect", timestamp())
-        self.assertFalse(self.ledger.exists())
 
     def test_completion_still_records_reserved_work_after_real_approval_revocation(self):
         self.initialize()

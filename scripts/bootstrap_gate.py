@@ -27,7 +27,7 @@ def inactive_approval() -> dict:
 
 def profile_from_template(root: Path) -> str:
     text = (root / "DOMAIN_PROFILE.md").read_text(encoding="utf-8")
-    for title, profile in (("North Carolina Family Law", "family-law"), ("North Carolina Civil Rights", "civil-rights-nc"), ("Software + Hardware", "software-hardware"), ("Software and Hardware", "software-hardware")):
+    for title, profile in (("Software + Hardware", "software-hardware"), ("Software and Hardware", "software-hardware")):
         if title in text.splitlines()[0]:
             return profile
     raise ValueError("Select --profile; template profile could not be identified")

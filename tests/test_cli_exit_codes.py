@@ -38,7 +38,6 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import cli_exit  # noqa: E402
-import github_ledger  # noqa: E402
 
 feedback = acceptance.feedback
 harness = acceptance.harness
@@ -245,7 +244,7 @@ class SharedWrapperTests(unittest.TestCase):
                 guarded[path.name] = [ast.unparse(guard) for guard in guards]
         # Every command line is guarded; a module without one is a library (cli_exit, progress).
         self.assertEqual(sorted(guarded), sorted(path.name for path in entry_points()))
-        self.assertGreaterEqual(len(guarded), 14)
+        self.assertGreaterEqual(len(guarded), 12)
         for name, guards in guarded.items():
             with self.subTest(script=name):
                 # The first statement after the future import guards startup; the last runs main.
@@ -323,8 +322,7 @@ class ExitCodeTableTests(CliAssertions, unittest.TestCase):
         self.usage(cli("work_packet.py"))
         refused = self.expect(cli("work_packet.py", "validate", self.directory / "absent.json"), 1)
         self.assertIn("WORK PACKET INVALID", refused.stderr)
-        for script, profile in (("software_hardware.py", "software-hardware"), ("family_law.py", "family-law"),
-                                ("civil_rights_nc.py", "civil-rights-nc")):
+        for script, profile in (("software_hardware.py", "software-hardware"),):
             with self.subTest(script=script):
                 example = ROOT / f"examples/work-packets/{profile}.contract.json"
                 self.expect(cli(script, "validate-contract", example), 0, "valid", True)
@@ -351,21 +349,6 @@ class ExitCodeTableTests(CliAssertions, unittest.TestCase):
                         "--config", write_json(self.directory / "router.json", stopped),
                         "--request", write_json(self.directory / "request.json", routing_request(packet)),
                         "--output", self.directory / "record.json"), 2, "status", "STOP")
-
-    def test_github_ledger(self):
-        config = ROOT / "config/github-ledger.example.json"
-        self.usage(cli("github_ledger.py", "audit"))
-        refused = self.expect(cli("github_ledger.py", "--config", self.directory / "absent.json", "audit"), 1)
-        self.assertIn("GitHub ledger refused", refused.stderr)
-        # An audit reads GitHub, so its mapping is pinned in-process with the audit itself stubbed.
-        for valid, code in ((True, 0), (False, 2)):
-            with self.subTest(valid=valid):
-                outcome = {"errors": [] if valid else ["Synthetic drift"], "valid": valid}
-                stdout = io.StringIO()
-                with mock.patch.object(github_ledger.Ledger, "audit", return_value=outcome), \
-                        contextlib.redirect_stdout(stdout):
-                    self.assertEqual(github_ledger.main(["--config", str(config), "audit"]), code)
-                self.assertIs(json.loads(stdout.getvalue())["valid"], valid)
 
 
 class ControllerExitCodeTests(CliAssertions, AcceptanceBase):

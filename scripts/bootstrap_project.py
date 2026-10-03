@@ -30,8 +30,8 @@ EXCLUDE_NAMES = {
 }
 # The template's own build evidence. A generated project starts its own history, so these are
 # removed rather than inherited (#49); reusable docs, examples and templates stay.
-TRACK_FOR_PROFILE = {"software-hardware": "hardware", "family-law": "family-law", "civil-rights-nc": "civil-suit"}
-TEMPLATE_HISTORY = ("docs/ISSUE_*_VALIDATION.md", "docs/WORKER_STARTUP_VALIDATION.md",
+TRACK_FOR_PROFILE = {"software-hardware": "hardware"}
+TEMPLATE_HISTORY = ("archive/docs/ISSUE_*_VALIDATION.md", "archive/docs/WORKER_STARTUP_VALIDATION.md",
                     "archive/*_ARCHIVE_*.md")
 
 

@@ -19,11 +19,11 @@ SPEC = importlib.util.spec_from_file_location("work_packet_under_test", SCRIPT)
 work_packet = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(work_packet)
 
-PROFILES = ("software-hardware", "family-law", "civil-rights-nc")
+PROFILES = ("software-hardware",)
 PROFILE = PROFILES[0]
-# Every canonical profile now registers a domain module, so the generic path for a profile without
-# one (work_packet.domain_errors returning no rules) is exercised by unregistering one for the test.
-UNREGISTERED = "civil-rights-nc"
+# The only canonical profile registers a domain module, so the generic path for a profile without
+# one (work_packet.domain_errors returning no rules) is exercised by unregistering it for the test.
+UNREGISTERED = "software-hardware"
 STAMP = "2026-09-12T12:00:00Z"
 EVIDENCE = ["synthetic-check-record-001"]
 STEPS = (
@@ -153,8 +153,7 @@ class ContractTests(unittest.TestCase):
             self.assertEqual(work_packet.validate_contract(contract, UNREGISTERED), [])
             contract["version"] = 2
             self.assertTrue(work_packet.validate_contract(contract, UNREGISTERED))
-        # ... and a registered profile's module decides what its block admits (software-hardware,
-        # family-law and civil-rights-nc all close it).
+        # ... and a registered profile's module decides what its block admits (software-hardware closes it).
         contract = fixture()
         contract["domain"]["custom"] = "Not in the contract"
         self.assertTrue(any("Additional properties" in e for e in work_packet.validate_contract(contract, PROFILE)))
@@ -285,7 +284,7 @@ class ContractTests(unittest.TestCase):
 
 
 class LifecycleTests(unittest.TestCase):
-    def test_all_profiles_complete_legal_lifecycle_with_immutable_inputs(self):
+    def test_all_profiles_complete_lifecycle_with_immutable_inputs(self):
         for profile in PROFILES:
             with self.subTest(profile=profile):
                 original = packet(profile=profile)
@@ -358,11 +357,13 @@ class LifecycleTests(unittest.TestCase):
             move(value, "ARCHITECTED", "architect", "Architect")
 
     def test_forged_contract_hashes_and_identity_bindings_are_rejected(self):
-        for field, replacement in (("task_id", "ANOTHER-TASK"), ("domain_profile", "family-law")):
-            with self.subTest(field=field):
-                value = packet()
-                value[field] = replacement
-                self.assertIn("contract hash mismatch", "; ".join(work_packet.validate(value)))
+        value = packet()
+        value["task_id"] = "ANOTHER-TASK"
+        self.assertIn("contract hash mismatch", "; ".join(work_packet.validate(value)))
+        # With one canonical profile there is no other valid binding, so a foreign profile is refused outright.
+        value = packet()
+        value["domain_profile"] = "other-profile"
+        self.assertTrue(work_packet.validate(value))
         value = packet()
         value["revision_history"][0]["contract"]["goal"] = "Unrecorded scope expansion"
         self.assertIn("contract hash mismatch", "; ".join(work_packet.validate(value)))

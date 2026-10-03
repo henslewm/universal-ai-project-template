@@ -2,8 +2,6 @@ name: Validate AI project repository
 
 on:
   push:
-    paths-ignore:
-      - '.autonomy/ledger.json'
   pull_request:
 
 jobs:

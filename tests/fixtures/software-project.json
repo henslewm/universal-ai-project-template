@@ -1,0 +1,54 @@
+{
+  "project_name": "Example Complex Matter",
+  "objective": "Create a source-pinned interface record and execution plan for a high-stakes hardware/software project.",
+  "problem_statement": "Hardware and software interface facts are distributed across multiple systems and models.",
+  "success_criteria": [
+    "Controlling specifications are indexed and contradictions are surfaced",
+    "Priority actions have owners and deadlines",
+    "Another model can continue from the handoff without the chat transcript"
+  ],
+  "deliverables": [
+    "Verified interface table",
+    "Issue matrix",
+    "Action plan"
+  ],
+  "target_date": "2026-09-30",
+  "domain": "software",
+  "jurisdiction_or_version": "1.0",
+  "risk_tier": "critical",
+  "sensitivity": "internal",
+  "owner": "Example Owner",
+  "ai_clients": [
+    "chatgpt",
+    "codex",
+    "claude",
+    "claude-code"
+  ],
+  "connectors": [
+    "github",
+    "web"
+  ],
+  "connector_permissions": {
+    "github": "read-and-project-write",
+    "web": "read"
+  },
+  "source_locations": [
+    "Repository",
+    "Vendor datasheets"
+  ],
+  "repeatable_workflows": [
+    "interface contract audit"
+  ],
+  "output_formats": [
+    "markdown",
+    "pdf"
+  ],
+  "constraints": [
+    "Preserve originals",
+    "No publishing without explicit approval"
+  ],
+  "out_of_scope": [
+    "Production release"
+  ],
+  "domain_profile": "software-hardware"
+}

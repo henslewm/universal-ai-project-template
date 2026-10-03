@@ -80,8 +80,6 @@ Use `FEEDBACK_PROTOCOL.md` for bounded attempts: retain one authoritative task l
 
 Use `EXECUTION_HARNESS_PROTOCOL.md` to dispatch a reserved attempt to a bounded worker harness and ingest its report. The harness renders only the context the packet permits, never invokes a model itself, and refuses a report that invents validation ids, grades itself, or widens scope. Cline is the default harness and is replaceable; routing, attempt budgets and scope rules stay outside it.
 
-Use `GITHUB_LEDGER_PROTOCOL.md` to publish/recover canonical packets and full feedback history in an approved initialized project. One task has one canonical issue; comments link committed evidence. Reconcile uncertain publications before retrying. Audit live issue/PR/accepted-commit state and the generated project-state index; do not duplicate task narration in passdown documents. Recovery does not grant dispatch authority.
-
 ## Connector selection
 
 Use `CONNECTOR_PLAN.md` as the project-specific authority. Default to least privilege:

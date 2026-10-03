@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-PROFILES = {"software-hardware", "family-law", "civil-rights-nc"}
+PROFILES = {"software-hardware"}
 STATES = {"NEW", "ORIENTING", "INTAKE", "ARCHITECTING", "AWAITING_APPROVAL", "ACTIVE", "NEEDS_INPUT", "BLOCKED", "REVISION_REQUESTED", "ARCHIVED"}
 FINGERPRINT_FIELDS = ("schema_version", "domain_profile", "project", "architecture", "sources", "risks", "routing", "workflow", "human_gates", "domain", "unresolved", "configuration", "documents")
 BOUND_DOCUMENTS = ("PROJECT_CHARTER.md", "CONNECTOR_PLAN.md", "SKILL_PLAN.md", "DOMAIN_PROFILE.md")
@@ -30,30 +30,6 @@ DOMAIN_FIELDS = {
         "validation_resources": "Test fixtures, simulators, loopback and hardware-in-loop resources available",
         "physical_access": "Physical-access constraints: who can operate the hardware, when, and safety limits",
         "architecture_boundaries": "Architecture boundaries whose change requires user approval",
-    },
-    "family-law": {
-        "case_identity": "Court/county, case number(s), parties and procedural posture, with source references",
-        "controlling_orders": "Current controlling orders and judgments in effect, with source references",
-        "objectives_and_deadlines": "Ranked objectives, disputed issues, pending matters and deadlines",
-        "discovery": "Discovery served, received and outstanding, with preservation obligations",
-        "evidence": "Evidence/exhibit sources, locations, provenance and preservation constraints",
-        "financial_support": "Income, expenses, assets/debts and support-calculation inputs, with sources",
-        "parenting_custody": "Parenting time, decision-making authority and safety/welfare inputs, with sources",
-        "adverse_facts": "Known adverse facts, weaknesses and the opposing party's positions",
-        "appellate_preservation": "Objections made or needed and preservation-of-error/appeal posture",
-        "reserved_actions": "Standing restrictions and user-reserved consequential actions (filing, service, external communication, disclosure)",
-    },
-    "civil-rights-nc": {
-        "forum_jurisdiction": "Forum/court, jurisdictional basis and venue, with source references",
-        "defendants_roles": "Potential defendants, each one's role and attributed conduct, with source references",
-        "capacities": "Individual/official/entity capacity analyzed for each potential defendant",
-        "alleged_rights": "Federal constitutional rights (42 U.S.C. § 1983) and North Carolina constitutional provisions (Corum) alleged, per defendant",
-        "procedural_history": "Procedural history to date and preservation posture, with source references",
-        "evidence_sources": "Evidence sources, locations, provenance, authentication and preservation constraints",
-        "limitations_accrual": "Limitations/accrual timeline and any notice, exhaustion or other prerequisites",
-        "objectives_remedies": "Ranked objectives and requested remedies (damages, declaratory, injunctive, fees)",
-        "prior_proceedings": "Prior and parallel proceedings (criminal, administrative, family-court or other) that may bar or affect a claim",
-        "reserved_actions": "Standing restrictions and user-reserved consequential actions (filing, service, contacting a court/party/witness, disclosure)",
     },
 }
 
