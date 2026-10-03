@@ -1,5 +1,12 @@
 # Project State
 
+## Current (2026-10-03): trimmed to software and hardware tracks (ADR-083)
+
+- **Branch:** `claude/trim-to-sw-hw-tracks`, five commits since `main` (`53de2db`, `ac371d3`, `0bfd28a`, `d58473a`, `3b63fe6`). No PR opened yet; nothing is committed by this records pass.
+- **Verified:** 434 tests with 2 expected Windows-only failures (exec-bit tests in `tests/test_sync_skills.py`); `validate_project.py` passes with 81 required paths; tracked lines about 43k, down from about 92k.
+- **Scope now:** legal profiles are archived to `archive/legal/` and not served; `worker_launcher` and `github_ledger` are removed; the payload mirror is untracked and built by `sync_skills.py` and CI; software-only projects use `software-hardware` with `--no-hardware` (web-ui track). Bound documents changed, so any activated project needs re-approval (OL-029). The older sections below predate this trim and describe legal and launcher work that is now archived or removed.
+- **Uncommitted owner files, untouched:** `.claude/settings.json` and `docs/proposed-beta-readiness-spec.md` (OL-032).
+
 - **Status:** TEMPLATE MAINTENANCE — records pass on `claude/relaxed-heisenberg-94d1yp` (2026-09-29) for PRs merged since the last handoff: #67 (`cli_colors`, ADR-078), #70 (operator launcher, ADR-077), #71, #83 (civil-rights-nc module, ADR-079, merged with no automated review), #88 (evidence-gap form, ADR-076), #89 and #90 (charter requirements); #91 and #92 merged empty. #84 is fixed on this branch (ADR-080). There are no open PRs on `main` at `6ab49c8`; the branch's draft PR is the records pass. #11 is the active child and is not closed: post-merge review, the repeat-dogfood acceptance run (cross-family reviewer) and merge remain. Earlier state: #9 and #10 closed (PRs #34, #35, #50, #54), lean worker startup (ADR-070, PR #58), ADR-071 to ADR-076 decided
 - **Last verified:** 2026-09-29 UTC
 - **Active branch:** `claude/relaxed-heisenberg-94d1yp`
@@ -8,7 +15,7 @@
 
 ## Verified foundation
 
-Issues #2 through #9 are closed through merged PRs #15 to #34. #9 (complete software + hardware domain template and hardware-in-loop discipline) was accepted through its dogfood at `_acceptance-demo-9b` on 2026-09-14 (11 events, cross-family approval, no waiver, after ADR-026 to ADR-029), then its PR #34 went through 23 rounds of Codex review before a clean result and merge on 2026-09-15 at `d873ec5cd1be503a19880eacbaf9cfba764d9fa5`. Decisions ADR-041 through ADR-055 record every round; `docs/ISSUE_9_VALIDATION.md` holds the full mapping.
+Issues #2 through #9 are closed through merged PRs #15 to #34. #9 (complete software + hardware domain template and hardware-in-loop discipline) was accepted through its dogfood at `_acceptance-demo-9b` on 2026-09-14 (11 events, cross-family approval, no waiver, after ADR-026 to ADR-029), then its PR #34 went through 23 rounds of Codex review before a clean result and merge on 2026-09-15 at `d873ec5cd1be503a19880eacbaf9cfba764d9fa5`. Decisions ADR-041 through ADR-055 record every round; `archive/docs/ISSUE_9_VALIDATION.md` holds the full mapping.
 
 #9 delivered the software-hardware domain module (`scripts/software_hardware.py`, `config/domains/software-hardware.schema.json`) that structurally distinguishes a simulated pass (`command`, re-executed by the deterministic gate) from hardware-in-loop or field verification (an operator attestation binding a structured evidence record by digest, never a contract-declared claim). The 23-round review closed a class of gap in the generic acceptance controller that later domain modules should expect too: binding an operator's evidence to exactly the submission it was observed against is several independent checks, not one — the contract's revision and hash, the submitted result's dispatch identity, the artifact's actual identity (not merely a hash a reference-kind artifact can leave at a fixed empty-content value), and the observation's own timestamp bounded on both sides by the current submission and the attestation event. `acceptable()` also now distinguishes replaying an already-accepted ledger's history from justifying a brand-new acceptance today, so a stored decision that rested on since-invalidated evidence keeps replaying as history without letting a *new* decision rest on the same thing.
 

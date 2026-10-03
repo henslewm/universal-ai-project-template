@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-03 — Trim to software and hardware tracks (ADR-083)
+
+- Legal profiles archived to `archive/legal/` and no longer served. `scripts/worker_launcher.py` and `scripts/github_ledger.py` removed (supersedes ADR-077, the launcher part of ADR-073, and the GitHub-ledger ADRs).
+- The payload mirror `skills/complex-project-bootstrapper/assets/project-template` is no longer tracked; `scripts/sync_skills.py` and CI build it before tests.
+- Software-only projects use the `software-hardware` profile, with `--no-hardware` selecting the `web-ui` track (satisfies ADR-082's web-ui bootstrap item).
+- Bound documents changed, so an activated project needs re-approval. PLATFORMIO and profile cleanup.
+- Commits on `claude/trim-to-sw-hw-tracks`: `53de2db`, `ac371d3`, `0bfd28a`, `d58473a`, `3b63fe6`.
+- Verified: 434 tests with 2 expected Windows-only failures (exec-bit tests in `tests/test_sync_skills.py`); `validate_project.py` passes with 81 required paths; tracked lines about 43k, down from about 92k.
+
 ## 2026-10-01 — Mistral Vibe CLI settings
 
 - `.vibe/config.toml` sets `default_agent = "default"` and `[tools.bash] permission = "ask"`; `MASTER_MISTRAL.md` gains a Vibe CLI section; `validate_project.py` requires the file. Keys are from the official configuration page; nothing beyond them is set.

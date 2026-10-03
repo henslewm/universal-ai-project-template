@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Software + hardware domain extension",
-  "description": "Profile-specific structure for a software-hardware contract's `domain` block and for the hardware evidence record that a hardware-rung attestation must bind. The common contract is enforced independently; this schema adds structure and never loosens it. Runtime rules in scripts/software_hardware.py add the cross-field checks: every validation id is mapped to exactly one rung, rungs at or below integration require a declared command, hardware rungs forbid one, and VERIFIED_ON_HARDWARE is never authored in a contract.",
+  "description": "Profile-specific structure for a software-hardware contract's `domain` block and for the hardware evidence record that a hardware-rung attestation must bind. The common contract is enforced independently; this schema adds structure and never loosens it. Runtime rules in scripts/software_hardware.py add the cross-field checks: every validation id is mapped to exactly one rung, rungs at or below integration require a declared command, hardware rungs forbid one. The verification ladder and the rule that VERIFIED_ON_HARDWARE is never authored are in templates/software-hardware/PROFILE.md.",
   "$defs": {
     "nonblank": {
       "type": "string",
@@ -64,7 +64,7 @@
         "UNVERIFIED_ON_HARDWARE",
         "NOT_HARDWARE_FACING"
       ],
-      "description": "What a contract may declare. VERIFIED_ON_HARDWARE is never authored; it is derived from an accepted acceptance ledger whose hardware-rung validations were all attested with bound evidence."
+      "description": "What a contract may declare. See templates/software-hardware/PROFILE.md (Verification ladder) for how hardware status is earned."
     },
     "contract_domain": {
       "type": "object",
@@ -125,11 +125,6 @@
         "synthetic": {
           "type": "boolean",
           "description": "True when every input is fictional and establishes no real hardware behavior."
-        },
-        "template_child_issue": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "For this template's own dogfood packets only: the child issue the packet reviews."
         }
       },
       "description": "Closed: no free-text field exists in which a hardware claim could be written; hardware status is carried by hardware_status alone and VERIFIED_ON_HARDWARE is refused wherever it appears."

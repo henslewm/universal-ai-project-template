@@ -1,6 +1,6 @@
 # Track: web-ui (web-frontend software, no hardware)
 
-Software whose only interface is a web UI. There is no hardware, so none of the hardware rungs of the verification ladder apply. This track has no bootstrap domain profile yet (ADR-082), so `bootstrap_project.py` does not select it.
+Software whose only interface is a web UI. There is no hardware, so none of the hardware rungs of the verification ladder apply. It is selected at bootstrap with `bootstrap_project.py --no-hardware` (or answering no to "Does the project involve hardware?"). The project still uses the `software-hardware` profile; the hardware-only intake fields (`hardware_identity`, `physical_access`) are filled with a fixed "no hardware" statement and this track is imported instead of `hardware`.
 
 ## Provisional verification
 

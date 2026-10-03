@@ -24,14 +24,6 @@ class BootstrapGateTests(unittest.TestCase):
         self.assertEqual([], MODULE.validate(data))
         self.assertEqual("AWAITING_APPROVAL", data["state"])
 
-    def test_family_law_awaiting_is_valid(self) -> None:
-        data = self.load("tests/fixtures/bootstrap-family-law-awaiting.json")
-        self.assertEqual([], MODULE.validate(data))
-
-    def test_civil_rights_awaiting_is_valid(self) -> None:
-        data = self.load("tests/fixtures/bootstrap-civil-rights-awaiting.json")
-        self.assertEqual([], MODULE.validate(data))
-
     def test_active_without_approval_is_rejected(self) -> None:
         data = self.load("tests/fixtures/bootstrap-active-missing-approval.json")
         errors = MODULE.validate(data)
@@ -112,7 +104,7 @@ class BootstrapGateTests(unittest.TestCase):
             self.assertTrue(MODULE.validate(data))
 
     def test_domain_orientation_and_unresolved_blockers_gate_review(self):
-        for rel in ("config/bootstrap.example.json", "tests/fixtures/bootstrap-family-law-awaiting.json", "tests/fixtures/bootstrap-civil-rights-awaiting.json"):
+        for rel in ("config/bootstrap.example.json",):
             data = self.load(rel)
             for field in MODULE.DOMAIN_FIELDS[data["domain_profile"]]:
                 changed = copy.deepcopy(data)

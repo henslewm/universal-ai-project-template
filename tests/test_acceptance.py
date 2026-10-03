@@ -26,7 +26,6 @@ acceptance = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(acceptance)
 wp = acceptance.wp
 feedback = acceptance.feedback
-import github_ledger  # noqa: E402  (the publication seam is exercised end to end below)
 ANCHOR = "a" * 64
 PASS_ARGV = [sys.executable, "-c", "raise SystemExit(0)"]
 FAIL_ARGV = [sys.executable, "-c", "print('observed failure'); raise SystemExit(3)"]
@@ -1455,24 +1454,6 @@ class FeedbackIntegrationTests(AcceptanceBase):
         self.assertEqual(outcome["packet_state"], "ACCEPTED")
         with self.assertRaisesRegex(ValueError, "Controller hold"):
             feedback.reserve(fb, self.settings, self.options(), self.directory)
-        # ADR-025: the accepted task can complete publication. The GitHub ledger refused any
-        # feedback ledger not still at REVIEW_PENDING, so recording the acceptance made the
-        # task unpublishable — the two subsystems were mutually exclusive at the closing step.
-        fb_state = feedback.replay(fb)[0]
-        events = [wp.read_json(path) for path in sorted(fb.glob("*.json"))]
-        verified = wp.transition(fb_state["packet"], "VERIFIED", "integrator", "Integrator",
-                                 "Synthetic verification", ["synthetic://checks"])
-        row = {"issue": 2, "packet": verified, "feedback": events, "branch": None, "pr": None,
-               "superseded_prs": [], "discoveries": {},
-               "acceptance": {"commit": "c" * 40, "evidence": ["synthetic://checks"],
-                              "review": ["synthetic://independent-review"]}}
-        github_ledger.row_valid(fb_state["packet"]["task_id"], row, fb_state["anchor"])
-        # Still refused: a receipt on the accepted-but-unverified packet, so the integrator step
-        # is not skipped; the packet state machine itself forbids any non-reviewer/integrator
-        # transition out of ACCEPTED, and held or unfinished ledgers stay refused as before.
-        premature = dict(row, packet=fb_state["packet"])
-        with self.assertRaisesRegex(ValueError, "Acceptance requires a VERIFIED packet"):
-            github_ledger.row_valid(fb_state["packet"]["task_id"], premature, fb_state["anchor"])
 
     def test_acceptance_decision_is_bound_to_its_own_task_and_result(self):
         # Codex P1 on PR #21: task A's accepted ledger forwarded to task B's feedback ledger

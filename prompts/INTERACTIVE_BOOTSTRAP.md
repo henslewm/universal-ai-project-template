@@ -4,7 +4,7 @@ Use this procedure when starting or retrofitting a project. `BOOTSTRAP_PROTOCOL.
 
 ## 1. Orient before asking
 
-Read the repository startup instructions and durable state. Inspect available authorized sources/connectors that can resolve project facts. Determine the canonical profile (`software-hardware`, `family-law`, or `civil-rights-nc`) and whether the project is greenfield or existing work.
+Read the repository startup instructions and durable state. Inspect available authorized sources/connectors that can resolve project facts. Determine the canonical profile (`software-hardware`; add `--no-hardware` when software-only) and whether the project is greenfield or existing work.
 
 Build a private intake table with four statuses: VERIFIED, PROPOSED DEFAULT, UNRESOLVED, CONFLICTING. Do not ask the user for VERIFIED information merely to fill a questionnaire.
 
@@ -12,7 +12,7 @@ Build a private intake table with four statuses: VERIFIED, PROPOSED DEFAULT, UNR
 
 Ask only unresolved questions whose answers materially affect objective, definition of done, architecture boundaries, dependencies, authoritative sources/evidence, risk, cost/routing posture, or human intervention conditions. Prefer a few related questions at a time. Explain a proposed default when it avoids an unnecessary interruption.
 
-Save recovered common fields in an optional `verified-intake.json`; put profile orientation and any existing architecture proposal under its `bootstrap` object. The interactive collector reuses supplied fields and asks only missing common intake and profile orientation fields. The domain profile adds required questions under the common `domain` extension (the software-hardware set is complete; family-law and civil-rights remain #10/#11) and cannot weaken the common gate.
+Save recovered common fields in an optional `verified-intake.json`; put profile orientation and any existing architecture proposal under its `bootstrap` object. The interactive collector reuses supplied fields and asks only missing common intake and profile orientation fields. The domain profile adds required questions under the common `domain` extension (the software-hardware set is complete) and cannot weaken the common gate.
 
 ## 3. Generate inactive setup, then architect
 
@@ -22,7 +22,7 @@ For a new/empty destination, run from the template root:
 python scripts/bootstrap_project.py --interactive --answers verified-intake.json --profile software-hardware --destination ../my-project --no-git
 ```
 
-Omit `--answers` and its filename when no answers file exists; substitute `family-law` or `civil-rights-nc` as appropriate. Use `--destination .` only for an uninitialized template repository. The generator creates `config/bootstrap.json` in `INTAKE` with autonomy off, tailored control files, and an initial `BOOTSTRAP_REVIEW.md` with readiness gaps. Canonical templates include snapshots of existing domain documents.
+Omit `--answers` and its filename when no answers file exists; add `--no-hardware` for a software-only project (selects the `web-ui` track). Use `--destination .` only for an uninitialized template repository. The generator creates `config/bootstrap.json` in `INTAKE` with autonomy off, tailored control files, and an initial `BOOTSTRAP_REVIEW.md` with readiness gaps. Canonical templates include snapshots of existing domain documents.
 
 Rebootstrap of initialized projects is refused. Preserve existing records and evidence during a retrofit; add only missing controls. If bootstrap state already exists, revise that package and use review. Do not delete state or reset template mode to bypass preservation checks.
 

@@ -143,14 +143,13 @@ class ContractRuleTests(unittest.TestCase):
     def test_domain_rules_apply_only_to_the_registered_profile(self):
         broken = example()
         broken["domain"] = {"synthetic": True}
-        # Every canonical profile now registers a module, so the no-module path is exercised by
-        # unregistering one for the duration of the check.
+        # The only canonical profile registers a module, so the no-module path is exercised by
+        # unregistering it for the duration of the check.
         with mock.patch.dict(wp.DOMAIN_MODULES):
-            del wp.DOMAIN_MODULES["civil-rights-nc"]
-            self.assertEqual(wp.validate_contract(broken, "civil-rights-nc"), [])
-            self.assertIsNone(wp.domain_module("civil-rights-nc"))
+            del wp.DOMAIN_MODULES["software-hardware"]
+            self.assertEqual(wp.validate_contract(broken, "software-hardware"), [])
+            self.assertIsNone(wp.domain_module("software-hardware"))
         self.assertTrue(any(e.startswith("domain:") for e in errors_for(broken)))
-        self.assertTrue(any(e.startswith("domain:") for e in wp.validate_contract(broken, "civil-rights-nc")))
         # There is no default profile: a caller cannot skip the domain rules by omitting it.
         with self.assertRaises(TypeError):
             wp.validate_contract(broken)
@@ -687,17 +686,6 @@ class AttestationRuleTests(AcceptanceBase):
         contract["domain"].update(hardware_assumptions=[], protocol_references=[], hardware_status="NOT_HARDWARE_FACING")
         ledger, _ = self.start(packet=make_packet(contract))
         self.assertEqual(domain.status(ledger)["earned_hardware_status"], "NOT_HARDWARE_FACING")
-
-    def test_status_refuses_another_profile(self):
-        contract = wp.read_json(ROOT / "examples/work-packets/family-law.contract.json")
-        packet = wp.create("LEGAL-SYN-001", "family-law", contract, "Architect", "Synthetic")
-        for target, role, actor in (("ARCHITECTED", "architect", "Architect"), ("READY", "architect", "Architect"),
-                                    ("IN_PROGRESS", "worker", "Worker"), ("VALIDATING", "worker", "Worker"),
-                                    ("REVIEW", "worker", "Worker")):
-            packet = wp.transition(packet, target, role, actor, "Synthetic", ["synthetic-state-evidence"])
-        ledger, _ = self.start(packet=packet)
-        with self.assertRaisesRegex(ValueError, "not software-hardware"):
-            domain.status(ledger)
 
 
 class ExampleProjectTests(AcceptanceBase):

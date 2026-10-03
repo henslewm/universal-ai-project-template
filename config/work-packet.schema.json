@@ -23,9 +23,7 @@
     "domain_profile": {
       "type": "string",
       "enum": [
-        "software-hardware",
-        "family-law",
-        "civil-rights-nc"
+        "software-hardware"
       ]
     },
     "state": {
