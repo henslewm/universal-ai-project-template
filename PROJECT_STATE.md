@@ -1,11 +1,11 @@
 # Project State
 
-## Current (2026-10-03): trimmed to software and hardware tracks (ADR-083)
+## Current (2026-10-03): frozen at the software and hardware tracks (ADR-089)
 
-- **Branch:** `claude/trim-to-sw-hw-tracks`, five commits since `main` (`53de2db`, `ac371d3`, `0bfd28a`, `d58473a`, `3b63fe6`). No PR opened yet; nothing is committed by this records pass.
-- **Verified:** 434 tests with 2 expected Windows-only failures (exec-bit tests in `tests/test_sync_skills.py`); `validate_project.py` passes with 81 required paths; tracked lines about 43k, down from about 92k.
-- **Scope now:** legal profiles are archived to `archive/legal/` and not served; `worker_launcher` and `github_ledger` are removed; the payload mirror is untracked and built by `sync_skills.py` and CI; software-only projects use `software-hardware` with `--no-hardware` (web-ui track). Bound documents changed, so any activated project needs re-approval (OL-029). The older sections below predate this trim and describe legal and launcher work that is now archived or removed.
-- **Owner files resolved (OL-032, closed):** the `.claude/settings.json` change was reverted and the beta-readiness spec moved to issue #103.
+- **Scope:** the software and hardware tracks are complete: bootstrap (including `--no-hardware`), work packets, acceptance, feedback, model routing and the hardware verification ladder. Legal profiles are archived under `archive/legal/`; `worker_launcher` and `github_ledger` are removed (ADR-083). Further work only on a new owner request.
+- **Decisions (ADR-089):** review cap of 4 per PR, worker-attempt default 2 (recorded only), approvals unchanged, no combined ledger, no automatic delegation, savings telemetry (#12, #13) deferred. ADR-084 to ADR-088 withdrawn.
+- **Verified:** `validate_project.py` passes with 81 required paths; `sync_skills.py --check` clean.
+- **Open:** OL-034 (hardware track depends on acceptance, feedback, router and harness) is a standing note; no activated project exists, so nothing needs re-approval.
 
 - **Status:** TEMPLATE MAINTENANCE — records pass on `claude/relaxed-heisenberg-94d1yp` (2026-09-29) for PRs merged since the last handoff: #67 (`cli_colors`, ADR-078), #70 (operator launcher, ADR-077), #71, #83 (civil-rights-nc module, ADR-079, merged with no automated review), #88 (evidence-gap form, ADR-076), #89 and #90 (charter requirements); #91 and #92 merged empty. #84 is fixed on this branch (ADR-080). There are no open PRs on `main` at `6ab49c8`; the branch's draft PR is the records pass. #11 is the active child and is not closed: post-merge review, the repeat-dogfood acceptance run (cross-family reviewer) and merge remain. Earlier state: #9 and #10 closed (PRs #34, #35, #50, #54), lean worker startup (ADR-070, PR #58), ADR-071 to ADR-076 decided
 - **Last verified:** 2026-09-29 UTC

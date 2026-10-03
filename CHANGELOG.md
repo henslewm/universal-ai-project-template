@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 — Freeze at the software and hardware tracks (ADR-089)
+
+- Owner decisions: review cap of 4 (rule added to `MASTER_INSTRUCTIONS.md`), worker-attempt default 2 (recorded only), approvals unchanged, no combined ledger, no automatic delegation, savings telemetry deferred. ADR-084 to ADR-088 withdrawn. The charter's decision sections are rewritten accordingly. No project is activated, so nothing needs re-approval.
+- The generated charter now says "business choices" and labels the field "Version".
+
 ## 2026-10-03 — Draft ADR-084 to ADR-088 for charter decisions A-D and F
 
 - Proposed, not in force: review cap (A), worker attempts (B), approvals and action ledger (C), single ledger and settings file (D), automatic delegation (F). Each awaits owner sign-off; the current rules still apply. Open owner questions are listed in each row, including question 2 for D.

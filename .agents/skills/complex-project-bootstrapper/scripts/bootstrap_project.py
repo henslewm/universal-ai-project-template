@@ -230,7 +230,7 @@ def write_project_files(dest: Path, answers: dict[str, Any]) -> None:
 - **Name:** {answers['project_name']}
 - **Slug:** {answers['project_slug']}
 - **Domain:** {answers['domain']}
-- **Jurisdiction / version:** {jurisdiction}
+- **Version:** {jurisdiction}
 - **Risk tier:** {answers['risk_tier']}
 - **Sensitivity:** {answers['sensitivity']}
 - **Owner:** {answers['owner']}
@@ -272,7 +272,7 @@ def write_project_files(dest: Path, answers: dict[str, Any]) -> None:
 
 ## Decision rights
 
-- The user owns goals, scope, legal/business choices, and consequential external actions.
+- The user owns goals, scope, business choices, and consequential external actions.
 - AI tools may research, analyze, draft, organize, validate, and make reversible repository changes within granted permissions.
 - Material adverse facts, conflicts, and high-impact assumptions must be surfaced.
 """

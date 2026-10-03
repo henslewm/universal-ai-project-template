@@ -2,31 +2,23 @@
 
 - **Prepared:** 2026-10-03
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `claude/trim-to-sw-hw-tracks` (six commits since `main`, through the ADR-083 records commit). No PR is open yet.
-- **Scope:** Trim to software and hardware tracks, owner-approved 2026-10-03 (ADR-083).
+- **Scope:** the template is frozen at the software and hardware tracks (ADR-089). Next work only on a new owner request.
 
-## What changed
+## What was decided
 
-- Legal profiles archived to `archive/legal/` and not served. `worker_launcher` and `github_ledger` removed (supersedes ADR-077, the launcher part of ADR-073, and ADR-007, ADR-008, ADR-009, ADR-025).
-- The payload mirror `skills/complex-project-bootstrapper/assets/project-template` is no longer tracked; `scripts/sync_skills.py` and CI build it before tests.
-- Software-only projects use the `software-hardware` profile; `--no-hardware` selects the `web-ui` track (satisfies ADR-082's web-ui bootstrap item).
-- Bound documents changed, so any activated project needs re-approval (OL-029).
-- Records updated: `DECISIONS.md` (ADR-083), `CHANGELOG.md`, `PROJECT_STATE.md`, `OPEN_LOOPS.md` (OL-029 to OL-035, annotations on OL-022, OL-024 to OL-027), `RISK_REGISTER.md` (R-009 note, R-016).
+- Review cap of 4 automated-review rounds per PR (rule in `MASTER_INSTRUCTIONS.md`); worker-attempt default 2 recorded only; approvals unchanged; no combined ledger; no automatic delegation; savings telemetry (#12, #13) deferred. ADR-084 to ADR-088 are withdrawn.
+- Legal work is archived in `archive/legal/` and not served. `worker_launcher` and `github_ledger` are removed (ADR-083). The generated-project charter wording is fixed (OL-031).
 
 ## Verified state
 
-- 434 tests; 2 expected Windows-only failures (exec-bit tests in `tests/test_sync_skills.py`).
-- `python scripts/validate_project.py` passes with 81 required paths.
-- Tracked lines about 43k, down from about 92k.
-- `validate_project.py` and `sync_skills.py --check` re-run clean after the records pass.
+- `python scripts/validate_project.py` passes (81 required paths); `python scripts/sync_skills.py --check` clean.
+- No project is activated from this template, so no re-approval is pending.
 
-## Exact next action
+## Next action
 
-1. Open a PR from `claude/trim-to-sw-hw-tracks`, request `@codex review` on the head SHA (ADR-074), answer every actionable finding, then wait for the owner's merge go-ahead.
-2. `elf_sha256` enforcement is deliberately docs-only; do not add enforcement under this PR.
-3. Owner decisions pending: OL-030 (charter item F), OL-028 (charter A-D, F).
+None queued. Ask the owner before starting anything new. The skill payload is built by `scripts/sync_skills.py` and is not tracked, so distribute the skill as a release zip.
 
 ## Notes
 
-- Unchecked: whether generated projects inherit `archive/` (OL-035). `software_hardware.py:369` lazily imports `acceptance` (OL-034). `bootstrap_project.py`'s charter template still says "legal/business choices" (OL-031).
 - Preserve ADR-062: confirm no other unattended agent is writing to the same tree before multi-file work.
+- `software_hardware.py` lazily imports `acceptance`, so the hardware track depends on acceptance, feedback, the router and the harness (OL-034).
