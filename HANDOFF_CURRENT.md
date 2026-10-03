@@ -24,7 +24,7 @@
 
 1. Open a PR from `claude/trim-to-sw-hw-tracks`, request `@codex review` on the head SHA (ADR-074), answer every actionable finding, then wait for the owner's merge go-ahead.
 2. `elf_sha256` enforcement is deliberately docs-only; do not add enforcement under this PR.
-3. Owner decisions pending: OL-032 (uncommitted `.claude/settings.json` and `docs/proposed-beta-readiness-spec.md`, left untouched), OL-030 (charter item F), OL-028 (charter A-D, F).
+3. Owner decisions pending: OL-030 (charter item F), OL-028 (charter A-D, F).
 
 ## Notes
 
