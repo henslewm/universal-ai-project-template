@@ -4,8 +4,8 @@
 |---|---|---|---|---|---|---|---|
 | OL-002 | High | Bootstrap acceptance | Maintainer | None; #2 closed and PR #15 merged at 500a7205 | Completion evidence in #2 and master comments | Complete | Closed |
 | OL-003 | High | Work-packet contract acceptance | Maintainer | None; #3 closed and PR #16 merged at e8dce903 | Completion evidence in #3 and master comments | Complete | Closed |
-| OL-004 | Medium | Complete detailed domain variants | Maintainer | Follow the later domain issues without expanding Issue #6 | Master #14 sequence and issues #9/#10/#11 | Not set | Deferred to owning issues |
-| OL-005 | Medium | Preserve audit clarifications | Maintainer | Validate the six delivered issue forms in #6; demonstrate automatic first task-graph generation in #13 | Requirements audit and owning issues | Not set | Deferred; master unchanged |
+| OL-004 | Medium | Complete detailed domain variants | Maintainer | Follow the later domain issues without expanding Issue #6 | Master #14 sequence and issues #9/#10/#11 | Complete | Closed 2026-10-04: #9 and #10 completed; #11 closed as not planned under ADR-089 (legal variants archived, ADR-083); recorded on master #14 (ADR-090) |
+| OL-005 | Medium | Preserve audit clarifications | Maintainer | Validate the six delivered issue forms in #6; demonstrate automatic first task-graph generation in #13 | Requirements audit and owning issues | Complete | Closed 2026-10-04: the six issue forms were delivered in #6; the task-graph demonstration lapsed with #13's deferral under ADR-089; recorded on master #14 (ADR-090) |
 | OL-006 | High | Model-router acceptance | Maintainer | None; #4 closed and PR #17 merged at e7c7c9c4 | Completion evidence in #4 and master comments | Complete | Closed |
 | OL-007 | High | Bounded-feedback acceptance | Maintainer | None; #5 closed through merged PR #18 at 7b4f88f9 | Completion evidence in #5 and master comments | Complete | Closed |
 | OL-008 | High | GitHub ledger acceptance | Maintainer | None; #6 closed through merged PR #19 at 5e0a28c6 | Completion evidence in #6 and master comments | Complete | Closed |
