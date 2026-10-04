@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-04 — Master issue #14 status section (ADR-090)
+
+- With the owner's interactive approval, a dated status section was prepended to the body of the locked master issue #14: ADR-089 freeze, legal variants archived (ADR-083), all twelve children closed, the shipped items from the "not yet complete" list, the two-track definition of done, and the standing review rules. Original text, title and order unchanged. A ledger comment records the #11, #12 and #13 closures.
+- Records: ADR-090; OL-004, OL-005 and OL-024 closed; SRC-002 re-verified; the stale active-#11 lines in `PROJECT_STATE.md` retired (Codex finding on PR #109).
+
 ## 2026-10-03 — Freeze at the software and hardware tracks (ADR-089)
 
 - Owner decisions: review cap of 4 (rule added to `MASTER_INSTRUCTIONS.md`), worker-attempt default 2 (recorded only), approvals unchanged, no combined ledger, no automatic delegation, savings telemetry deferred. ADR-084 to ADR-088 withdrawn. The charter's decision sections are rewritten accordingly. No project is activated, so nothing needs re-approval.
