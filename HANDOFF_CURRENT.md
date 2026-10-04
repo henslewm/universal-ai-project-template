@@ -7,7 +7,7 @@
 ## What was done
 
 - With the owner's interactive approval, the locked master issue [#14](https://github.com/henslewm/universal-ai-project-template/issues/14) gained a dated status section above its unchanged original text (ADR-090): the ADR-089 freeze, the archived legal variants (ADR-083), all twelve children closed, the shipped items from the "not yet complete" list, the two-track definition of done, and the standing review rules. Title, order and state unchanged. A ledger comment records the #11, #12 and #13 closures.
-- Records: ADR-090 appended; OL-004 and OL-005 closed; SRC-002 re-verified; changelog entry added.
+- Records: ADR-090 appended; OL-004, OL-005 and OL-024 closed; the active-child lines in `PROJECT_STATE.md` retired; SRC-002 re-verified; changelog entry added.
 
 ## Verified state
 
