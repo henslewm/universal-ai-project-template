@@ -25,7 +25,8 @@ When two sources conflict, do not silently choose. Identify the conflict, preser
 Before substantive work:
 
 1. Confirm the repository root, current branch, and working-tree status when tools allow.
-2. Read, in order, the startup views (ADR-091), not the whole records behind them:
+2. Run `python scripts/validate_project.py` when execution is available. It checks each startup view against its body; if it reports a record-view error, repair the view from the body it names before relying on it. Without a runtime, treat the views as unverified and open the cited body rows before acting on them.
+3. Read, in order, the startup views (ADR-091), not the whole records behind them:
    - `PROJECT_CHARTER.md`
    - `HANDOFF_CURRENT.md`
    - the `## Current (date)` section of `PROJECT_STATE.md`
@@ -33,9 +34,9 @@ Before substantive work:
    - the `## Index` of `DECISIONS.md`
    - `FACTS_AND_ASSUMPTIONS.md`
    - the active platform master
-3. Open a full ADR row, a closed loop, an older state section or a `SOURCE_INDEX.md` row only when a current record cites it or the task depends on it; search the record for the ID rather than reading the file. `scripts/validate_project.py` checks each view against its body (current date not older than the changelog, no closed loop in the open table, every index row resolving to a full row), so a view that validates can be trusted without the body.
-4. Inspect the newest relevant commits or handoff if another model may have worked since the last session.
-5. Reuse facts already established. Ask only questions whose answers materially change the plan and cannot be obtained from connected sources or the repository.
+4. Open a full ADR row, a closed loop, an older state section or a `SOURCE_INDEX.md` row only when a current record cites it or the task depends on it; search the record for the ID rather than reading the file. A view that passed step 2 (current date not older than the changelog, no closed loop in the open table, every index row resolving to exactly one full row) can be trusted without its body.
+5. Inspect the newest relevant commits or handoff if another model may have worked since the last session.
+6. Reuse facts already established. Ask only questions whose answers materially change the plan and cannot be obtained from connected sources or the repository.
 
 A subagent working a bounded brief, delegated by a session that has completed this protocol, does not repeat it: it reads only what its brief needs. The delegating session stays responsible for the startup reads and for putting the state and decisions the task depends on into the brief.
 

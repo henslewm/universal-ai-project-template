@@ -230,3 +230,17 @@ class RecordViewTests(unittest.TestCase):
         self.assertEqual(len(lines) - len(kept), 1, "exactly the ADR-089 index row is removed")
         decisions.write_text("\n".join(kept), encoding="utf-8")
         self.assertTrue(any("row for ADR-089 but the DECISIONS.md index has no row pointing at it" in e for e in self.errors()))
+
+    def test_duplicate_full_row_fails(self) -> None:
+        decisions = self.root / "DECISIONS.md"
+        text = decisions.read_text(encoding="utf-8")
+        row = next(line for line in text.split("\n") if line.startswith("| ADR-006 |") and "| below |" not in line)
+        decisions.write_text(text.rstrip("\n") + "\n" + row + "\n", encoding="utf-8")
+        self.assertTrue(any("full rows list ADR-006 twice" in e for e in self.errors()))
+
+    def test_duplicate_archive_row_fails(self) -> None:
+        archive = self.root / "archive/DECISIONS_ARCHIVE_ADR-070-090.md"
+        text = archive.read_text(encoding="utf-8")
+        row = next(line for line in text.split("\n") if line.startswith("| ADR-089 |"))
+        archive.write_text(text.rstrip("\n") + "\n" + row + "\n", encoding="utf-8")
+        self.assertTrue(any("DECISIONS_ARCHIVE_ADR-070-090.md lists ADR-089 twice" in e for e in self.errors()))

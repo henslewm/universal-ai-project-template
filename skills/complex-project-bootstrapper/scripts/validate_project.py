@@ -159,7 +159,11 @@ def validate_record_views(root: Path) -> list[str]:
                 if adr_id in index:
                     errors.append(f"DECISIONS.md index lists {adr_id} twice")
                 index[adr_id] = location
-            full = {cells[0] for cells in _table_rows(sections["Full rows"], "ADR-")}
+            full: set[str] = set()
+            for cells in _table_rows(sections["Full rows"], "ADR-"):
+                if cells[0] in full:
+                    errors.append(f"DECISIONS.md full rows list {cells[0]} twice")
+                full.add(cells[0])
             for adr_id in sorted(full - {k for k, v in index.items() if v == "below"}):
                 errors.append(f"DECISIONS.md full row {adr_id} has no index row pointing 'below'")
             archives: dict[str, str] = {}
@@ -180,7 +184,11 @@ def validate_record_views(root: Path) -> list[str]:
             # deleted index row would hide a durable decision from the startup view.
             for archive_path in sorted((root / "archive").glob("DECISIONS_ARCHIVE_*.md")):
                 rel = archive_path.relative_to(root).as_posix()
+                seen_rows: set[str] = set()
                 for cells in _table_rows(archive_path.read_text(encoding="utf-8"), "ADR-"):
+                    if cells[0] in seen_rows:
+                        errors.append(f"{rel} lists {cells[0]} twice")
+                    seen_rows.add(cells[0])
                     if index.get(cells[0]) != f"`{rel}`":
                         errors.append(f"{rel} has a row for {cells[0]} but the DECISIONS.md index has no row pointing at it")
     return errors

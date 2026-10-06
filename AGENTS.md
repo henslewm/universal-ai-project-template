@@ -22,7 +22,7 @@ Apply `MASTER_INSTRUCTIONS.md` → "Bootstrap / autonomy gate" exactly as stated
 - Use `.agents/skills/complex-project-bootstrapper/` for new-project initialization or project retrofits.
 - Use `.codex/agents/` for parallel, non-overlapping subagent work.
 - Dispatch bounded worker runs through `EXECUTION_HARNESS_PROTOCOL.md`; never widen a packet inside a worker.
-- Run `python scripts/validate_project.py` before completing material repository changes.
+- Run `python scripts/validate_project.py` at startup, before trusting the startup views, and again before completing material repository changes.
 - Apply the closeout protocol in `MASTER_INSTRUCTIONS.md`.
 
 ## Safety
