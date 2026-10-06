@@ -1,6 +1,14 @@
 # Project State
 
-## Current (2026-10-03): frozen at the software and hardware tracks (ADR-089)
+## Current (2026-10-06): unfrozen for startup views and delegation (ADR-091)
+
+- **Scope:** the ADR-089 freeze is lifted for two owner objectives. Startup reads are now views checked by `scripts/validate_project.py` (current-section date, open-loop table, decision index), duplicated rule text is replaced by pointers, and full ADR rows 070 to 090 are archived verbatim. Claude Code sessions delegate bounded work to the `.claude/agents/` subagents by default (researcher, operator, record-keeper on sonnet; reviewer at the architect tier) with bounded-outcome reports.
+- **Not changed:** external harness dispatch stays operator-run (ADR-083); the owner decides OL-036. Review cap 4 and worker-attempt default 2 (ADR-089) stand.
+- **Verified:** `validate_project.py` passes with the new record-view checks; `sync_skills.py --check` clean; the unit suite passes (see the changelog entry of 2026-10-06).
+- **Open:** OL-036 (external auto-launch decision), OL-034 (hardware track dependency, informational).
+- **Active branch:** `claude/eager-davinci-lhxve0` (ADR-091), pull request pending review.
+
+## 2026-10-03: frozen at the software and hardware tracks (ADR-089)
 
 - **Scope:** the software and hardware tracks are complete: bootstrap (including `--no-hardware`), work packets, acceptance, feedback, model routing and the hardware verification ladder. Legal profiles are archived under `archive/legal/`; `worker_launcher` and `github_ledger` are removed (ADR-083). Further work only on a new owner request.
 - **Decisions (ADR-089):** review cap of 4 per PR, worker-attempt default 2 (recorded only), approvals unchanged, no combined ledger, no automatic delegation, savings telemetry (#12, #13) deferred. ADR-084 to ADR-088 withdrawn.

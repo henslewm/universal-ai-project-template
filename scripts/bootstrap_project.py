@@ -286,7 +286,7 @@ def write_project_files(dest: Path, answers: dict[str, Any]) -> None:
 - **Active branch:** main
 - **Primary objective:** {answers['objective']}
 
-## Current verified state
+## Current ({today})
 
 - Project repository initialized from the universal template.
 - Charter, connector plan, skill plan, and platform adapters were tailored from intake.
@@ -313,6 +313,10 @@ def write_project_files(dest: Path, answers: dict[str, Any]) -> None:
     (dest / "PROJECT_STATE.md").write_text(state, encoding="utf-8")
 
     (dest / "OPEN_LOOPS.md").write_text(f"""# Open Loops
+
+The `## Open` table is the startup read. Closed loops move to `## Closed` verbatim at closeout and are never deleted; `scripts/validate_project.py` checks both tables.
+
+## Open
 
 | ID | Priority | Open item | Owner | Next action | Dependency | Due | Status |
 |---|---|---|---|---|---|---|---|
@@ -448,7 +452,15 @@ Complete `config/bootstrap.json` using `prompts/INTERACTIVE_BOOTSTRAP.md`, prese
 
     (dest / "DECISIONS.md").write_text(f"""# Decision Log
 
-Append material decisions. Do not rewrite prior decisions without recording supersession.
+Append material decisions: one index row and one full row each. Do not rewrite prior decisions without recording supersession. The index is the startup read; open a full row only when a current record cites it or the task depends on its rationale. `scripts/validate_project.py` checks that every index row resolves to a full row and every full row is indexed.
+
+## Index
+
+| ID | Date | Decision (first clause; full row at Location) | Location |
+|---|---|---|---|
+| ADR-000 | {today} | Use GitHub as the durable project state and native instruction files as platform adapters | below |
+
+## Full rows
 
 | ID | Date | Decision | Rationale | Alternatives considered | Consequences | Status |
 |---|---|---|---|---|---|---|

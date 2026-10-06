@@ -21,7 +21,7 @@ A reusable, repo-backed control plane that makes complex, high-stakes AI-assiste
 ## Definition of done (inferred)
 
 - Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers.
-- The software and hardware tracks bootstrap, plan, execute and verify end to end. The template is frozen at this scope (ADR-089); further work only on a new owner request.
+- The software and hardware tracks bootstrap, plan, execute and verify end to end. The ADR-089 freeze was lifted on 2026-10-06 (ADR-091) for two objectives: less drift and token cost at session start, and delegation by default.
 
 ## Required deliverables
 
@@ -61,7 +61,15 @@ Stated by the owner. Each item below was decided; ADR-089 records them and withd
 - **B. Worker attempts:** preferred default 2, recorded only; the per-packet `retry_budget.max_attempts` stays the enforcement point.
 - **C. Approvals:** current rules stay (`MASTER_INSTRUCTIONS.md`, `.claude/rules/02` and `04`, `AGENTS.md`). Not changed.
 - **D. Single ledger:** not pursued. Question 2 is closed as no combined ledger.
-- **F. Delegation:** not pursued. A human runs any worker (ADR-083 removed the launcher).
+- **F. Delegation:** superseded in part by ADR-091: a Claude Code session delegates bounded work to the `.claude/agents/` subagents by default. A human still runs any external harness worker (ADR-083 removed the launcher) until OL-036 is decided.
 - **G. Savings telemetry and dry runs (#12, #13):** deferred.
 - Filing and sending require explicit owner approval (unchanged).
 - Simulations or guesses are never acceptable as verification (unchanged).
+
+## Decisions (2026-10-06, ADR-091)
+
+Stated by the owner: the template is unfrozen to reduce drift and to auto-delegate tasks.
+
+- Startup reads are validator-checked views (`PROJECT_STATE.md` current section, `OPEN_LOOPS.md` open table, `DECISIONS.md` index), and duplicated rules are pointers to `MASTER_INSTRUCTIONS.md`.
+- Claude Code sessions delegate bounded work to the project subagents by default, with model tiers and bounded-outcome reports (`MASTER_CLAUDE_CODE.md` → Delegation).
+- Open: whether the architect may also launch external harness workers automatically (OL-036). Until decided, ADR-083 stands.

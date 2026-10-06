@@ -18,7 +18,7 @@ The Vibe command-line tool reads `.vibe/config.toml` (project level, over `~/.vi
 
 ## Startup
 
-Read `PROJECT_CHARTER.md`, `PROJECT_STATE.md`, `OPEN_LOOPS.md`, `DECISIONS.md`, `FACTS_AND_ASSUMPTIONS.md`, `SOURCE_INDEX.md`, and `HANDOFF_CURRENT.md` before substantive work — through the GitHub connector when available. Prefer the newest repository versions over files uploaded to the Project or a Library.
+Read `PROJECT_CHARTER.md`, `HANDOFF_CURRENT.md` and the startup views named in `MASTER_INSTRUCTIONS.md` (the `## Current` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md`, the `## Index` of `DECISIONS.md`, `FACTS_AND_ASSUMPTIONS.md`) before substantive work, opening other rows by ID when cited — through the GitHub connector when available. Prefer the newest repository versions over files uploaded to the Project or a Library.
 
 ## Work and closeout
 

@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Template history that a generated project deliberately does not carry (bootstrap_project.py TEMPLATE_HISTORY).
 TEMPLATE_ONLY_REQUIRED = [
-    "archive/DECISIONS_ARCHIVE_ADR-000-069.md", "archive/CHANGELOG_ARCHIVE_2026-08-29_to_2026-09-23.md",
+    "archive/DECISIONS_ARCHIVE_ADR-000-069.md", "archive/DECISIONS_ARCHIVE_ADR-070-090.md",
+    "archive/CHANGELOG_ARCHIVE_2026-08-29_to_2026-09-23.md",
 ]
 
 REQUIRED = [
@@ -70,6 +71,101 @@ REQUIRED = [
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z0-9_]+\}\}")
 SECRET_NAMES = re.compile(r"(^|/)(\.env(\..*)?|.*\.(pem|key|p12|pfx)|credentials.*\.json|service-account.*\.json)$", re.I)
+
+
+def _table_rows(text: str, prefix: str) -> list[list[str]]:
+    """Cells of every Markdown table row whose first cell starts with prefix."""
+    rows = []
+    for line in text.split("\n"):
+        if line.startswith("| " + prefix):
+            rows.append([cell.strip() for cell in line.strip().strip("|").split("|")])
+    return rows
+
+
+def _sections(text: str) -> list[tuple[str, str]]:
+    """(heading, body) for every level-2 section; the preamble has heading ''."""
+    out: list[tuple[str, str]] = []
+    heading, body = "", []
+    for line in text.split("\n"):
+        if line.startswith("## "):
+            out.append((heading, "\n".join(body)))
+            heading, body = line[3:].strip(), []
+        else:
+            body.append(line)
+    out.append((heading, "\n".join(body)))
+    return out
+
+
+def validate_record_views(root: Path) -> list[str]:
+    """The startup protocol reads views, not whole records (ADR-091): the `## Current` section of
+    PROJECT_STATE.md, the `## Open` table of OPEN_LOOPS.md and the `## Index` of DECISIONS.md.
+    A view a session trusts without reading the body behind it must be kept honest by a check,
+    so each is verified against its body here and a stale or inconsistent view fails validation."""
+    errors: list[str] = []
+
+    state_path, changelog_path = root / "PROJECT_STATE.md", root / "CHANGELOG.md"
+    if state_path.is_file():
+        state = state_path.read_text(encoding="utf-8")
+        current = re.search(r"^## Current \((\d{4}-\d{2}-\d{2})\)", state, flags=re.M)
+        if not current:
+            errors.append("PROJECT_STATE.md needs a '## Current (YYYY-MM-DD)' section; it is the startup read")
+        elif changelog_path.is_file():
+            dates = re.findall(r"^## (\d{4}-\d{2}-\d{2})", changelog_path.read_text(encoding="utf-8"), flags=re.M)
+            if dates and current.group(1) < max(dates):
+                errors.append(
+                    f"PROJECT_STATE.md '## Current ({current.group(1)})' is older than the newest CHANGELOG.md entry "
+                    f"({max(dates)}); refresh the current section at closeout")
+
+    loops_path = root / "OPEN_LOOPS.md"
+    if loops_path.is_file():
+        sections = dict(_sections(loops_path.read_text(encoding="utf-8")))
+        if "Open" not in sections:
+            errors.append("OPEN_LOOPS.md needs a '## Open' section; it is the startup read")
+        seen: dict[str, str] = {}
+        for heading, body in sections.items():
+            for cells in _table_rows(body, "OL-"):
+                loop_id, status = cells[0], cells[-1].lower()
+                if loop_id in seen:
+                    errors.append(f"OPEN_LOOPS.md lists {loop_id} twice ({seen[loop_id]} and {heading})")
+                seen[loop_id] = heading or "preamble"
+                closed = status.startswith("closed")
+                if heading == "Open" and closed:
+                    errors.append(f"OPEN_LOOPS.md: {loop_id} is closed but sits in the '## Open' table")
+                elif heading == "Closed" and not closed:
+                    errors.append(f"OPEN_LOOPS.md: {loop_id} is not closed but sits in the '## Closed' table")
+                elif heading not in {"Open", "Closed"}:
+                    errors.append(f"OPEN_LOOPS.md: {loop_id} is outside the '## Open' and '## Closed' tables")
+
+    decisions_path = root / "DECISIONS.md"
+    if decisions_path.is_file():
+        sections = dict(_sections(decisions_path.read_text(encoding="utf-8")))
+        if "Index" not in sections or "Full rows" not in sections:
+            errors.append("DECISIONS.md needs '## Index' and '## Full rows' sections; the index is the startup read")
+        else:
+            index: dict[str, str] = {}
+            for cells in _table_rows(sections["Index"], "ADR-"):
+                adr_id, location = cells[0], cells[-1]
+                if adr_id in index:
+                    errors.append(f"DECISIONS.md index lists {adr_id} twice")
+                index[adr_id] = location
+            full = {cells[0] for cells in _table_rows(sections["Full rows"], "ADR-")}
+            for adr_id in sorted(full - {k for k, v in index.items() if v == "below"}):
+                errors.append(f"DECISIONS.md full row {adr_id} has no index row pointing 'below'")
+            archives: dict[str, str] = {}
+            for adr_id, location in index.items():
+                if location == "below":
+                    if adr_id not in full:
+                        errors.append(f"DECISIONS.md index says {adr_id} is below, but no full row exists")
+                    continue
+                rel = location.strip("`")
+                if rel not in archives:
+                    target = root / rel
+                    archives[rel] = target.read_text(encoding="utf-8") if target.is_file() else ""
+                    if not target.is_file():
+                        errors.append(f"DECISIONS.md index points {adr_id} at a missing file: {rel}")
+                if archives[rel] and not re.search(rf"^\| {re.escape(adr_id)} \|", archives[rel], flags=re.M):
+                    errors.append(f"DECISIONS.md index points {adr_id} at {rel}, which has no row for it")
+    return errors
 
 
 def error(errors: list[str], message: str) -> None:
@@ -131,6 +227,7 @@ def main() -> int:
                 error(errors, f"Missing required path: {rel}")
             elif archive.stat().st_size == 0:
                 error(errors, f"Required file is empty: {rel}")
+    errors.extend(validate_record_views(ROOT))
     bootstrap_path = ROOT / "config/bootstrap.json"
     if bootstrap_path.exists():
         try:

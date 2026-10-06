@@ -9,7 +9,7 @@ Use ChatGPT as the synthesis, research, drafting, and connector-aware work surfa
 At the beginning of a substantive chat:
 
 1. Read the active control files attached to the ChatGPT Project.
-2. Use the GitHub connector to read the current `main` branch versions of `PROJECT_STATE.md`, `OPEN_LOOPS.md`, `DECISIONS.md`, and `HANDOFF_CURRENT.md` when available.
+2. Use the GitHub connector to read the current `main` branch versions of `HANDOFF_CURRENT.md` and the startup views named in `MASTER_INSTRUCTIONS.md` (the `## Current` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md`, the `## Index` of `DECISIONS.md`) when available.
 3. Check whether later commits supersede uploaded Project files.
 4. Use connected Drive, Gmail, Calendar, Contacts, files, web, or specialist research tools before asking the user to re-provide accessible information.
 

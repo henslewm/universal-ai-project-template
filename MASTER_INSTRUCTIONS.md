@@ -25,16 +25,17 @@ When two sources conflict, do not silently choose. Identify the conflict, preser
 Before substantive work:
 
 1. Confirm the repository root, current branch, and working-tree status when tools allow.
-2. Read, in order:
+2. Read, in order, the startup views (ADR-091), not the whole records behind them:
    - `PROJECT_CHARTER.md`
-   - `PROJECT_STATE.md`
-   - `OPEN_LOOPS.md`
-   - `DECISIONS.md`
+   - `HANDOFF_CURRENT.md`
+   - the `## Current (date)` section of `PROJECT_STATE.md`
+   - the `## Open` table of `OPEN_LOOPS.md`
+   - the `## Index` of `DECISIONS.md`
    - `FACTS_AND_ASSUMPTIONS.md`
-   - `SOURCE_INDEX.md`
    - the active platform master
-3. Inspect the newest relevant commits or handoff if another model may have worked since the last session.
-4. Reuse facts already established. Ask only questions whose answers materially change the plan and cannot be obtained from connected sources or the repository.
+3. Open a full ADR row, a closed loop, an older state section or a `SOURCE_INDEX.md` row only when a current record cites it or the task depends on it; search the record for the ID rather than reading the file. `scripts/validate_project.py` checks each view against its body (current date not older than the changelog, no closed loop in the open table, every index row resolving to a full row), so a view that validates can be trusted without the body.
+4. Inspect the newest relevant commits or handoff if another model may have worked since the last session.
+5. Reuse facts already established. Ask only questions whose answers materially change the plan and cannot be obtained from connected sources or the repository.
 
 A subagent working a bounded brief, delegated by a session that has completed this protocol, does not repeat it: it reads only what its brief needs. The delegating session stays responsible for the startup reads and for putting the state and decisions the task depends on into the brief.
 
@@ -68,45 +69,25 @@ Use the lightest process that preserves correctness:
 - Multi-file or consequential task: write a short plan, then execute and validate.
 - Parallelizable task: delegate distinct, non-overlapping work to subagents and consolidate once.
 - High-risk task: add an independent review pass before finalizing.
+- Delegation is the default for bounded work (ADR-091): once the startup protocol is done, hand research sweeps, bounded edits, record updates and independent review to the platform's subagents or a dispatched worker under a brief that states scope, acceptance checks, the facts and decisions the task depends on, and the attempt limit (default 2, ADR-089). The delegating session keeps decomposition, integration, user-reserved actions and anything the brief cannot bound. A worker reports a bounded outcome and never widens its brief; the platform master says which agents and tiers apply.
 
 Do not create process artifacts that add no decision value. Do create a decision record when a choice affects scope, architecture, cost, schedule, evidence, or future work.
 
 ## Work-packet contracts
 
-For architected work, follow `WORK_PACKET_PROTOCOL.md`. The canonical JSON packet defines scope, interfaces, acceptance checks, model/effort bounds, review and escalation. Use `scripts/work_packet.py` to validate it, generate its GitHub issue view, or record a revision/state transition. The latest revision snapshot is the sole current contract. Preserve earlier snapshots and events; a contract revision resets readiness. Workers report bounded outcomes and must not revise their own contracts or accept their own work.
+For architected work, read and follow `WORK_PACKET_PROTOCOL.md` (the canonical packet and `scripts/work_packet.py`), `MODEL_ROUTING.md` (offline resource selection), `FEEDBACK_PROTOCOL.md` (bounded attempts and the task ledger) and `EXECUTION_HARNESS_PROTOCOL.md` (dispatch and report ingest) at the point of use; they are not restated here. The latest revision snapshot is the sole current contract; workers report bounded outcomes and never revise their own contracts or accept their own work. These tools record local metadata only: they do not execute work, verify external evidence or grant autonomy, and the bootstrap gate still applies.
 
-Packet tools record local metadata. They do not execute work, authenticate roles, verify external evidence, publish issues, or grant autonomy. Before actual autonomous work, the existing bootstrap activation gate still applies. Use `MODEL_ROUTING.md` for offline resource selection and its replayable local decision ledger. Domain-specific substantive validators, live review gates and execution remain separate controls.
+## Connectors and skills
 
-Use `FEEDBACK_PROTOCOL.md` for bounded attempts: retain one authoritative task ledger, reserve before dispatch, preserve cumulative limits and failure evidence, and honor architect/human holds. A worker result cannot revise a contract or override failed objective checks. The feedback controller consumes supplied evidence; actual execution and independent acceptance must still verify it.
-
-Use `EXECUTION_HARNESS_PROTOCOL.md` to dispatch a reserved attempt to a bounded worker harness and ingest its report. The harness renders only the context the packet permits, never invokes a model itself, and refuses a report that invents validation ids, grades itself, or widens scope. Cline is the default harness and is replaceable; routing, attempt budgets and scope rules stay outside it.
-
-## Connector selection
-
-Use `CONNECTOR_PLAN.md` as the project-specific authority. Default to least privilege:
-
-- GitHub: repository state, issues, commits, and source files.
-- Google Drive: authoritative documents and large source folders.
-- Gmail: communication evidence and open-loop discovery.
-- Google Calendar: deadlines, hearings, meetings, and availability.
-- Google Contacts: identity and recipient resolution.
-- Web or domain databases: current public facts and primary authority.
-
-Read-only access is the default. Writes require the user's explicit request or a project rule that clearly grants them.
-
-## Skill selection
-
-Use `SKILL_PLAN.md` as the project-specific authority.
-
-Create or enable a skill when a workflow is repeated, quality-sensitive, deterministic, tool-heavy, or specialized. Do not create a skill for a one-off answer or general knowledge. Keep skill entrypoints concise and move detailed references or scripts into supporting files.
+`CONNECTOR_PLAN.md` and `SKILL_PLAN.md` are the project-specific authorities. Read-only connector access is the default; writes require the user's explicit request or a project rule that clearly grants them. Create a skill only for a repeated, quality-sensitive, deterministic, tool-heavy or specialized workflow, never for a one-off answer.
 
 ## Required closeout protocol
 
 Before ending a meaningful session:
 
-1. Update `PROJECT_STATE.md` with the current verified state.
-2. Update `OPEN_LOOPS.md` with owner, next action, dependency, and due date when known.
-3. Append material decisions to `DECISIONS.md`.
+1. Update the `## Current (date)` section of `PROJECT_STATE.md` with the verified state, dated today; older sections stay as history.
+2. Update the `## Open` table of `OPEN_LOOPS.md` with owner, next action, dependency, and due date when known; move a closed row to `## Closed` verbatim.
+3. Append material decisions to `DECISIONS.md`: one index row and one full row each.
 4. Add newly relied-upon sources to `SOURCE_INDEX.md`.
 5. Update `RISK_REGISTER.md` when risk changed.
 6. Replace `HANDOFF_CURRENT.md` with a concise continuation note.

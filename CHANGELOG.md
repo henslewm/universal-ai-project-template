@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-06 — Unfreeze for startup views and delegation (ADR-091)
+
+- Owner direction: unfreeze the template to reduce drift and auto-delegate tasks. The startup protocol now reads validator-checked views: the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md` and the `## Index` of `DECISIONS.md`. `validate_project.py` gains `validate_record_views` (current date not older than the changelog, no closed loop in the open table, unique IDs, index and full rows agree), with eight regression tests. Its first run caught the state section a day behind the changelog.
+- Full rows ADR-070 to ADR-090 archived verbatim to `archive/DECISIONS_ARCHIVE_ADR-070-090.md`; `OPEN_LOOPS.md` split into open and closed tables; `bootstrap_project.py` writes the same formats into generated projects.
+- Duplicated rule text replaced by pointers in `CLAUDE.md`, `MASTER_CLAUDE_CODE.md`, `AGENTS.md` and `.claude/rules/02`; the work-packet, connector and skill sections of `MASTER_INSTRUCTIONS.md` now point at their protocol files; the web and Mistral masters name the views.
+- Delegation: `.claude/agents/` carry model tiers (sonnet for researcher, operator and record-keeper; the reviewer inherits the architect tier) and bounded-outcome reports; `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default for bounded work. External harness dispatch stays operator-run pending OL-036.
+- Records: ADR-091; charter definition of done and decision F updated; OL-036 opened; R-001 updated, R-017 and R-018 added; SRC-038 and SRC-039.
+- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 442 unit tests pass (3 skipped) on Linux.
+
 ## 2026-10-04 — Master issue #14 status section (ADR-090)
 
 - With the owner's interactive approval, a dated status section was prepended to the body of the locked master issue #14: ADR-089 freeze, legal variants archived (ADR-083), all twelve children closed, the shipped items from the "not yet complete" list, the two-track definition of done, and the standing review rules. Original text, title and order unchanged. A ledger comment records the #11, #12 and #13 closures.

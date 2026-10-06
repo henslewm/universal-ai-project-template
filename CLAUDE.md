@@ -7,14 +7,6 @@
 
 Use the imported files as the controlling project context. Inspect the current branch, `git status`, and recent relevant commits before substantive work. Run `python scripts/validate_project.py` before completing material changes.
 
-The remaining startup files are not imported, so they do not load into every session and every subagent. Read them from the repository when the startup protocol in `MASTER_INSTRUCTIONS.md` calls for them:
+The remaining startup reads are not imported, so they do not load into every session and every subagent. Read the views the startup protocol in `MASTER_INSTRUCTIONS.md` names: the `## Current` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md`, the `## Index` of `DECISIONS.md` and `FACTS_AND_ASSUMPTIONS.md`; open anything else by ID when a record cites it.
 
-- `PROJECT_STATE.md`
-- `OPEN_LOOPS.md`
-- `DECISIONS.md`
-- `FACTS_AND_ASSUMPTIONS.md`
-- `SOURCE_INDEX.md`
-
-Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` from the repository root. Continue autonomously only after successful validation confirms `ACTIVE`, explicit approval, and a matching material-architecture fingerprint. Missing, invalid, or inactive state, or an unavailable runtime/validator, means no autonomous execution: resume bootstrap through `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md` within existing permissions.
-
-Once activated, routine work within the approved scope and existing permissions may proceed without approval for each step. User-reserved actions, material architecture changes, and consequential external actions retain their applicable explicit-authority requirements. Activation does not expand tool or connector permissions.
+The bootstrap / autonomy gate in `MASTER_INSTRUCTIONS.md` applies before autonomous substantive work; delegation follows `MASTER_CLAUDE_CODE.md` → "Delegation".
