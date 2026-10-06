@@ -210,3 +210,23 @@ class RecordViewTests(unittest.TestCase):
     def test_index_pointing_at_archive_without_the_row_fails(self) -> None:
         self.edit("archive/DECISIONS_ARCHIVE_ADR-070-090.md", "| ADR-089 |", "| ADR-089x |")
         self.assertTrue(any("ADR-089 at archive/DECISIONS_ARCHIVE_ADR-070-090.md, which has no row" in e for e in self.errors()))
+
+    def test_duplicate_open_section_fails(self) -> None:
+        loops = self.root / "OPEN_LOOPS.md"
+        text = loops.read_text(encoding="utf-8")
+        header = next(line for line in text.split("\n") if line.startswith("| ID |"))
+        loops.write_text(text.rstrip("\n") + "\n\n## Open\n\n" + header + "\n|---|---|---|---|---|---|---|---|\n", encoding="utf-8")
+        self.assertTrue(any("more than one '## Open' section" in e for e in self.errors()))
+
+    def test_duplicate_index_section_fails(self) -> None:
+        decisions = self.root / "DECISIONS.md"
+        decisions.write_text(decisions.read_text(encoding="utf-8").rstrip("\n") + "\n\n## Index\n\n| ID | Date | Decision | Location |\n|---|---|---|---|\n", encoding="utf-8")
+        self.assertTrue(any("more than one '## Index' section" in e for e in self.errors()))
+
+    def test_archived_row_without_index_entry_fails(self) -> None:
+        decisions = self.root / "DECISIONS.md"
+        lines = decisions.read_text(encoding="utf-8").split("\n")
+        kept = [line for line in lines if not line.startswith("| ADR-089 |")]
+        self.assertEqual(len(lines) - len(kept), 1, "exactly the ADR-089 index row is removed")
+        decisions.write_text("\n".join(kept), encoding="utf-8")
+        self.assertTrue(any("row for ADR-089 but the DECISIONS.md index has no row pointing at it" in e for e in self.errors()))

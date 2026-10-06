@@ -280,14 +280,13 @@ def write_project_files(dest: Path, answers: dict[str, Any]) -> None:
 
     state = f"""# Project State
 
+## Current ({today})
+
 - **Status:** SETUP — autonomy OFF
 - **Last verified:** {today}
 - **Current phase:** Foundation
 - **Active branch:** main
 - **Primary objective:** {answers['objective']}
-
-## Current ({today})
-
 - Project repository initialized from the universal template.
 - Charter, connector plan, skill plan, and platform adapters were tailored from intake.
 - Domain: {answers['domain']}; risk: {answers['risk_tier']}; sensitivity: {answers['sensitivity']}.

@@ -6,6 +6,7 @@ import copy
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -108,7 +109,14 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertEqual(data["state"], "INTAKE")
                     self.assertFalse(data["approval"]["approved"])
                     self.assertEqual(data["domain_profile"], profile)
-                    self.assertIn("autonomy OFF", (root / "PROJECT_STATE.md").read_text(encoding="utf-8"))
+                    state = (root / "PROJECT_STATE.md").read_text(encoding="utf-8")
+                    self.assertIn("autonomy OFF", state)
+                    # ADR-091: the startup protocol reads only the `## Current` section, so the
+                    # status, last-verified, phase, branch and objective fields must sit inside it.
+                    current = re.search(r"^## Current \(\d{4}-\d{2}-\d{2}\)\n(.*?)(?=^## |\Z)", state, flags=re.M | re.S)
+                    self.assertIsNotNone(current, "generated PROJECT_STATE.md lacks a dated Current section")
+                    for field in ("**Status:**", "**Last verified:**", "**Active branch:**", "**Primary objective:**"):
+                        self.assertIn(field, current.group(1), f"{field} is outside the Current view")
                     # A fresh project starts its own history, not the template's (#49).
                     decisions = (root / "DECISIONS.md").read_text(encoding="utf-8")
                     self.assertIn("ADR-000", decisions)

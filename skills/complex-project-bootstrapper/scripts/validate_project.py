@@ -96,6 +96,17 @@ def _sections(text: str) -> list[tuple[str, str]]:
     return out
 
 
+def _unique_sections(text: str, rel: str, errors: list[str]) -> dict[str, str]:
+    """Sections keyed by heading; a heading that appears twice (for example after a merge) is an
+    error, because the later copy would otherwise silently replace the earlier one."""
+    out: dict[str, str] = {}
+    for heading, body in _sections(text):
+        if heading in out:
+            errors.append(f"{rel} has more than one '## {heading}' section; keep exactly one")
+        out[heading] = body
+    return out
+
+
 def validate_record_views(root: Path) -> list[str]:
     """The startup protocol reads views, not whole records (ADR-091): the `## Current` section of
     PROJECT_STATE.md, the `## Open` table of OPEN_LOOPS.md and the `## Index` of DECISIONS.md.
@@ -118,7 +129,7 @@ def validate_record_views(root: Path) -> list[str]:
 
     loops_path = root / "OPEN_LOOPS.md"
     if loops_path.is_file():
-        sections = dict(_sections(loops_path.read_text(encoding="utf-8")))
+        sections = _unique_sections(loops_path.read_text(encoding="utf-8"), "OPEN_LOOPS.md", errors)
         if "Open" not in sections:
             errors.append("OPEN_LOOPS.md needs a '## Open' section; it is the startup read")
         seen: dict[str, str] = {}
@@ -138,7 +149,7 @@ def validate_record_views(root: Path) -> list[str]:
 
     decisions_path = root / "DECISIONS.md"
     if decisions_path.is_file():
-        sections = dict(_sections(decisions_path.read_text(encoding="utf-8")))
+        sections = _unique_sections(decisions_path.read_text(encoding="utf-8"), "DECISIONS.md", errors)
         if "Index" not in sections or "Full rows" not in sections:
             errors.append("DECISIONS.md needs '## Index' and '## Full rows' sections; the index is the startup read")
         else:
@@ -165,6 +176,13 @@ def validate_record_views(root: Path) -> list[str]:
                         errors.append(f"DECISIONS.md index points {adr_id} at a missing file: {rel}")
                 if archives[rel] and not re.search(rf"^\| {re.escape(adr_id)} \|", archives[rel], flags=re.M):
                     errors.append(f"DECISIONS.md index points {adr_id} at {rel}, which has no row for it")
+            # Reverse direction: every row in a decision archive must still be indexed, or a
+            # deleted index row would hide a durable decision from the startup view.
+            for archive_path in sorted((root / "archive").glob("DECISIONS_ARCHIVE_*.md")):
+                rel = archive_path.relative_to(root).as_posix()
+                for cells in _table_rows(archive_path.read_text(encoding="utf-8"), "ADR-"):
+                    if index.get(cells[0]) != f"`{rel}`":
+                        errors.append(f"{rel} has a row for {cells[0]} but the DECISIONS.md index has no row pointing at it")
     return errors
 
 

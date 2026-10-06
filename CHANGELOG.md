@@ -7,7 +7,8 @@
 - Duplicated rule text replaced by pointers in `CLAUDE.md`, `MASTER_CLAUDE_CODE.md`, `AGENTS.md` and `.claude/rules/02`; the work-packet, connector and skill sections of `MASTER_INSTRUCTIONS.md` now point at their protocol files; the web and Mistral masters name the views.
 - Delegation: `.claude/agents/` carry model tiers (sonnet for researcher, operator and record-keeper; the reviewer inherits the architect tier) and bounded-outcome reports; `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default for bounded work. External harness dispatch stays operator-run pending OL-036.
 - Records: ADR-091; charter definition of done and decision F updated; OL-036 opened; R-001 updated, R-017 and R-018 added; SRC-038 and SRC-039.
-- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 442 unit tests pass (3 skipped) on Linux.
+- Codex round 1 on `2c019e2` (three P2 findings, all fixed): the generated project's status, last-verified, branch and objective fields now sit inside the `## Current` view; a view heading that appears twice is rejected instead of silently replacing the earlier section; every row in a decision archive must have its index pointer (reverse check). Regressions added for each.
+- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 445 unit tests pass (3 skipped) on Linux.
 
 ## 2026-10-04 — Master issue #14 status section (ADR-090)
 
