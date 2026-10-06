@@ -117,14 +117,16 @@ def validate_record_views(root: Path) -> list[str]:
     state_path, changelog_path = root / "PROJECT_STATE.md", root / "CHANGELOG.md"
     if state_path.is_file():
         state = state_path.read_text(encoding="utf-8")
-        current = re.search(r"^## Current \((\d{4}-\d{2}-\d{2})\)", state, flags=re.M)
-        if not current:
+        current_dates = re.findall(r"^## Current \((\d{4}-\d{2}-\d{2})\)", state, flags=re.M)
+        if not current_dates:
             errors.append("PROJECT_STATE.md needs a '## Current (YYYY-MM-DD)' section; it is the startup read")
+        elif len(current_dates) > 1:
+            errors.append(f"PROJECT_STATE.md has {len(current_dates)} '## Current (date)' sections; keep exactly one")
         elif changelog_path.is_file():
             dates = re.findall(r"^## (\d{4}-\d{2}-\d{2})", changelog_path.read_text(encoding="utf-8"), flags=re.M)
-            if dates and current.group(1) < max(dates):
+            if dates and current_dates[0] < max(dates):
                 errors.append(
-                    f"PROJECT_STATE.md '## Current ({current.group(1)})' is older than the newest CHANGELOG.md entry "
+                    f"PROJECT_STATE.md '## Current ({current_dates[0]})' is older than the newest CHANGELOG.md entry "
                     f"({max(dates)}); refresh the current section at closeout")
 
     loops_path = root / "OPEN_LOOPS.md"
@@ -166,7 +168,7 @@ def validate_record_views(root: Path) -> list[str]:
                 full.add(cells[0])
             for adr_id in sorted(full - {k for k, v in index.items() if v == "below"}):
                 errors.append(f"DECISIONS.md full row {adr_id} has no index row pointing 'below'")
-            archives: dict[str, str] = {}
+            archives: dict[str, str | None] = {}  # None: the file is missing
             for adr_id, location in index.items():
                 if location == "below":
                     if adr_id not in full:
@@ -175,10 +177,11 @@ def validate_record_views(root: Path) -> list[str]:
                 rel = location.strip("`")
                 if rel not in archives:
                     target = root / rel
-                    archives[rel] = target.read_text(encoding="utf-8") if target.is_file() else ""
-                    if not target.is_file():
-                        errors.append(f"DECISIONS.md index points {adr_id} at a missing file: {rel}")
-                if archives[rel] and not re.search(rf"^\| {re.escape(adr_id)} \|", archives[rel], flags=re.M):
+                    archives[rel] = target.read_text(encoding="utf-8") if target.is_file() else None
+                text = archives[rel]
+                if text is None:
+                    errors.append(f"DECISIONS.md index points {adr_id} at a missing file: {rel}")
+                elif not re.search(rf"^\| {re.escape(adr_id)} \|", text, flags=re.M):
                     errors.append(f"DECISIONS.md index points {adr_id} at {rel}, which has no row for it")
             # Reverse direction: every row in a decision archive must still be indexed, or a
             # deleted index row would hide a durable decision from the startup view.

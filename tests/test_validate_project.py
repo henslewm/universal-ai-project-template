@@ -244,3 +244,13 @@ class RecordViewTests(unittest.TestCase):
         row = next(line for line in text.split("\n") if line.startswith("| ADR-089 |"))
         archive.write_text(text.rstrip("\n") + "\n" + row + "\n", encoding="utf-8")
         self.assertTrue(any("DECISIONS_ARCHIVE_ADR-070-090.md lists ADR-089 twice" in e for e in self.errors()))
+
+    def test_second_current_section_fails(self) -> None:
+        state = self.root / "PROJECT_STATE.md"
+        state.write_text(state.read_text(encoding="utf-8").rstrip("\n") + "\n\n## Current (2026-10-06)\n\n- A conflicting second view.\n", encoding="utf-8")
+        self.assertTrue(any("'## Current (date)' sections; keep exactly one" in e for e in self.errors()))
+
+    def test_empty_archive_still_fails_the_indexed_rows(self) -> None:
+        (self.root / "archive/DECISIONS_ARCHIVE_ADR-070-090.md").write_text("", encoding="utf-8")
+        errors = self.errors()
+        self.assertTrue(any("ADR-070 at archive/DECISIONS_ARCHIVE_ADR-070-090.md, which has no row for it" in e for e in errors), errors)

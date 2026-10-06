@@ -70,7 +70,7 @@ Use the lightest process that preserves correctness:
 - Multi-file or consequential task: write a short plan, then execute and validate.
 - Parallelizable task: delegate distinct, non-overlapping work to subagents and consolidate once.
 - High-risk task: add an independent review pass before finalizing.
-- Delegation is the default for bounded work (ADR-091): once the startup protocol is done, hand research sweeps, bounded edits, record updates and independent review to the platform's subagents or a dispatched worker under a brief that states scope, acceptance checks, the facts and decisions the task depends on, and the attempt limit (default 2, ADR-089). The delegating session keeps decomposition, integration, user-reserved actions and anything the brief cannot bound. A worker reports a bounded outcome and never widens its brief; the platform master says which agents and tiers apply.
+- Delegation (ADR-091) is the default for bounded work only on a platform whose master defines a delegation section; today that is `MASTER_CLAUDE_CODE.md` alone. There, once the startup protocol is done, hand research sweeps, bounded edits, record updates and independent review to the platform's subagents under a brief that states scope, acceptance checks, the facts and decisions the task depends on, and the attempt limit (default 2, ADR-089). The delegating session keeps decomposition, integration, user-reserved actions and anything the brief cannot bound; a worker reports a bounded outcome and never widens its brief. On every other platform ADR-089 item F stands: a human runs any worker.
 
 Do not create process artifacts that add no decision value. Do create a decision record when a choice affects scope, architecture, cost, schedule, evidence, or future work.
 
