@@ -12,9 +12,15 @@
       "Bash(gh issue lock *)",
       "Bash(gh release delete *)",
       "Bash(git push --delete *)",
-      "Bash(git push origin --delete *)",
+      "Bash(git push * --delete *)",
+      "Bash(git push -d *)",
+      "Bash(git push * -d *)",
+      "Bash(git push * :*)",
       "Bash(gh api * -X *)",
       "Bash(gh api * --method *)",
+      "Bash(gh api -X *)",
+      "Bash(gh api --method *)",
+      "Bash(gh api *--method=*)",
       "PowerShell(gh pr merge *)",
       "PowerShell(gh pr close *)",
       "PowerShell(gh pr edit *)",
@@ -25,9 +31,15 @@
       "PowerShell(gh issue lock *)",
       "PowerShell(gh release delete *)",
       "PowerShell(git push --delete *)",
-      "PowerShell(git push origin --delete *)",
+      "PowerShell(git push * --delete *)",
+      "PowerShell(git push -d *)",
+      "PowerShell(git push * -d *)",
+      "PowerShell(git push * :*)",
       "PowerShell(gh api * -X *)",
-      "PowerShell(gh api * --method *)"
+      "PowerShell(gh api * --method *)",
+      "PowerShell(gh api -X *)",
+      "PowerShell(gh api --method *)",
+      "PowerShell(gh api *--method=*)"
     ],
     "deny": [
       "Read(./.env)",
@@ -35,7 +47,13 @@
       "Read(./secrets/**)",
       "Bash(git push --force *)",
       "Bash(git reset --hard *)",
-      "Bash(rm -rf *)"
+      "Bash(rm -rf *)",
+      "PowerShell(git push --force *)",
+      "PowerShell(git reset --hard *)",
+      "PowerShell(Remove-Item *-Recurse*)",
+      "PowerShell(Remove-Item -r *)",
+      "PowerShell(Remove-Item * -r *)",
+      "PowerShell(Remove-Item * -r)"
     ]
   }
 }
