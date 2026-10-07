@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The one Ctrl+C policy for every scripts/*.py command line (ADR-072; README "CLI exit codes").
+"""The one Ctrl+C policy for every scripts/*.py command line (ADR-072; docs/REFERENCE.md "CLI exit codes").
 
 A CLI returns 0 for success, 1 for a handled refusal and 2 for a not-OK outcome itself; this
 module adds only what is shared: an interrupt returns 130 without a traceback, whether it

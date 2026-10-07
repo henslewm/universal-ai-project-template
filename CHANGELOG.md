@@ -1,7 +1,8 @@
 # Changelog
 
-## 2026-10-06 — Unfreeze for startup views and delegation (ADR-093)
+## 2026-10-07 — Unfreeze for startup views and delegation (ADR-093)
 
+- Authored 2026-10-06 as ADR-091 and renumbered ADR-093 when main was merged in, because main had taken ADR-091 (ask rules, PR #111) and ADR-092 (fewer copy/pastes, PRs #113 and #114).
 - Owner direction: unfreeze the template to reduce drift and auto-delegate tasks. The startup protocol now reads validator-checked views: the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md` and the `## Index` of `DECISIONS.md`. `validate_project.py` gains `validate_record_views` (current date not older than the changelog, no closed loop in the open table, unique IDs, index and full rows agree), with eight regression tests. Its first run caught the state section a day behind the changelog.
 - Full rows ADR-070 to ADR-090 archived verbatim to `archive/DECISIONS_ARCHIVE_ADR-070-090.md`; `OPEN_LOOPS.md` split into open and closed tables; `bootstrap_project.py` writes the same formats into generated projects.
 - Duplicated rule text replaced by pointers in `CLAUDE.md`, `MASTER_CLAUDE_CODE.md`, `AGENTS.md` and `.claude/rules/02`; the work-packet, connector and skill sections of `MASTER_INSTRUCTIONS.md` now point at their protocol files; the web and Mistral masters name the views.
@@ -10,7 +11,22 @@
 - Codex round 1 on `2c019e2` (three P2 findings, all fixed): the generated project's status, last-verified, branch and objective fields now sit inside the `## Current` view; a view heading that appears twice is rejected instead of silently replacing the earlier section; every row in a decision archive must have its index pointer (reverse check). Regressions added for each.
 - Codex round 2 on `995e1c4` (two P2 findings, both fixed): the startup protocol now runs `validate_project.py` before trusting the views (step 2), and a duplicated full or archived ADR row is an error instead of collapsing into a set. Regressions added.
 - Codex round 3 on `aae2067` (three P2 findings, all fixed): the delegation default in `MASTER_INSTRUCTIONS.md` is scoped to platforms whose master defines it (today Claude Code only; ADR-089 item F stands elsewhere); a second `## Current (date)` section is an error; an empty decision archive no longer skips the indexed-row check. Regressions added.
-- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 449 unit tests pass (3 skipped) on Linux.
+- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 449 unit tests pass (3 skipped) on Linux before the merge of `main`, 459 after.
+
+## 2026-10-07 — Layperson README (ADR-092, part 2)
+
+- `README.md` rewritten as a short plain-language guide: create the project, say "finish the bootstrap" in Claude Code or Codex, approve with `bootstrap_gate.py activate`, and `web_setup.py` for web chats.
+- Reference material moved without loss to `docs/REFERENCE.md` (feature list, work packets, native entrypoints, repository map, CLI exit codes, operating rule, security default, template status); every "CLI exit codes" reference now points there.
+- `START_HERE.md` follows the same steps; `docs/GITHUB_PUBLISH.md` drops the now-default `--interactive`.
+
+## 2026-10-06 — Fewer copy/pastes (ADR-092)
+
+- `bootstrap_project.py --destination <dir>` alone runs the intake; its next steps say to open Claude Code or Codex and say "finish the bootstrap", then run `bootstrap_gate.py activate`.
+- New `scripts/web_setup.py --client chatgpt|claude|mistral`: one zip of the files to upload and the Project instructions on the clipboard. `docs/WEBUI_SETUP.md` and `docs/PLATFORM_SETUP.md` use it.
+
+## 2026-10-06 — Ask rules for merges and GitHub writes (ADR-091)
+
+- `.claude/settings.json` gains `permissions.ask` rules (Bash and PowerShell) that prompt before merging PRs, editing or commenting on issues, deleting releases or remote branches, and `gh api` writes with an explicit method. The Bash denies gain `PowerShell(...)` mirrors, including recursive `Remove-Item`, and the force-push deny also covers `--force-with-lease`, `-f` and `+refspec`. Ask rules do not apply in `bypassPermissions` mode. Auto-mode classifier rules moved to the owner's user settings, because the classifier ignores `autoMode` in project settings (Codex P1 on PR #111).
 
 ## 2026-10-04 — Master issue #14 status section (ADR-090)
 

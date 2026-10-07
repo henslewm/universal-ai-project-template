@@ -1,6 +1,6 @@
 """CLI exit codes (ADR-072) and Ctrl+C handling (#31, #32) for every scripts/*.py command line.
 
-README.md, "CLI exit codes", is the table these tests hold the commands to. Nothing here
+docs/REFERENCE.md, "CLI exit codes", is the table these tests hold the commands to. Nothing here
 reclassifies an outcome: each case pins the code a command already returned.
 """
 from __future__ import annotations
@@ -274,7 +274,10 @@ class ExitCodeTableTests(CliAssertions, unittest.TestCase):
         generated = self.directory / "generated"
         self.expect(cli("bootstrap_project.py", "--answers", intake, "--destination", generated, "--no-git"), 0)
         self.usage(cli("bootstrap_project.py", "--answers", intake))
-        self.usage(cli("bootstrap_project.py", "--destination", self.directory / "no-intake"))
+        # Without --answers the intake is interactive; closed input is a handled refusal, not a usage error.
+        no_input = self.expect(cli("bootstrap_project.py", "--destination", self.directory / "no-intake"), 1)
+        self.assertIn("BOOTSTRAP BLOCKED", no_input.stderr)
+        self.assertFalse((self.directory / "no-intake").exists())
         refused = self.expect(cli("bootstrap_project.py", "--answers", intake, "--destination",
                                   self.directory / "elsewhere", "--template-root", self.directory), 1)
         self.assertIn("Not a recognized template root", refused.stderr)

@@ -155,7 +155,7 @@ After interruption or a new model/session:
 3. Continue autonomously only after successful validation confirms `ACTIVE`, explicit approval, a matching fingerprint, and current configuration/document bindings.
 4. A missing, invalid, or inactive state, changed bound files, or unavailable runtime/validator means no autonomous execution. Resume the appropriate bootstrap/review stage with `prompts/INTERACTIVE_BOOTSTRAP.md`, or prepare a runtime handoff within existing permissions.
 
-Successful validation is exit 0. Exit 1 (invalid or inactive state) and exit 2 (a missing or unreadable file) both mean no autonomy; README.md, "CLI exit codes" lists every command's codes.
+Successful validation is exit 0. Exit 1 (invalid or inactive state) and exit 2 (a missing or unreadable file) both mean no autonomy; docs/REFERENCE.md, "CLI exit codes" lists every command's codes.
 
 ## Local gate limits
 

@@ -1,12 +1,14 @@
 # Project State
 
-## Current (2026-10-06): unfrozen for startup views and delegation (ADR-093)
+## Current (2026-10-07): unfrozen for startup views and delegation (ADR-093)
+
+- **Main since the freeze:** owner-requested work merged on 2026-10-06 and 2026-10-07: `permissions.ask` rules for merges, issue writes, deletions and `gh api` writes (ADR-091, PR #111); interactive intake by default, `scripts/web_setup.py`, and a layperson README with reference moved to `docs/REFERENCE.md` (ADR-092, PRs #113 and #114). The ask rules are not live-verified.
 
 - **Scope:** the ADR-089 freeze is lifted for two owner objectives. Startup reads are now views checked by `scripts/validate_project.py` (current-section date, open-loop table, decision index), duplicated rule text is replaced by pointers, and full ADR rows 070 to 090 are archived verbatim. Claude Code sessions delegate bounded work to the `.claude/agents/` subagents by default (researcher, operator, record-keeper on sonnet; reviewer at the architect tier) with bounded-outcome reports.
 - **Not changed:** external harness dispatch stays operator-run (ADR-083); the owner decides OL-036. Review cap 4 and worker-attempt default 2 (ADR-089) stand.
 - **Verified:** `validate_project.py` passes with the new record-view checks; `sync_skills.py --check` clean; the unit suite passes (see the changelog entry of 2026-10-06).
 - **Open:** OL-036 (external auto-launch decision), OL-034 (hardware track dependency, informational).
-- **Active branch:** `claude/eager-davinci-lhxve0` (ADR-093), pull request pending review.
+- **Active branch:** `claude/eager-davinci-lhxve0` (ADR-093, PR #110); `main` merged in on 2026-10-07. Four Codex rounds used, the last clean on `7e3b36f`; the owner decides whether the merged head needs a fifth.
 
 ## 2026-10-03: frozen at the software and hardware tracks (ADR-089)
 

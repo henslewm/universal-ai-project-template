@@ -1,27 +1,29 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-06
+- **Prepared:** 2026-10-07
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Scope:** the template is unfrozen (ADR-093) for two owner objectives: less drift and token cost at session start, and delegation by default.
+- **Scope:** the template is unfrozen (ADR-093) for two owner objectives: less drift and token cost at session start, and delegation by default. Owner-requested work since the freeze also landed on `main`: ask rules (ADR-091) and fewer copy/pastes with a layperson README (ADR-092).
 
 ## What was done
 
-- Startup reads are now validator-checked views: the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md`, the `## Index` of `DECISIONS.md`. `scripts/validate_project.py` → `validate_record_views` fails on a stale current date, a closed loop in the open table, a repeated ID, or an index row that does not resolve. Full ADR rows 070 to 090 are archived verbatim. Duplicated rule text is replaced by pointers to `MASTER_INSTRUCTIONS.md`.
-- Delegation: the `.claude/agents/` subagents carry model tiers and bounded-outcome reports; `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default for bounded work in Claude Code sessions.
-- Records: ADR-093, charter, OL-036, R-017 and R-018, SRC-038 and SRC-039, changelog.
+- ADR-093 (PR #110, branch `claude/eager-davinci-lhxve0`): startup reads are validator-checked views, the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md` and the `## Index` of `DECISIONS.md`. `scripts/validate_project.py` → `validate_record_views` fails on a stale or repeated Current section, a closed loop in the open table, a repeated heading or ID, or an index row that does not resolve to exactly one full or archived row, in both directions. Full ADR rows 070 to 090 are archived verbatim. Duplicated rule text is replaced by pointers to `MASTER_INSTRUCTIONS.md`. Claude Code subagents carry model tiers and bounded-outcome reports, and `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default there only.
+- The decision was authored as ADR-091 and renumbered ADR-093 when `main` was merged in.
+- From `main`: ADR-091 `permissions.ask` rules in `.claude/settings.json` (PR #111); ADR-092 interactive intake by default, `scripts/web_setup.py` and a layperson README with reference moved to `docs/REFERENCE.md` (PRs #113 and #114).
 
 ## Verified state
 
-- `python scripts/validate_project.py` passes with the new checks; `python scripts/sync_skills.py --check` clean; `python -m unittest discover -s tests -p "test_*.py"` passes (see the changelog entry of 2026-10-06 for the count).
+- `python scripts/validate_project.py` passes; `python scripts/sync_skills.py --check` clean; `python -m unittest discover -s tests -p "test_*.py"` passes (count in the changelog entry of 2026-10-07).
+- The `permissions.ask` rules from ADR-091 are not live-verified; they need a restart before a dry `gh pr merge` can confirm the prompt.
 - No project is activated from this template; `config/bootstrap.json` is absent, as expected.
 
 ## Next action
 
-- The pull request for `claude/eager-davinci-lhxve0` needs a Codex or CodeRabbit review on its exact head (ADR-074) before merge; answer every actionable finding first.
+- PR #110 used its four Codex rounds (ADR-089) on `7e3b36f`, the last one clean. Merging `main` in moved the head, so the owner decides whether to merge without a fifth review or request one.
 - Owner decision OL-036: whether the architect may launch external harness workers automatically. Until then a human runs any harness worker (ADR-083).
 
 ## Notes
 
-- Closeout now dates the current section of `PROJECT_STATE.md`; a changelog entry newer than it fails validation.
+- Closeout dates the current section of `PROJECT_STATE.md`; a changelog entry newer than it fails validation.
 - Preserve ADR-062: confirm no other unattended agent is writing to the same tree before multi-file work.
 - `software_hardware.py` lazily imports `acceptance` (OL-034).
+- The master's immutability rule still applies to issue #14's original text; future status changes stay comments.

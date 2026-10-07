@@ -129,6 +129,23 @@ class ArchiveHistoryTests(unittest.TestCase):
                     self.assertIn(name, result.stdout)
 
 
+class WebSetupWiringTests(unittest.TestCase):
+    """ADR-092 (Codex round 4 on PR #113): web_setup.py and the list files it reads must be
+    required, so validation fails before the generator's next steps advertise a broken command."""
+
+    def test_validator_refuses_a_checkout_missing_any_web_setup_dependency(self) -> None:
+        for name in ("scripts/web_setup.py", ".chatgpt/PROJECT_FILES.md", ".claude-web/PROJECT_KNOWLEDGE.md",
+                     ".mistral/PROJECT_KNOWLEDGE.md"):
+            with self.subTest(path=name), tempfile.TemporaryDirectory() as temp:
+                destination = Path(temp) / "checkout"
+                repository_copy(destination)
+                (destination / name).unlink()
+                result = subprocess.run([sys.executable, str(destination / "scripts/validate_project.py")],
+                                        cwd=destination, text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+                self.assertIn(name, result.stdout)
+
+
 class VibeCliConfigTests(unittest.TestCase):
     """The Mistral Vibe CLI reads ./.vibe/config.toml (docs.mistral.ai/vibe/code/cli/configuration)."""
 
