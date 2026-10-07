@@ -239,8 +239,11 @@ class BootstrapIntegrationTests(unittest.TestCase):
         result = self.run_cli(ROOT / "scripts/bootstrap_project.py", "--destination", root, "--no-git",
                               stdin="\n".join(responses) + "\n")
         self.assertIn("Project name:", result.stdout)
-        self.assertIn('Say: "finish the bootstrap"', result.stdout)
+        self.assertIn('say: "finish the bootstrap"', result.stdout)
         self.assertIn("python scripts/bootstrap_gate.py activate", result.stdout)
+        self.assertIn(f'cd "{root}"', result.stdout)
+        self.assertIn("python scripts/web_setup.py --client mistral", result.stdout)
+        self.assertNotIn("chatgpt|claude", result.stdout)
         self.assertIn("web-ui", (root / "CLAUDE.md").read_text(encoding="utf-8"))
         self.active_check(root, False)
 

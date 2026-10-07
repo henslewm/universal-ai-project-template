@@ -613,11 +613,13 @@ def main() -> int:
     print(git_status)
     print(publish_status)
     print("\nNext steps:")
-    print(f"1. Open Claude Code (or Codex) in {destination}")
-    print('2. Say: "finish the bootstrap". It drafts the plan, runs the review and shows it to you.')
-    print("3. When you agree with it, run this yourself and type the approval line it asks for:")
+    print(f'1. Go to the project folder: cd "{destination}"')
+    print('2. Open Claude Code (or Codex) there and say: "finish the bootstrap". It drafts the plan, runs the review and shows it to you.')
+    print("3. When you agree with it, run this yourself in that folder and type the approval line it asks for:")
     print("   python scripts/bootstrap_gate.py activate")
-    print("Using ChatGPT, Claude or Mistral on the web? Run: python scripts/web_setup.py --client chatgpt|claude|mistral")
+    print("Using ChatGPT, Claude or Mistral on the web? In that folder run one of:")
+    for client in ("chatgpt", "claude", "mistral"):
+        print(f"   python scripts/web_setup.py --client {client}")
     print("Autonomy: OFF. Generating files or initializing Git never activates a project.")
     if not args.github:
         owner = args.github_owner or "OWNER"

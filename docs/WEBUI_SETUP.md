@@ -1,12 +1,12 @@
 # Web UI Setup Checklist
 
-Run `python scripts/web_setup.py --client chatgpt` (or `claude`, `mistral`) from the project folder first. It zips the files to upload and puts the Project instructions on your clipboard.
+Run `python scripts/web_setup.py --client chatgpt` (or `claude`, `mistral`) from the project folder first. It zips the files to upload and copies the Project instructions to your clipboard. If it can't reach a clipboard, it names the file to paste from instead.
 
 ## ChatGPT Project
 
 - [ ] Create a dedicated Project.
 - [ ] Use project-only memory for bounded or sensitive work when available.
-- [ ] Paste the instructions (already on your clipboard after `web_setup.py --client chatgpt`).
+- [ ] Paste the instructions from wherever `web_setup.py --client chatgpt` said: your clipboard or the file it named.
 - [ ] Upload the files inside `web-setup-chatgpt.zip`.
 - [ ] Connect GitHub.
 - [ ] Add Drive/Gmail/Calendar/Contacts only if selected in `CONNECTOR_PLAN.md`.
@@ -16,7 +16,7 @@ Run `python scripts/web_setup.py --client chatgpt` (or `claude`, `mistral`) from
 ## Claude Project
 
 - [ ] Create a dedicated Project.
-- [ ] Paste the instructions (already on your clipboard after `web_setup.py --client claude`).
+- [ ] Paste the instructions from wherever `web_setup.py --client claude` said: your clipboard or the file it named.
 - [ ] Add the GitHub repository through the integration.
 - [ ] When the GitHub integration is unavailable, upload the files inside `web-setup-claude.zip`.
 - [ ] Add Drive or other integrations only if selected.

@@ -11,7 +11,7 @@ The shared files are vendor-neutral. Native entrypoints make each client actuall
 
 ## ChatGPT web
 
-1. Run `python scripts/web_setup.py --client chatgpt` in the project folder. It writes `web-setup-chatgpt.zip` and copies the Project instructions to your clipboard.
+1. Run `python scripts/web_setup.py --client chatgpt` in the project folder. It writes `web-setup-chatgpt.zip` and copies the Project instructions to your clipboard (or names the file to paste from when no clipboard is available).
 2. Create a new Project and paste the instructions into Project settings.
 3. Upload the files inside the zip.
 4. Connect GitHub and only the additional apps listed in `CONNECTOR_PLAN.md`.
@@ -29,7 +29,7 @@ The shared files are vendor-neutral. Native entrypoints make each client actuall
 
 ## Claude web
 
-1. Run `python scripts/web_setup.py --client claude`, create a Project, and paste the instructions from your clipboard.
+1. Run `python scripts/web_setup.py --client claude`, create a Project, and paste the instructions from your clipboard (or the file it names).
 2. Add the repository through the GitHub integration.
 3. If the full repo cannot be added, upload the files inside `web-setup-claude.zip`.
 4. Treat project knowledge, not prior chat history, as the cross-chat source.
