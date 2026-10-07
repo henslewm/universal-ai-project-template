@@ -1,13 +1,13 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-04
+- **Prepared:** 2026-10-06
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Scope:** the template is frozen at the software and hardware tracks (ADR-089). Next work only on a new owner request.
 
 ## What was done
 
-- With the owner's interactive approval, the locked master issue [#14](https://github.com/henslewm/universal-ai-project-template/issues/14) gained a dated status section above its unchanged original text (ADR-090): the ADR-089 freeze, the archived legal variants (ADR-083), all twelve children closed, the shipped items from the "not yet complete" list, the two-track definition of done, and the standing review rules. Title, order and state unchanged. A ledger comment records the #11, #12 and #13 closures.
-- Records: ADR-090 appended; OL-004, OL-005 and OL-024 closed; the active-child lines in `PROJECT_STATE.md` retired; SRC-002 re-verified; changelog entry added.
+- On the owner's request, `.claude/settings.json` gained an `autoMode` block (ADR-091) mirroring the merge, sending, deletion, secrets and stay-in-repo gates. Branch `claude/auto-mode-rules`; PR open, merge awaits the owner's go-ahead after a head-matching Codex review.
+- Previous pass (2026-10-04): status section on master issue #14 (ADR-090).
 
 ## Verified state
 
@@ -16,7 +16,7 @@
 
 ## Next action
 
-None queued. Ask the owner before starting anything new. The skill payload is built by `scripts/sync_skills.py` and is not tracked, so distribute the skill as a release zip.
+Answer review findings on the auto-mode PR; do not merge without the owner. Otherwise none queued. Ask the owner before starting anything new. The skill payload is built by `scripts/sync_skills.py` and is not tracked, so distribute the skill as a release zip.
 
 ## Notes
 

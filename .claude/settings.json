@@ -9,5 +9,32 @@
       "Bash(git reset --hard *)",
       "Bash(rm -rf *)"
     ]
+  },
+  "autoMode": {
+    "environment": [
+      "$defaults",
+      "Public GitHub template repo henslewm/universal-ai-project-template on Windows 11 (PowerShell + Git Bash). Python validators live under scripts/.",
+      "GitHub is the durable record. Review findings come only from Codex or CodeRabbit, read with gh api."
+    ],
+    "allow": [
+      "$defaults",
+      "Running repo validators and tests: python scripts/validate_project.py, python scripts/validate_bootstrap.py, python scripts/sync_skills.py --check, python -m unittest, pytest.",
+      "Read-only gh calls (gh api GET, gh pr view/list/diff, gh issue view/list) against this repository.",
+      "Creating feature branches, committing, pushing a non-main branch, and opening a PR on this repository.",
+      "Posting an '@codex review' or '@coderabbitai review' comment on this repository's own open PR, at most 4 rounds per PR (ADR-089)."
+    ],
+    "soft_deny": [
+      "$defaults",
+      "Merging a pull request by any means. This needs the owner's explicit go-ahead and a Codex/CodeRabbit review whose commit_id matches the head (ADR-074).",
+      "Editing, closing, labeling or commenting on GitHub issues, or editing PR titles/bodies, except the review-request comments allowed above.",
+      "Sending email, creating or answering calendar events, sharing Drive files, or posting to any external service through a connector.",
+      "Writing to any repository or directory outside this checkout.",
+      "Deleting branches, tags, releases, or files under archive/."
+    ],
+    "hard_deny": [
+      "$defaults",
+      "Reading, printing or committing .env files, secrets/, private keys, or tokens.",
+      "Force-pushing, hard-resetting, or rewriting history on main."
+    ]
   }
 }

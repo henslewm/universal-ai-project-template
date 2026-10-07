@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-06 — Auto-mode rules (ADR-091)
+
+- `.claude/settings.json` gains an `autoMode` block (environment, allow, soft_deny, hard_deny, each keeping `$defaults`) that mirrors the merge (ADR-074), sending, deletion, secrets and stay-in-repo gates. `permissions.deny` is unchanged.
+
 ## 2026-10-04 — Master issue #14 status section (ADR-090)
 
 - With the owner's interactive approval, a dated status section was prepended to the body of the locked master issue #14: ADR-089 freeze, legal variants archived (ADR-083), all twelve children closed, the shipped items from the "not yet complete" list, the two-track definition of done, and the standing review rules. Original text, title and order unchanged. A ledger comment records the #11, #12 and #13 closures.
