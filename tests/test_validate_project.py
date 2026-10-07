@@ -271,3 +271,21 @@ class RecordViewTests(unittest.TestCase):
         (self.root / "archive/DECISIONS_ARCHIVE_ADR-070-090.md").write_text("", encoding="utf-8")
         errors = self.errors()
         self.assertTrue(any("ADR-070 at archive/DECISIONS_ARCHIVE_ADR-070-090.md, which has no row for it" in e for e in errors), errors)
+
+    def set_current_heading(self, value: str) -> None:
+        state = self.root / "PROJECT_STATE.md"
+        text = re.sub(r"^## Current \(\d{4}-\d{2}-\d{2}\)", f"## Current ({value})", state.read_text(encoding="utf-8"), count=1, flags=re.M)
+        state.write_text(text, encoding="utf-8")
+
+    def test_impossible_current_date_fails(self) -> None:
+        self.set_current_heading("2026-13-40")
+        self.assertTrue(any("'## Current (2026-13-40)' is not a real calendar date" in e for e in self.errors()))
+
+    def test_future_current_date_fails(self) -> None:
+        self.set_current_heading("2999-01-01")
+        self.assertTrue(any("'## Current (2999-01-01)' is in the future" in e for e in self.errors()))
+
+    def test_impossible_changelog_date_fails(self) -> None:
+        changelog = self.root / "CHANGELOG.md"
+        changelog.write_text(changelog.read_text(encoding="utf-8").replace("# Changelog\n", "# Changelog\n\n## 2026-02-30 — Not a day\n", 1), encoding="utf-8")
+        self.assertTrue(any("CHANGELOG.md entry '## 2026-02-30' is not a real calendar date" in e for e in self.errors()))

@@ -11,7 +11,8 @@
 - Codex round 1 on `2c019e2` (three P2 findings, all fixed): the generated project's status, last-verified, branch and objective fields now sit inside the `## Current` view; a view heading that appears twice is rejected instead of silently replacing the earlier section; every row in a decision archive must have its index pointer (reverse check). Regressions added for each.
 - Codex round 2 on `995e1c4` (two P2 findings, both fixed): the startup protocol now runs `validate_project.py` before trusting the views (step 2), and a duplicated full or archived ADR row is an error instead of collapsing into a set. Regressions added.
 - Codex round 3 on `aae2067` (three P2 findings, all fixed): the delegation default in `MASTER_INSTRUCTIONS.md` is scoped to platforms whose master defines it (today Claude Code only; ADR-089 item F stands elsewhere); a second `## Current (date)` section is an error; an empty decision archive no longer skips the indexed-row check. Regressions added.
-- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 449 unit tests pass (3 skipped) on Linux before the merge of `main`, 459 after.
+- Codex round 5 on `1fa6e78` (one P2, fixed; the round was triggered unintentionally by a comment that quoted the trigger phrase, beyond the ADR-089 cap): the Current and changelog dates are parsed as calendar dates, so an impossible or far-future Current heading fails instead of sorting after every real entry. Regressions added.
+- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 449 unit tests pass (3 skipped) on Linux before the merge of `main`, 459 after, 462 after round 5.
 
 ## 2026-10-07 — Layperson README (ADR-092, part 2)
 

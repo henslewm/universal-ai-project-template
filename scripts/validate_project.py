@@ -7,6 +7,7 @@ if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 1
     import cli_exit
     cli_exit.guard_startup()
 
+import datetime
 import json
 import re
 import sys
@@ -98,6 +99,14 @@ def _sections(text: str) -> list[tuple[str, str]]:
     return out
 
 
+def _iso_date(value: str) -> datetime.date | None:
+    """A YYYY-MM-DD string as a date, or None when it is not a real calendar date."""
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 def _unique_sections(text: str, rel: str, errors: list[str]) -> dict[str, str]:
     """Sections keyed by heading; a heading that appears twice (for example after a merge) is an
     error, because the later copy would otherwise silently replace the earlier one."""
@@ -124,12 +133,27 @@ def validate_record_views(root: Path) -> list[str]:
             errors.append("PROJECT_STATE.md needs a '## Current (YYYY-MM-DD)' section; it is the startup read")
         elif len(current_dates) > 1:
             errors.append(f"PROJECT_STATE.md has {len(current_dates)} '## Current (date)' sections; keep exactly one")
-        elif changelog_path.is_file():
-            dates = re.findall(r"^## (\d{4}-\d{2}-\d{2})", changelog_path.read_text(encoding="utf-8"), flags=re.M)
-            if dates and current_dates[0] < max(dates):
-                errors.append(
-                    f"PROJECT_STATE.md '## Current ({current_dates[0]})' is older than the newest CHANGELOG.md entry "
-                    f"({max(dates)}); refresh the current section at closeout")
+        else:
+            # Compare calendar dates, not strings: an impossible or far-future heading would
+            # otherwise sort after every real changelog entry and bless a stale view forever.
+            current = _iso_date(current_dates[0])
+            if current is None:
+                errors.append(f"PROJECT_STATE.md '## Current ({current_dates[0]})' is not a real calendar date")
+            elif current > datetime.date.today() + datetime.timedelta(days=1):
+                errors.append(f"PROJECT_STATE.md '## Current ({current_dates[0]})' is in the future; date it when it is written")
+            elif changelog_path.is_file():
+                raw = re.findall(r"^## (\d{4}-\d{2}-\d{2})", changelog_path.read_text(encoding="utf-8"), flags=re.M)
+                dates = []
+                for value in raw:
+                    parsed = _iso_date(value)
+                    if parsed is None:
+                        errors.append(f"CHANGELOG.md entry '## {value}' is not a real calendar date")
+                    else:
+                        dates.append(parsed)
+                if dates and current < max(dates):
+                    errors.append(
+                        f"PROJECT_STATE.md '## Current ({current_dates[0]})' is older than the newest CHANGELOG.md entry "
+                        f"({max(dates).isoformat()}); refresh the current section at closeout")
 
     loops_path = root / "OPEN_LOOPS.md"
     if loops_path.is_file():
