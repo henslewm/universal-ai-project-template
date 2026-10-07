@@ -6,7 +6,7 @@
 
 ## What was done
 
-- On the owner's request, `.claude/settings.json` gained `permissions.ask` rules (ADR-091) that prompt before merges, issue writes, deletions and `gh api` writes. The repository-scoped auto-mode rules went into the owner's `~/.claude/settings.json`, because the classifier ignores `autoMode` in project settings. Branch `claude/auto-mode-rules`, PR #111; merge awaits the owner's go-ahead after a head-matching Codex review.
+- On the owner's request, `.claude/settings.json` gained `permissions.ask` rules (ADR-091) that prompt before merges, issue writes, deletions and `gh api` writes (Bash and PowerShell), plus PowerShell mirrors of the deny rules and broader force-push denies. The repository-scoped auto-mode rules went into the owner's `~/.claude/settings.json`, because the classifier ignores `autoMode` in project settings. Merged as PR #111 (`e76a20b`) after four Codex rounds. On the owner's explicit choice the final head `4158a3a` merged without a fifth review (recorded in ADR-091). Ask rules do not apply in `bypassPermissions` mode.
 - Previous pass (2026-10-04): status section on master issue #14 (ADR-090).
 
 ## Verified state
@@ -17,7 +17,7 @@
 
 ## Next action
 
-Answer review findings on the auto-mode PR; do not merge without the owner. Otherwise none queued. Ask the owner before starting anything new. The skill payload is built by `scripts/sync_skills.py` and is not tracked, so distribute the skill as a release zip.
+None queued. After a restart, the owner may confirm a dry `gh pr merge` prompts (cancel at the prompt). Ask the owner before starting anything new. The skill payload is built by `scripts/sync_skills.py` and is not tracked, so distribute the skill as a release zip.
 
 ## Notes
 
