@@ -17,7 +17,7 @@ One round of the review loop that `MASTER_INSTRUCTIONS.md` → "Review findings 
 
 - Read `gh api --paginate repos/{owner}/{repo}/pulls/<n>/reviews` and `gh api --paginate repos/{owner}/{repo}/issues/<n>/comments`.
 - A review is a commit reviewed by `chatgpt-codex-connector[bot]` or `coderabbitai[bot]`: a review's `commit_id`, or a clean-round comment naming `**Reviewed commit:** \`<sha>\``.
-- A request is a `@codex review` or `@coderabbitai review` comment. The cap counts requests: the rounds used are the distinct commits that were reviewed or requested.
+- A request is a `@codex review` or `@coderabbitai review` comment. The cap counts events, not commits: each request is one round, and so is each review that no request triggered (one posted when the pull request opened or left draft). Two reviews of the same commit, or a repeated request for it, count twice.
 - Head already reviewed: go to step 4. A request for the head is still unanswered: do not request again; go to the polling in step 3. Four rounds used and the head is unreviewed and unrequested: answer the findings already received, then stop and ask the maintainer how to proceed (ADR-089).
 
 ## 3. Request the review

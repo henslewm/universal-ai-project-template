@@ -69,6 +69,21 @@ class RecordsDueTests(unittest.TestCase):
         touch_after(self.root / "app.py", self.root / "HANDOFF_CURRENT.md")
         self.assertEqual(json.loads(self.run_hook().stdout)["decision"], "block")
 
+    def test_due_when_work_is_committed_after_the_handoff_commit(self):
+        # Codex round 1 on PR #118: a closeout commit, then a later work commit, on a clean tree.
+        (self.root / "app.py").write_text("b\n")
+        (self.root / "HANDOFF_CURRENT.md").write_text("h1\n")
+        git(self.root, "add", "-A")
+        git(self.root, "commit", "-q", "-m", "work and closeout")
+        self.assertEqual(self.run_hook().stdout, "")
+        (self.root / "app.py").write_text("c\n")
+        git(self.root, "commit", "-q", "-am", "later work")
+        self.assertEqual(json.loads(self.run_hook().stdout)["decision"], "block")
+        self.assertIn("records are behind", self.run_hook("{}", "--session-end").stderr)
+        (self.root / "HANDOFF_CURRENT.md").write_text("h2\n")
+        git(self.root, "commit", "-q", "-am", "closeout again")
+        self.assertEqual(self.run_hook().stdout, "")
+
     def test_record_only_changes_not_due(self):
         (self.root / "CHANGELOG.md").write_text("c\n")
         self.assertEqual(self.run_hook().stdout, "")

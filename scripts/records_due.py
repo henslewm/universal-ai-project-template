@@ -36,8 +36,8 @@ def git(root: Path, *args: str) -> str | None:
     return done.stdout if done.returncode == 0 else None
 
 
-def branch_changes(root: Path) -> set[str]:
-    """Paths changed on the branch since its merge-base with the default branch."""
+def merge_base(root: Path) -> str | None:
+    """The merge-base of HEAD with the default branch, or None when no base resolves."""
     candidates = []
     head = git(root, "rev-parse", "--abbrev-ref", "origin/HEAD")
     if head and head.strip():
@@ -46,9 +46,23 @@ def branch_changes(root: Path) -> set[str]:
     for base in candidates:
         mb = git(root, "merge-base", base, "HEAD")
         if mb and mb.strip():
-            out = git(root, "diff", "--name-only", "-z", f"{mb.strip()}...HEAD")
-            return {p for p in (out or "").split("\0") if p}
-    return set()
+            return mb.strip()
+    return None
+
+
+def changed_between(root: Path, start: str) -> set[str]:
+    """Paths changed from `start` (a merge-base or commit) to HEAD."""
+    out = git(root, "diff", "--name-only", "-z", f"{start}...HEAD")
+    return {p for p in (out or "").split("\0") if p}
+
+
+def committed_after_handoff(root: Path, base: str | None) -> set[str]:
+    """Work paths committed after the last commit on this branch that touched the handoff."""
+    span = f"{base}..HEAD" if base else "HEAD"
+    last = (git(root, "log", "-1", "--format=%H", span, "--", HANDOFF) or "").strip()
+    if not last:
+        return set()
+    return {p for p in changed_between(root, last) if p not in RECORDS}
 
 
 def working_changes(root: Path) -> set[str]:
@@ -75,7 +89,8 @@ def evaluate(root: Path):
     if git(root, "rev-parse", "--is-inside-work-tree") is None:
         return None
     working = working_changes(root)
-    changed = branch_changes(root) | working
+    base = merge_base(root)
+    changed = (changed_between(root, base) if base else set()) | working
     work = sorted(p for p in changed if p not in RECORDS)
     if not work:
         return None
@@ -91,7 +106,10 @@ def evaluate(root: Path):
                     newest = max(newest, (root / rel).stat().st_mtime)
                 except OSError:
                     pass  # deleted file: no mtime
-        if newest <= handoff_time:
+        # A handoff edited in the working tree is newer than every commit; a committed one is
+        # behind any work committed after it (Codex round 1 on PR #118).
+        later = set() if HANDOFF in working else committed_after_handoff(root, base)
+        if newest <= handoff_time and not later:
             return None
     branch = (git(root, "rev-parse", "--abbrev-ref", "HEAD") or "").strip() or "this branch"
     return branch, work
