@@ -9,6 +9,7 @@ Keep categories separate. A statement moves categories only when supported by a 
 ## Working assumptions
 
 - The generated project will use a private GitHub repository unless the user selects otherwise.
+- The effort estimates in `config/model-router.json` are the example file's priors, not measurements, and its subscription prices are list prices used for planning (ADR-096).
 
 ## Allegations or disputed claims
 

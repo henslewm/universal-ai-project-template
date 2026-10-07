@@ -12,7 +12,11 @@
 - ADR-095 (PR #117, pending merge): the `record-keeper` subagent has Bash so it can run the validator itself; its instructions limit the shell to that check and read-only git commands. The first delegated records pass had to be validated by the architect because the agent had no shell.
 - From `main`: ADR-091 `permissions.ask` rules in `.claude/settings.json` (PR #111); ADR-092 interactive intake by default, `scripts/web_setup.py` and a layperson README with reference moved to `docs/REFERENCE.md` (PRs #113 and #114).
 
+- ADR-096 (branch `claude/owner-model-router`, pushed, no pull request yet): `config/model-router.json` is the owner's real routing configuration, requested by the owner on 2026-10-07. Subscription resources (Sonnet T2, Opus and Codex T3, architect T4) are enabled at API list prices; the local model and Mistral are disabled. `MODEL_ROUTING.md` → "Committed owner configuration" explains the pricing and the limits.
+
 ## Verified state
+
+- On `claude/owner-model-router`: `model_router.py validate-config config/model-router.json` passes; routing checks on synthetic packets returned Sonnet for a path ending at T2, Codex when T3 is authorized, the architect resource for critical risk, and `NO_ELIGIBLE_RESOURCE` for a T0 to T1 packet.
 
 - `python scripts/validate_project.py` passes; `python scripts/sync_skills.py --check` clean; `python -m unittest discover -s tests -p "test_*.py"` passes (count in the changelog entry of 2026-10-07).
 - The `permissions.ask` rules from ADR-091 are not live-verified; they need a restart before a dry `gh pr merge` can confirm the prompt.
@@ -20,7 +24,8 @@
 
 ## Next action
 
-- No queued work; ask the owner before starting anything new.
+- ADR-096 branch `claude/owner-model-router`: open a pull request and request one automated review (ADR-074) before any merge. OL-037 lists what the owner must confirm.
+- No other queued work; ask the owner before starting anything new.
 - Owner decision OL-036: whether the architect may launch external harness workers automatically. Until then a human runs any harness worker (ADR-083).
 
 ## Notes

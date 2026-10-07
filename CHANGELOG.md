@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-07 — Owner routing configuration (ADR-096)
+
+- New `config/model-router.json`: the owner's real stack for `scripts/model_router.py`. Enabled: Claude Sonnet (T2), Claude Opus and Codex (T3), the architect session (T4), through subscriptions with no credential variable. Disabled until verified: the local LM Studio model (T1) and Mistral (T2).
+- Subscription resources carry API list prices as planning prices, because a zero price routed every packet to the highest authorized tier. Effort estimates are the example's priors, unmeasured.
+- `MODEL_ROUTING.md` gains "Committed owner configuration"; `tests/test_model_router.py` gains `ProjectRoutingConfigTests` (the committed configuration validates and enables no placeholder resource).
+- Records: ADR-096; OL-037 opened; SRC-040 to SRC-042; one working assumption.
+- Verified on Linux: `validate_project.py` passes with 85 required paths; `sync_skills.py --check` clean; 464 unit tests pass (3 skipped); `model_router.py validate-config config/model-router.json` passes.
+
 ## 2026-10-07 — Records after the PR #110 merge (ADR-093); record-keeper gets Bash (ADR-095)
 
 - `.claude/agents/record-keeper.md`: `Bash` added to its tools, on the owner's instruction, so it runs `validate_project.py` and `git diff --stat` before reporting; its instructions limit the shell to those checks and read-only git commands. ADR-095 records it; ADR-094 is skipped because unmerged branch `claude/auto-closeout` has claimed it.

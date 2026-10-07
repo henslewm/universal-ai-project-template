@@ -16,6 +16,14 @@ Provider IDs and adapter names are replaceable configuration. A resource names o
 
 The JSON Schema includes strict `$defs/config` and `$defs/request` definitions. Validation also rejects duplicate IDs, unknown provider references, decreasing risk/complexity policies, nonfinite values and contradictory history. Estimated acceptance probabilities must be between 0.000001 and 1; estimates are not confidence guarantees.
 
+## Committed owner configuration (ADR-096)
+
+`config/model-router.json` is the owner's real stack, not an example. Enabled: Claude Sonnet at T2, Claude Opus and the Codex default model at T3, and the architect session at T4, all reached through flat-rate subscriptions with no API key. Disabled until verified: the local LM Studio model at T1 (calibration, OL-011) and Mistral at T2 (model and price, OL-037).
+
+A subscription has no per-token charge, but a zero price makes the router send every packet to the highest authorized tier. Each subscription resource is therefore priced at the published API list price of its model, as a stand-in for the plan quota it consumes (SRC-040, SRC-041). These are planning prices, not charges: `role_api_budget_usd` is compared against them, and an executor must record the actual reported cost, which is zero inside plan limits.
+
+The effort estimates are the example file's priors, unchanged and unmeasured. Until #12 supplies observations they decide the ranking, so bound tiers in the packet: a routine packet whose path stops at T2 goes to Sonnet and is reviewed at T3 by Codex, a different model family. When a plan limit is reached, list that provider in `unavailable_providers`. A generated project inherits this file; replace it when the project's stack differs.
+
 ## Prepare a request
 
 Build the request from the packet's latest revision. This Python example prepares metadata only:

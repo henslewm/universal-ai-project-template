@@ -614,5 +614,30 @@ class RouterCommandLineTests(unittest.TestCase):
         self.assertEqual(tampered.read_bytes(), before)
 
 
+class ProjectRoutingConfigTests(unittest.TestCase):
+    """A committed project routing configuration, when present, must be a real one."""
+
+    PATH = ROOT / "config/model-router.json"
+
+    def setUp(self):
+        if not self.PATH.exists():
+            self.skipTest("no project routing configuration in this checkout")
+        self.value = wp.read_json(self.PATH)
+
+    def test_project_configuration_validates(self):
+        router.validate_config(copy.deepcopy(self.value))
+
+    def test_enabled_resources_are_not_example_placeholders(self):
+        providers = {item["id"]: item for item in self.value["providers"]}
+        enabled = [item for item in self.value["resources"] if item["enabled"]]
+        self.assertTrue(enabled, "a project routing configuration with nothing enabled routes nothing")
+        for item in enabled:
+            with self.subTest(resource=item["id"]):
+                self.assertNotIn("fictional", item["model"])
+                self.assertNotIn("synthetic", item["id"])
+                credential = providers[item["provider_id"]]["credential_env"]
+                self.assertFalse(credential and credential.startswith("EXAMPLE_"))
+
+
 if __name__ == "__main__":
     unittest.main()
