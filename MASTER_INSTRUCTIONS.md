@@ -26,7 +26,7 @@ Before substantive work:
 
 1. Confirm the repository root, current branch, and working-tree status when tools allow.
 2. Run `python scripts/validate_project.py` when execution is available. It checks each startup view against its body; if it reports a record-view error, repair the view from the body it names before relying on it. Without a runtime, treat the views as unverified and open the cited body rows before acting on them.
-3. Read, in order, the startup views (ADR-091), not the whole records behind them:
+3. Read, in order, the startup views (ADR-093), not the whole records behind them:
    - `PROJECT_CHARTER.md`
    - `HANDOFF_CURRENT.md`
    - the `## Current (date)` section of `PROJECT_STATE.md`
@@ -70,7 +70,7 @@ Use the lightest process that preserves correctness:
 - Multi-file or consequential task: write a short plan, then execute and validate.
 - Parallelizable task: delegate distinct, non-overlapping work to subagents and consolidate once.
 - High-risk task: add an independent review pass before finalizing.
-- Delegation (ADR-091) is the default for bounded work only on a platform whose master defines a delegation section; today that is `MASTER_CLAUDE_CODE.md` alone. There, once the startup protocol is done, hand research sweeps, bounded edits, record updates and independent review to the platform's subagents under a brief that states scope, acceptance checks, the facts and decisions the task depends on, and the attempt limit (default 2, ADR-089). The delegating session keeps decomposition, integration, user-reserved actions and anything the brief cannot bound; a worker reports a bounded outcome and never widens its brief. On every other platform ADR-089 item F stands: a human runs any worker.
+- Delegation (ADR-093) is the default for bounded work only on a platform whose master defines a delegation section; today that is `MASTER_CLAUDE_CODE.md` alone. There, once the startup protocol is done, hand research sweeps, bounded edits, record updates and independent review to the platform's subagents under a brief that states scope, acceptance checks, the facts and decisions the task depends on, and the attempt limit (default 2, ADR-089). The delegating session keeps decomposition, integration, user-reserved actions and anything the brief cannot bound; a worker reports a bounded outcome and never widens its brief. On every other platform ADR-089 item F stands: a human runs any worker.
 
 Do not create process artifacts that add no decision value. Do create a decision record when a choice affects scope, architecture, cost, schedule, evidence, or future work.
 

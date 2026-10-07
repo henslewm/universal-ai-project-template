@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
 
 class RecordViewTests(unittest.TestCase):
-    """ADR-091: the startup protocol reads views (PROJECT_STATE.md `## Current`, OPEN_LOOPS.md
+    """ADR-093: the startup protocol reads views (PROJECT_STATE.md `## Current`, OPEN_LOOPS.md
     `## Open`, DECISIONS.md `## Index`) instead of whole records, so the validator must prove
     each view is consistent with the body behind it."""
 

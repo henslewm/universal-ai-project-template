@@ -1,6 +1,6 @@
 # Decision Log archive: ADR-070 to ADR-090
 
-Archived verbatim from `DECISIONS.md` on 2026-10-06 (ADR-091). These rows are history; the index in `DECISIONS.md` remains the pointer list, and supersession is recorded there and in later rows. Do not edit these rows.
+Archived verbatim from `DECISIONS.md` on 2026-10-06 (ADR-093). These rows are history; the index in `DECISIONS.md` remains the pointer list, and supersession is recorded there and in later rows. Do not edit these rows.
 
 | ID | Date | Decision | Rationale | Alternatives considered | Consequences | Status |
 |---|---|---|---|---|---|---|

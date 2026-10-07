@@ -111,7 +111,7 @@ class BootstrapIntegrationTests(unittest.TestCase):
                     self.assertEqual(data["domain_profile"], profile)
                     state = (root / "PROJECT_STATE.md").read_text(encoding="utf-8")
                     self.assertIn("autonomy OFF", state)
-                    # ADR-091: the startup protocol reads only the `## Current` section, so the
+                    # ADR-093: the startup protocol reads only the `## Current` section, so the
                     # status, last-verified, phase, branch and objective fields must sit inside it.
                     current = re.search(r"^## Current \(\d{4}-\d{2}-\d{2}\)\n(.*?)(?=^## |\Z)", state, flags=re.M | re.S)
                     self.assertIsNotNone(current, "generated PROJECT_STATE.md lacks a dated Current section")

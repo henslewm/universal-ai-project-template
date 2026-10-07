@@ -108,7 +108,7 @@ def _unique_sections(text: str, rel: str, errors: list[str]) -> dict[str, str]:
 
 
 def validate_record_views(root: Path) -> list[str]:
-    """The startup protocol reads views, not whole records (ADR-091): the `## Current` section of
+    """The startup protocol reads views, not whole records (ADR-093): the `## Current` section of
     PROJECT_STATE.md, the `## Open` table of OPEN_LOOPS.md and the `## Index` of DECISIONS.md.
     A view a session trusts without reading the body behind it must be kept honest by a check,
     so each is verified against its body here and a stale or inconsistent view fails validation."""

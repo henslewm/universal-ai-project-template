@@ -8,7 +8,7 @@ Claude Code reads `CLAUDE.md`, which imports the universal control files and thi
 
 Apply `MASTER_INSTRUCTIONS.md` → "Bootstrap / autonomy gate" exactly as stated there; it is deliberately not restated here.
 
-## Delegation (ADR-091)
+## Delegation (ADR-093)
 
 The session that completed the startup protocol is the architect. It delegates by default and keeps only what a brief cannot bound:
 
