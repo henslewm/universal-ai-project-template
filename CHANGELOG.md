@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-07 — Handoff after the PR #117 merge (ADR-095)
+
+- `HANDOFF_CURRENT.md`, `PROJECT_STATE.md` and the ADR-095 status record the merge of PR #117 at `ff5f5a4` after two clean Codex rounds. The handoff now says the next decision takes ADR-096 or later, and that a session started before the merge keeps the record-keeper's old tool list until it restarts.
+
 ## 2026-10-07 — Records after the PR #110 merge (ADR-093); record-keeper gets Bash (ADR-095)
 
 - `.claude/agents/record-keeper.md`: `Bash` added to its tools, on the owner's instruction, so it runs `validate_project.py` and `git diff --stat` before reporting; its instructions limit the shell to those checks and read-only git commands. ADR-095 records it; ADR-094 is skipped because unmerged branch `claude/auto-closeout` has claimed it.

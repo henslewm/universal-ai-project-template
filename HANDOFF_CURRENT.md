@@ -9,7 +9,7 @@
 - ADR-093 (PR #110, branch `claude/eager-davinci-lhxve0`): startup reads are validator-checked views, the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md` and the `## Index` of `DECISIONS.md`. `scripts/validate_project.py` → `validate_record_views` fails on a stale or repeated Current section, a closed loop in the open table, a repeated heading or ID, or an index row that does not resolve to exactly one full or archived row, in both directions. Full ADR rows 070 to 090 are archived verbatim. Duplicated rule text is replaced by pointers to `MASTER_INSTRUCTIONS.md`. Claude Code subagents carry model tiers and bounded-outcome reports, and `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default there only.
 - The decision was authored as ADR-091 and renumbered ADR-093 when `main` was merged in.
 - PR #110 was merged by the owner on 2026-10-07 as `ed30f33` (head `0fb220d`, not reviewed by Codex after its last fix); PR #115 (`docs/REFERENCE.md` in the validator's REQUIRED list) followed, at `c27c0d6`.
-- ADR-095 (PR #117, pending merge): the `record-keeper` subagent has Bash so it can run the validator itself; its instructions limit the shell to that check and read-only git commands. The first delegated records pass had to be validated by the architect because the agent had no shell.
+- ADR-095 (PR #117, merged by the owner on 2026-10-07 as `ff5f5a4` after two clean Codex rounds): the `record-keeper` subagent has Bash so it can run the validator itself; its instructions limit the shell to that check and read-only git commands. The first delegated records pass had to be validated by the architect because the agent had no shell.
 - From `main`: ADR-091 `permissions.ask` rules in `.claude/settings.json` (PR #111); ADR-092 interactive intake by default, `scripts/web_setup.py` and a layperson README with reference moved to `docs/REFERENCE.md` (PRs #113 and #114).
 
 ## Verified state
@@ -30,4 +30,5 @@
 - `software_hardware.py` lazily imports `acceptance` (OL-034).
 - The master's immutability rule still applies to issue #14's original text; future status changes stay comments.
 - Never write the Codex trigger phrase in a PR comment unless requesting a review, because Codex acts on quoted text; that is how PR #110 went past the ADR-089 review cap.
-- Branch `claude/auto-closeout` holds unfinished ADR-094 work from another session (`scripts/closeout.py` and validator checks); the next new decision should take ADR-095 or later and check that branch first.
+- Branch `claude/auto-closeout` (`7cca94e`) holds unfinished ADR-094 work from another session (`scripts/closeout.py` and validator checks). ADR-095 is taken, so the next new decision takes ADR-096 or later; check that branch first.
+- The `record-keeper` agent definition gained Bash in ADR-095; a session that started before that merge still has the old tool list until it restarts.

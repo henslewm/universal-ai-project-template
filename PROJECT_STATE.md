@@ -9,7 +9,7 @@
 - **Verified:** `validate_project.py` passes with the new record-view checks; `sync_skills.py --check` clean; the unit suite passes (see the changelog entry of 2026-10-07).
 - **Open:** OL-036 (external auto-launch decision), OL-034 (hardware track dependency, informational).
 - **Active branch:** `main`. PR #110 (ADR-093) was merged by the owner on 2026-10-07 as `ed30f33` (head `0fb220d`) after five Codex rounds: rounds 1 to 3 found 3, 2 and 3 P2 findings (all fixed), round 4 on `7e3b36f` was clean, and round 5 on `1fa6e78` went past the ADR-089 cap because a PR comment quoted the trigger phrase; its one P2 was fixed in `0fb220d`, which no Codex round reviewed. PR #115 (`docs/REFERENCE.md` in the validator's REQUIRED list) followed, at `c27c0d6`.
-- **Record-keeper (ADR-095):** the `record-keeper` subagent now has Bash so it can run `validate_project.py` itself; its instructions limit the shell to that check and read-only git commands. Pending merge with PR #117.
+- **Record-keeper (ADR-095):** the `record-keeper` subagent now has Bash so it can run `validate_project.py` itself; its instructions limit the shell to that check and read-only git commands. Merged with PR #117 at `ff5f5a4` on 2026-10-07 after two clean Codex rounds.
 
 ## 2026-10-03: frozen at the software and hardware tracks (ADR-089)
 
