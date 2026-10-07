@@ -1,8 +1,8 @@
 # Changelog
 
-## 2026-10-06 — Auto-mode rules (ADR-091)
+## 2026-10-06 — Ask rules for merges and GitHub writes (ADR-091)
 
-- `.claude/settings.json` gains an `autoMode` block (environment, allow, soft_deny, hard_deny, each keeping `$defaults`) that mirrors the merge (ADR-074), sending, deletion, secrets and stay-in-repo gates. `permissions.deny` is unchanged.
+- `.claude/settings.json` gains `permissions.ask` rules (Bash and PowerShell) that prompt before merging PRs, editing or commenting on issues, deleting releases or remote branches, and `gh api` writes with an explicit method. `permissions.deny` is unchanged. Auto-mode classifier rules moved to the owner's user settings, because the classifier ignores `autoMode` in project settings (Codex P1 on PR #111).
 
 ## 2026-10-04 — Master issue #14 status section (ADR-090)
 

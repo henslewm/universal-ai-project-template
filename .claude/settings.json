@@ -1,6 +1,34 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
+    "ask": [
+      "Bash(gh pr merge *)",
+      "Bash(gh pr close *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh issue edit *)",
+      "Bash(gh issue close *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue delete *)",
+      "Bash(gh issue lock *)",
+      "Bash(gh release delete *)",
+      "Bash(git push --delete *)",
+      "Bash(git push origin --delete *)",
+      "Bash(gh api * -X *)",
+      "Bash(gh api * --method *)",
+      "PowerShell(gh pr merge *)",
+      "PowerShell(gh pr close *)",
+      "PowerShell(gh pr edit *)",
+      "PowerShell(gh issue edit *)",
+      "PowerShell(gh issue close *)",
+      "PowerShell(gh issue comment *)",
+      "PowerShell(gh issue delete *)",
+      "PowerShell(gh issue lock *)",
+      "PowerShell(gh release delete *)",
+      "PowerShell(git push --delete *)",
+      "PowerShell(git push origin --delete *)",
+      "PowerShell(gh api * -X *)",
+      "PowerShell(gh api * --method *)"
+    ],
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
@@ -8,33 +36,6 @@
       "Bash(git push --force *)",
       "Bash(git reset --hard *)",
       "Bash(rm -rf *)"
-    ]
-  },
-  "autoMode": {
-    "environment": [
-      "$defaults",
-      "Public GitHub template repo henslewm/universal-ai-project-template on Windows 11 (PowerShell + Git Bash). Python validators live under scripts/.",
-      "GitHub is the durable record. Review findings come only from Codex or CodeRabbit, read with gh api."
-    ],
-    "allow": [
-      "$defaults",
-      "Running repo validators and tests: python scripts/validate_project.py, python scripts/validate_bootstrap.py, python scripts/sync_skills.py --check, python -m unittest, pytest.",
-      "Read-only gh calls (gh api GET, gh pr view/list/diff, gh issue view/list) against this repository.",
-      "Creating feature branches, committing, pushing a non-main branch, and opening a PR on this repository.",
-      "Posting an '@codex review' or '@coderabbitai review' comment on this repository's own open PR, at most 4 rounds per PR (ADR-089)."
-    ],
-    "soft_deny": [
-      "$defaults",
-      "Merging a pull request by any means. This needs the owner's explicit go-ahead and a Codex/CodeRabbit review whose commit_id matches the head (ADR-074).",
-      "Editing, closing, labeling or commenting on GitHub issues, or editing PR titles/bodies, except the review-request comments allowed above.",
-      "Sending email, creating or answering calendar events, sharing Drive files, or posting to any external service through a connector.",
-      "Writing to any repository or directory outside this checkout.",
-      "Deleting branches, tags, releases, or files under archive/."
-    ],
-    "hard_deny": [
-      "$defaults",
-      "Reading, printing or committing .env files, secrets/, private keys, or tokens.",
-      "Force-pushing, hard-resetting, or rewriting history on main."
     ]
   }
 }

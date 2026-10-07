@@ -6,12 +6,13 @@
 
 ## What was done
 
-- On the owner's request, `.claude/settings.json` gained an `autoMode` block (ADR-091) mirroring the merge, sending, deletion, secrets and stay-in-repo gates. Branch `claude/auto-mode-rules`; PR open, merge awaits the owner's go-ahead after a head-matching Codex review.
+- On the owner's request, `.claude/settings.json` gained `permissions.ask` rules (ADR-091) that prompt before merges, issue writes, deletions and `gh api` writes. The repository-scoped auto-mode rules went into the owner's `~/.claude/settings.json`, because the classifier ignores `autoMode` in project settings. Branch `claude/auto-mode-rules`, PR #111; merge awaits the owner's go-ahead after a head-matching Codex review.
 - Previous pass (2026-10-04): status section on master issue #14 (ADR-090).
 
 ## Verified state
 
-- `python scripts/validate_project.py` passes; `python scripts/sync_skills.py --check` clean (see the changelog entry for this pass).
+- `python scripts/validate_project.py` passes (2026-10-06). `python scripts/sync_skills.py --check` reports drift only in the untracked local payload build, which CI rebuilds before tests (ADR-083).
+- `claude auto-mode config` shows the user-scope rules in effect. The ask rules are not live-verified; they need a restart before a dry `gh pr merge` can confirm the prompt.
 - No project is activated from this template, so no re-approval is pending. `config/bootstrap.json` is absent, as expected for the unactivated template.
 
 ## Next action
