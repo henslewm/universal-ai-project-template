@@ -1,75 +1,53 @@
 # Start Here
 
-Choose the path that matches where you are working.
+The short version is in [README.md](README.md). This page adds the other ways in.
 
-## A. Codex or Claude Code
+## A. From this template's folder (recommended)
 
-1. Clone or unzip the base template, or create a repository with GitHub **Use this template**.
-2. Open a terminal at the repository root.
-3. Use the `software-hardware` profile (add `--no-hardware` for a software-only project, which loads the `web-ui` track instead of `hardware`). For an uninitialized GitHub-template repository, tailor it in place:
+1. Create the project and answer the questions. Answer **y** to "hardware?" for a hardware project, or **n** for software or a web app (the `web-ui` track):
 
    ```bash
-   python scripts/bootstrap_project.py --interactive --profile software-hardware --destination . --no-git
+   python scripts/bootstrap_project.py --destination ../your-project-name
    ```
 
-   To preserve the base template and create a separate project in a new/empty directory:
+   Git is set up for you. Add `--github` (after `gh auth login`) to also create a private GitHub repository, or `--no-git` to skip Git.
+2. Go into the new folder, open Claude Code or Codex there, and say "finish the bootstrap". It completes the plan in section D and shows it to you.
+3. When you agree, run `python scripts/bootstrap_gate.py activate` yourself and type the approval line it asks for.
 
-   ```bash
-   python scripts/bootstrap_project.py --interactive --profile software-hardware --destination ../your-project-name --no-git
-   ```
+## B. From GitHub's "Use this template" button
 
-4. Add `--answers verified-intake.json` if recovered intake is available. Interactive mode reuses supplied values and asks only missing common/profile orientation fields. The generator writes `config/bootstrap.json` in `INTAKE` with autonomy off and `BOOTSTRAP_REVIEW.md` with readiness gaps.
-5. Open the tailored repository; the client discovers `AGENTS.md` or `CLAUDE.md`. Complete the architecture package and approval flow in section E before autonomous substantive work.
-6. Run `python scripts/validate_project.py` before completing material changes. A passing repository validator does not activate the project.
-
-The generator refuses rebootstrap when a destination already has bootstrap state or initialized project configuration. Preserve existing records and evidence through a retrofit; revise and review an existing package instead of overwriting it or deleting approval state.
-
-## B. ChatGPT web Project
-
-1. Create a new ChatGPT Project, preferably with project-only memory for sensitive or bounded work.
-2. Paste `.chatgpt/PROJECT_INSTRUCTIONS.md` into Project settings.
-3. Add the files listed in `.chatgpt/PROJECT_FILES.md`.
-4. Connect GitHub. Add Google Drive, Gmail, Calendar, Contacts, or a research source only when the project actually needs them.
-5. Start with the prompt in `prompts/BOOTSTRAP_NEW_PROJECT.md`.
-6. Follow section E with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
-
-## C. Claude web Project
-
-1. Create a Claude Project.
-2. Paste `.claude-web/PROJECT_INSTRUCTIONS.md` into project instructions.
-3. Add the GitHub repository through Claude's GitHub integration.
-4. Add only the active control files listed in `.claude-web/PROJECT_KNOWLEDGE.md` if the full repo is not connected.
-5. Start with `prompts/BOOTSTRAP_NEW_PROJECT.md`.
-6. Follow section E with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
-
-## D. Mistral Vibe Project
-
-1. In Vibe's **Work** mode, create a dedicated Project for this repository.
-2. Paste `.mistral/PROJECT_INSTRUCTIONS.md` into the Project's custom instructions.
-3. Connect the **GitHub App** connector so chats can read the repository directly.
-4. If the repository cannot be connected, add the compact control files listed in `.mistral/PROJECT_KNOWLEDGE.md` to the Project or an attached Library.
-5. Start with the prompt in `prompts/BOOTSTRAP_NEW_PROJECT.md`.
-6. Follow section E with a repository runtime. If no runtime can run the validator, prepare the bootstrap files and a runtime handoff; autonomy stays off.
-
-## E. Review the architecture and record explicit approval
-
-1. Follow `prompts/INTERACTIVE_BOOTSTRAP.md` and `BOOTSTRAP_PROTOCOL.md`. Complete architecture boundaries, milestones/dependencies, sources, risks, routing, workflow, reserved human actions, and domain orientation in `config/bootstrap.json`. Resolve all `unresolved` architecture blockers and align the charter, connector plan, skill plan, domain profile, and project configuration.
-2. From the generated project's root, run `python scripts/bootstrap_gate.py review`. This revokes previous approval first, snapshots `config/project.json`, and computes SHA-256 hashes of `PROJECT_CHARTER.md`, `CONNECTOR_PLAN.md`, `SKILL_PLAN.md`, and `DOMAIN_PROFILE.md`. Only a ready package becomes `AWAITING_APPROVAL`; failure leaves autonomy off.
-3. Present `BOOTSTRAP_REVIEW.md` and the bound documents, including routine permissions, reserved actions, defaults, and fingerprint. Resolve revisions and rerun review when needed.
-4. Only after explicit user authorization for the approval interaction, run `python scripts/bootstrap_gate.py activate`. It presents the exact package and asks for user identity plus `APPROVE <fingerprint>`. There is no noninteractive autoapprove option. Do not supply agent-invented approval; automated tests use disposable fixtures only.
-5. Successful activation saves the receipt in `config/bootstrap.json`; the review remains the pre-approval proposal. Run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` to verify.
-
-Run `--require-active` before autonomous substantive work in every session. The fingerprint includes domain, workflow, unresolved blockers, configuration, and document hashes alongside project/architecture fields, and validation checks the current files. Missing, invalid, or inactive state, stale bindings, or unavailable runtime means no autonomy; resume bootstrap/review or a runtime handoff. After activation, routine work within approved scope and existing permissions may proceed without repeated approval. Reserved actions and consequential external writes retain their explicit-authority requirements.
-
-The local gate detects normal bypass and stale approvals; it does not authenticate humans or constrain actors who rewrite gate code or approval records. It does not configure providers or expand permissions. Canonical templates include snapshots of existing domain documents.
-
-## F. Publish this prepared local repo to GitHub
-
-Publishing is separate from setup and activation and requires explicit authority. See `docs/GITHUB_PUBLISH.md`. For this template repository, the documented command is:
+Create your repository with **Use this template**, clone it, and tailor it in place from its folder:
 
 ```bash
-gh auth login
-gh repo create henslewm/universal-ai-project-template --private --source . --remote origin --push
+python scripts/bootstrap_project.py --destination .
 ```
 
-After publishing, mark it as a **Template repository** in GitHub Settings so future projects can use **Use this template**.
+Then continue with steps 2 and 3 of section A.
+
+If you already have answers saved as JSON, add `--answers verified-intake.json`; only missing answers are asked. The generator refuses to re-bootstrap a folder that already has bootstrap state or an initialized project. Revise and re-review the existing plan instead of overwriting it.
+
+## C. ChatGPT, Claude or Mistral on the web
+
+Create the project with section A or B first; the web chats can't run the setup commands themselves. Then, in the project folder, run one of:
+
+```bash
+python scripts/web_setup.py --client chatgpt
+python scripts/web_setup.py --client claude
+python scripts/web_setup.py --client mistral
+```
+
+It copies the Project instructions to your clipboard (or names the file to paste from), zips the files to upload, and prints the steps. Connect GitHub to the web Project as well, so chats read the latest files. Add Drive, Gmail, Calendar or Contacts only when `CONNECTOR_PLAN.md` calls for them. Setup details per service: [docs/PLATFORM_SETUP.md](docs/PLATFORM_SETUP.md).
+
+## D. What the AI completes, and what approval means
+
+"Finish the bootstrap" has the AI follow `prompts/INTERACTIVE_BOOTSTRAP.md` and [BOOTSTRAP_PROTOCOL.md](BOOTSTRAP_PROTOCOL.md). It fills in `config/bootstrap.json`: architecture boundaries, milestones and their dependencies, sources, risks, routing, workflow, the actions reserved for you, and domain details. Then it runs `python scripts/bootstrap_gate.py review`, which writes `BOOTSTRAP_REVIEW.md` for you to read.
+
+Only you run `python scripts/bootstrap_gate.py activate`. It shows the exact plan and asks for your name and `APPROVE <fingerprint>`; nothing approves on its own. The fingerprint covers the plan and the hashes of `PROJECT_CHARTER.md`, `CONNECTOR_PLAN.md`, `SKILL_PLAN.md` and `DOMAIN_PROFILE.md`, so changing any of them later withdraws the approval until you review and approve again.
+
+Every session, the AI checks `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` before working on its own. After activation, routine work inside the approved scope goes ahead without asking each time; the actions reserved for you, and anything consequential outside the repository, still need your explicit say-so.
+
+The gate catches ordinary bypasses and stale approvals. It does not authenticate people or stop someone who rewrites the gate code or the approval record, and it does not configure AI providers or widen permissions.
+
+## E. Publish to GitHub
+
+Publishing is separate from setup and approval. See [docs/GITHUB_PUBLISH.md](docs/GITHUB_PUBLISH.md).

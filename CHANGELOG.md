@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-07 — Layperson README (ADR-092, part 2)
+
+- `README.md` rewritten as a short plain-language guide: create the project, say "finish the bootstrap" in Claude Code or Codex, approve with `bootstrap_gate.py activate`, and `web_setup.py` for web chats.
+- Reference material moved without loss to `docs/REFERENCE.md` (feature list, work packets, native entrypoints, repository map, CLI exit codes, operating rule, security default, template status); every "CLI exit codes" reference now points there.
+- `START_HERE.md` follows the same steps; `docs/GITHUB_PUBLISH.md` drops the now-default `--interactive`.
+
 ## 2026-10-06 — Fewer copy/pastes (ADR-092)
 
 - `bootstrap_project.py --destination <dir>` alone runs the intake; its next steps say to open Claude Code or Codex and say "finish the bootstrap", then run `bootstrap_gate.py activate`.

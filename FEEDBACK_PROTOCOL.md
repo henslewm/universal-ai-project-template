@@ -45,7 +45,7 @@ Supply an options JSON object with exactly `task_class`, `input_tokens`, `output
 python scripts/feedback.py next task-ledger --root . --config config/model-router.json --options routing-options.json
 ```
 
-Success returns `DISPATCH`, a saved decision ID, deadline, router record and focused context; a slot has already been consumed. Exit 0 means an intent was reserved, not that a model ran. Exit 2 means a recorded hold; exit 1 means invalid input or a refused operation; exit 130 means Ctrl+C (README.md, "CLI exit codes" lists every command's codes). Pending/stale/concurrent requests cannot silently reserve another attempt.
+Success returns `DISPATCH`, a saved decision ID, deadline, router record and focused context; a slot has already been consumed. Exit 0 means an intent was reserved, not that a model ran. Exit 2 means a recorded hold; exit 1 means invalid input or a refused operation; exit 130 means Ctrl+C (docs/REFERENCE.md, "CLI exit codes" lists every command's codes). Pending/stale/concurrent requests cannot silently reserve another attempt.
 
 Context contains the current contract/revision/hash, counters, grouped first/latest failure evidence, bounded recent validation detail and latest architect guidance. It excludes full prior packet revisions, provider configuration and unrelated discoveries. Oversized required context stops for decomposition instead of truncating scope or acceptance. Character limits are not token counts or provider-capacity guarantees.
 
