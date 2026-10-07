@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Fewer copy/pastes (ADR-092)
+
+- `bootstrap_project.py --destination <dir>` alone runs the intake; its next steps say to open Claude Code or Codex and say "finish the bootstrap", then run `bootstrap_gate.py activate`.
+- New `scripts/web_setup.py --client chatgpt|claude|mistral`: one zip of the files to upload and the Project instructions on the clipboard. `docs/WEBUI_SETUP.md` and `docs/PLATFORM_SETUP.md` use it.
+
 ## 2026-10-06 — Ask rules for merges and GitHub writes (ADR-091)
 
 - `.claude/settings.json` gains `permissions.ask` rules (Bash and PowerShell) that prompt before merging PRs, editing or commenting on issues, deleting releases or remote branches, and `gh api` writes with an explicit method. The Bash denies gain `PowerShell(...)` mirrors, including recursive `Remove-Item`, and the force-push deny also covers `--force-with-lease`, `-f` and `+refspec`. Ask rules do not apply in `bypassPermissions` mode. Auto-mode classifier rules moved to the owner's user settings, because the classifier ignores `autoMode` in project settings (Codex P1 on PR #111).

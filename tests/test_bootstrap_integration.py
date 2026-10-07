@@ -16,7 +16,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from validate_bootstrap import BOUND_DOCUMENTS, DOMAIN_FIELDS, NO_HARDWARE, architecture_fingerprint
+from validate_bootstrap import BOUND_DOCUMENTS, DOMAIN_FIELDS, HARDWARE_ONLY_FIELDS, NO_HARDWARE, architecture_fingerprint
 import bootstrap_gate
 from bootstrap_project import track_for
 
@@ -228,6 +228,24 @@ class BootstrapIntegrationTests(unittest.TestCase):
                 data.update(raw["bootstrap"])
                 write(root / "config/bootstrap.json", data)
                 self.activate(root)
+
+    def test_destination_alone_runs_the_interactive_intake(self):
+        keys = ("project_name", "objective", "success_criteria", "out_of_scope", "constraints", "source_locations", "owner", "risk_tier", "sensitivity")
+        raw = answers("software-hardware")
+        responses = ["; ".join(raw[key]) if isinstance(raw[key], list) else raw[key] for key in keys]
+        responses.append("n")  # Does the project involve hardware? No: the web-ui track.
+        responses += [raw["bootstrap"]["domain"][key] for key in DOMAIN_FIELDS["software-hardware"] if key not in HARDWARE_ONLY_FIELDS]
+        root = self.base / "plain"
+        result = self.run_cli(ROOT / "scripts/bootstrap_project.py", "--destination", root, "--no-git",
+                              stdin="\n".join(responses) + "\n")
+        self.assertIn("Project name:", result.stdout)
+        self.assertIn('say: "finish the bootstrap"', result.stdout)
+        self.assertIn("python scripts/bootstrap_gate.py activate", result.stdout)
+        self.assertIn(f'cd "{root}"', result.stdout)
+        self.assertIn("python scripts/web_setup.py --client mistral", result.stdout)
+        self.assertNotIn("chatgpt|claude", result.stdout)
+        self.assertIn("web-ui", (root / "CLAUDE.md").read_text(encoding="utf-8"))
+        self.active_check(root, False)
 
     def test_profile_recovery_from_each_canonical_branch_profile(self):
         # Copies of the existing branch profiles exercise the common extension hook.

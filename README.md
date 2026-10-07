@@ -138,7 +138,7 @@ Every `scripts/*.py` command follows one exit-code policy (ADR-072). Adopting it
 |---|---|---|---|
 | `acceptance.py` | JSON result with any other `status` | `Acceptance refused: …` | JSON `status` `ESCALATION_REQUIRED`, `ARCHITECTURE_CONFLICT` or `USER_REJECTED` |
 | `bootstrap_gate.py` | `Bootstrap state: …` | `BOOTSTRAP BLOCKED: …` (stdout) | — |
-| `bootstrap_project.py` | Project generated | `BOOTSTRAP BLOCKED: …`, or a stated reason such as an unrecognized template, a non-empty destination, invalid intake or a generated project that failed validation | Its `parser.error` refusals: no `--interactive` or `--answers`, existing bootstrap state, an initialized project, malformed answers, no canonical profile |
+| `bootstrap_project.py` | Project generated | `BOOTSTRAP BLOCKED: …`, or a stated reason such as an unrecognized template, a non-empty destination, invalid intake or a generated project that failed validation | Its `parser.error` refusals: existing bootstrap state, an initialized project, malformed answers, no canonical profile |
 | `execution_harness.py` | JSON result. A hold other than `BLOCKED` (such as `NEEDS_DECISION`, `NEEDS_ARCHITECT` or `HARNESS_UNAVAILABLE`) also exits 0 | `Execution harness refused: …` | JSON `status` `BLOCKED` |
 | `software_hardware.py` | JSON result | `Domain rule refused: …` | — |
 | `feedback.py` | JSON result. `next` exits 0 only for `DISPATCH`; every other command exits 0 whatever state it records | `Feedback control refused: …` | `next` with any other `status`, a recorded hold such as `BLOCKED`, `NEEDS_ARCHITECT` or `NEEDS_DECISION` |
@@ -147,6 +147,7 @@ Every `scripts/*.py` command follows one exit-code policy (ADR-072). Adopting it
 | `sync_skills.py` | Synchronized, or verified with `--check`; it also builds the untracked standalone-skill payload, so distribute the skill as a release zip built by running it (ADR-083) | `BOOTSTRAP PAYLOAD DRIFT` with `--check` | — |
 | `validate_bootstrap.py` | `BOOTSTRAP VALID` | `BOOTSTRAP INVALID` with reasons, or `--require-active` on a path that is not a project's `config/bootstrap.json` | `BOOTSTRAP INVALID: <read error>`: the file is missing, unreadable or not JSON |
 | `validate_project.py` | `VALIDATION PASSED` | `VALIDATION FAILED` | — (it takes no arguments) |
+| `web_setup.py` | Zip written and next steps printed | `Web setup refused: …` (a missing instructions, list or listed file) | — |
 | `work_packet.py` | Valid, rendered or recorded | `WORK PACKET INVALID: …` | — |
 
 An interrupt stops work without undoing it. Every command routes through `scripts/cli_exit.py`, which reports the interrupt and exits 130; it never writes, repairs or removes a ledger, report or evidence file. Records written before the interrupt stay, so check `status` before retrying. An event being appended to an acceptance or feedback ledger, and a new file being created by the packet, routing, acceptance or harness commands, is finished before the interrupt takes effect. The bootstrap commands give no such guarantee: an interrupted `bootstrap_project.py` can leave a partly generated destination, which holds no approval and must be removed before generating again, and an interrupted `bootstrap_gate.py review` can leave approval revoked until review is run again.
