@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-07 — Unfreeze for startup views and delegation (ADR-093)
+
+- Authored 2026-10-06 as ADR-091 and renumbered ADR-093 when main was merged in, because main had taken ADR-091 (ask rules, PR #111) and ADR-092 (fewer copy/pastes, PRs #113 and #114).
+- Owner direction: unfreeze the template to reduce drift and auto-delegate tasks. The startup protocol now reads validator-checked views: the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md` and the `## Index` of `DECISIONS.md`. `validate_project.py` gains `validate_record_views` (current date not older than the changelog, no closed loop in the open table, unique IDs, index and full rows agree), with eight regression tests. Its first run caught the state section a day behind the changelog.
+- Full rows ADR-070 to ADR-090 archived verbatim to `archive/DECISIONS_ARCHIVE_ADR-070-090.md`; `OPEN_LOOPS.md` split into open and closed tables; `bootstrap_project.py` writes the same formats into generated projects.
+- Duplicated rule text replaced by pointers in `CLAUDE.md`, `MASTER_CLAUDE_CODE.md`, `AGENTS.md` and `.claude/rules/02`; the work-packet, connector and skill sections of `MASTER_INSTRUCTIONS.md` now point at their protocol files; the web and Mistral masters name the views.
+- Delegation: `.claude/agents/` carry model tiers (sonnet for researcher, operator and record-keeper; the reviewer inherits the architect tier) and bounded-outcome reports; `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default for bounded work. External harness dispatch stays operator-run pending OL-036.
+- Records: ADR-093; charter definition of done and decision F updated; OL-036 opened; R-001 updated, R-017 and R-018 added; SRC-038 and SRC-039.
+- Codex round 1 on `2c019e2` (three P2 findings, all fixed): the generated project's status, last-verified, branch and objective fields now sit inside the `## Current` view; a view heading that appears twice is rejected instead of silently replacing the earlier section; every row in a decision archive must have its index pointer (reverse check). Regressions added for each.
+- Codex round 2 on `995e1c4` (two P2 findings, both fixed): the startup protocol now runs `validate_project.py` before trusting the views (step 2), and a duplicated full or archived ADR row is an error instead of collapsing into a set. Regressions added.
+- Codex round 3 on `aae2067` (three P2 findings, all fixed): the delegation default in `MASTER_INSTRUCTIONS.md` is scoped to platforms whose master defines it (today Claude Code only; ADR-089 item F stands elsewhere); a second `## Current (date)` section is an error; an empty decision archive no longer skips the indexed-row check. Regressions added.
+- Codex round 5 on `1fa6e78` (one P2, fixed; the round was triggered unintentionally by a comment that quoted the trigger phrase, beyond the ADR-089 cap): the Current and changelog dates are parsed as calendar dates, so an impossible or far-future Current heading fails instead of sorting after every real entry. Regressions added.
+- Verified: `validate_project.py` passes with 81 required paths and the record-view checks; `sync_skills.py --check` clean; 449 unit tests pass (3 skipped) on Linux before the merge of `main`, 459 after, 462 after round 5.
+
 ## 2026-10-07 — Layperson README (ADR-092, part 2)
 
 - `README.md` rewritten as a short plain-language guide: create the project, say "finish the bootstrap" in Claude Code or Codex, approve with `bootstrap_gate.py activate`, and `web_setup.py` for web chats.

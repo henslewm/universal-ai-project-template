@@ -6,9 +6,20 @@ Claude Code reads `CLAUDE.md`, which imports the universal control files and thi
 
 ## Bootstrap / autonomy gate
 
-Before autonomous substantive work in every session, run `python scripts/validate_bootstrap.py config/bootstrap.json --require-active` from the repository root. Continue autonomously only after successful validation confirms `ACTIVE`, explicit approval, and a matching material-architecture fingerprint. Missing, invalid, or inactive state, or an unavailable runtime/validator, means no autonomous execution: resume bootstrap through `BOOTSTRAP_PROTOCOL.md` and `prompts/INTERACTIVE_BOOTSTRAP.md` within existing permissions.
+Apply `MASTER_INSTRUCTIONS.md` → "Bootstrap / autonomy gate" exactly as stated there; it is deliberately not restated here.
 
-Once activated, routine work within the approved scope and existing permissions may proceed without approval for each step. User-reserved actions, material architecture changes, and consequential external actions retain their applicable explicit-authority requirements. Activation does not expand tool or connector permissions.
+## Delegation (ADR-093)
+
+The session that completed the startup protocol is the architect. It delegates by default and keeps only what a brief cannot bound:
+
+| Agent (`.claude/agents/`) | Model | Delegate |
+|---|---|---|
+| `researcher` | sonnet | source sweeps, repository or web research, fact-finding before drafting |
+| `operator` | sonnet | a bounded, already-understood change with stated acceptance checks and validation |
+| `record-keeper` | sonnet | the closeout records after verified work |
+| `reviewer` | inherit (architect tier) | independent review of a material draft, plan or change |
+
+Rules: every brief states scope, acceptance checks, the facts and decisions it depends on, and the attempt limit (default 2). Run non-overlapping briefs in parallel and consolidate once. A report ends with one bounded outcome (PASS, FAIL, BLOCKED, NEEDS_ESCALATION, ARCHITECTURE_CONFLICT); the architect verifies it rather than trusting it, and on FAIL re-briefs at most once before escalating to itself. Agents inherit `CLAUDE.md` and its imports, so the brief carries only what those do not. The reviewer stays at the architect tier because review quality, not cost, is the control. User-reserved and consequential external actions are never delegated. Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036).
 
 ## Execution rules
 
@@ -24,7 +35,7 @@ Once activated, routine work within the approved scope and existing permissions 
 
 ## Review findings before merge
 
-After opening or updating a pull request, poll `gh api repos/<owner>/<repo>/pulls/<n>/reviews` and `.../pulls/<n>/comments` until a Codex or CodeRabbit review (ADR-074) exists whose `commit_id` equals the current head. A moved head makes the prior review stale: request re-review naming the new SHA. Apply `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" exactly as it states: that section is the single definition of what is actionable and how everything else is handled, and it is deliberately not restated here. Answer every actionable finding before asking for merge authorization. Do not start or continue the next child issue while the current one has unanswered actionable findings. Findings come from GitHub through `gh api`, never from email.
+Apply `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline" exactly as stated; it is the single definition and is not restated here. Read reviews and comments with `gh api` on the pull request (`.../pulls/<n>/reviews` and `.../pulls/<n>/comments`), never from email.
 
 ## Closeout
 

@@ -2,26 +2,28 @@
 
 - **Prepared:** 2026-10-07
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Scope:** the template is frozen at the software and hardware tracks (ADR-089). Next work only on a new owner request.
+- **Scope:** the template is unfrozen (ADR-093) for two owner objectives: less drift and token cost at session start, and delegation by default. Owner-requested work since the freeze also landed on `main`: ask rules (ADR-091) and fewer copy/pastes with a layperson README (ADR-092).
 
 ## What was done
 
-- ADR-092: part 1 (PR #113) made the intake interactive by default, printed plain next steps and added `scripts/web_setup.py`. Part 2 (branch `claude/layperson-readme`) rewrote `README.md` and `START_HERE.md` for a layperson and moved the reference material to `docs/REFERENCE.md`.
-- On the owner's request, `.claude/settings.json` gained `permissions.ask` rules (ADR-091) that prompt before merges, issue writes, deletions and `gh api` writes (Bash and PowerShell), plus PowerShell mirrors of the deny rules and broader force-push denies. The repository-scoped auto-mode rules went into the owner's `~/.claude/settings.json`, because the classifier ignores `autoMode` in project settings. Merged as PR #111 (`e76a20b`) after four Codex rounds. On the owner's explicit choice the final head `4158a3a` merged without a fifth review (recorded in ADR-091). Ask rules do not apply in `bypassPermissions` mode.
-- Previous pass (2026-10-04): status section on master issue #14 (ADR-090).
+- ADR-093 (PR #110, branch `claude/eager-davinci-lhxve0`): startup reads are validator-checked views, the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md` and the `## Index` of `DECISIONS.md`. `scripts/validate_project.py` → `validate_record_views` fails on a stale or repeated Current section, a closed loop in the open table, a repeated heading or ID, or an index row that does not resolve to exactly one full or archived row, in both directions. Full ADR rows 070 to 090 are archived verbatim. Duplicated rule text is replaced by pointers to `MASTER_INSTRUCTIONS.md`. Claude Code subagents carry model tiers and bounded-outcome reports, and `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default there only.
+- The decision was authored as ADR-091 and renumbered ADR-093 when `main` was merged in.
+- From `main`: ADR-091 `permissions.ask` rules in `.claude/settings.json` (PR #111); ADR-092 interactive intake by default, `scripts/web_setup.py` and a layperson README with reference moved to `docs/REFERENCE.md` (PRs #113 and #114).
 
 ## Verified state
 
-- `python scripts/validate_project.py` passes and `python scripts/sync_skills.py --check` is clean after a sync (2026-10-07). The payload build is untracked and CI rebuilds it before tests (ADR-083).
-- `claude auto-mode config` shows the user-scope rules in effect. The ask rules are not live-verified; they need a restart before a dry `gh pr merge` can confirm the prompt.
-- No project is activated from this template, so no re-approval is pending. `config/bootstrap.json` is absent, as expected for the unactivated template.
+- `python scripts/validate_project.py` passes; `python scripts/sync_skills.py --check` clean; `python -m unittest discover -s tests -p "test_*.py"` passes (count in the changelog entry of 2026-10-07).
+- The `permissions.ask` rules from ADR-091 are not live-verified; they need a restart before a dry `gh pr merge` can confirm the prompt.
+- No project is activated from this template; `config/bootstrap.json` is absent, as expected.
 
 ## Next action
 
-None queued. After a restart, the owner may confirm a dry `gh pr merge` prompts (cancel at the prompt). Ask the owner before starting anything new. The skill payload is built by `scripts/sync_skills.py` and is not tracked, so distribute the skill as a release zip.
+- PR #110 used its four Codex rounds (ADR-089) on `7e3b36f`, the last one clean. Merging `main` in moved the head, so the owner decides whether to merge without a fifth review or request one.
+- Owner decision OL-036: whether the architect may launch external harness workers automatically. Until then a human runs any harness worker (ADR-083).
 
 ## Notes
 
+- Closeout dates the current section of `PROJECT_STATE.md`; a changelog entry newer than it fails validation.
 - Preserve ADR-062: confirm no other unattended agent is writing to the same tree before multi-file work.
-- `software_hardware.py` lazily imports `acceptance`, so the hardware track depends on acceptance, feedback, the router and the harness (OL-034).
-- The master's immutability rule still applies to its original text; future status changes stay comments.
+- `software_hardware.py` lazily imports `acceptance` (OL-034).
+- The master's immutability rule still applies to issue #14's original text; future status changes stay comments.
