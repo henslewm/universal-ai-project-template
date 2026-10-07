@@ -8,10 +8,12 @@ if __name__ == "__main__":  # A Ctrl+C while the imports below load also exits 1
     cli_exit.guard_startup()
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -86,9 +88,20 @@ def main() -> int:
                                        if missing else f"no files listed in {list_name}"))
         return 1
     archive = root / f"web-setup-{args.client}.zip"
-    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
-        for name, path in paths.items():
-            bundle.write(path, name)
+    if archive.is_symlink() or (archive.exists() and not archive.is_file()):
+        print(f"Web setup refused: {archive} is a link or not a regular file; remove it first")
+        return 1
+    # Build beside the target and rename over it, so an existing link is never followed or truncated.
+    handle, temporary = tempfile.mkstemp(prefix=".web-setup-", suffix=".zip", dir=root)
+    os.close(handle)
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as bundle:
+            for name, path in paths.items():
+                bundle.write(path, name)
+        os.replace(temporary, archive)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
     copied = copy_to_clipboard(instructions.read_text(encoding="utf-8"))
     print(f"{label} web Project setup")
     print(f"1. Create a new Project in {label}.")

@@ -76,6 +76,25 @@ class WebSetupTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("SKILL_PLAN.md", result.stdout)
 
+    def test_symlinked_archive_destination_is_refused_and_target_untouched(self):
+        outside = Path(self.temp.name) / "important.txt"
+        outside.write_text("keep me", encoding="utf-8")
+        try:
+            (self.root / "web-setup-chatgpt.zip").symlink_to(outside)
+        except OSError:
+            self.skipTest("symlinks are not available on this system")
+        result = self.run_cli("--client", "chatgpt")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("is a link", result.stdout)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "keep me")
+        self.assertEqual(list(self.root.glob(".web-setup-*")), [])
+
+    def test_rerun_replaces_the_archive(self):
+        self.assertEqual(self.run_cli("--client", "claude").returncode, 0)
+        result = self.run_cli("--client", "claude")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(list(self.root.glob(".web-setup-*")), [])
+
     def test_clipboard_copy_uses_the_platform_tool(self):
         with mock.patch.object(web_setup.shutil, "which", return_value="tool"), \
                 mock.patch.object(web_setup.subprocess, "run") as run:
