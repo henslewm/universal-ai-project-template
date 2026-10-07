@@ -22,7 +22,7 @@
 
 ## Next action
 
-- ADR-096 (PR #118, branch `claude/workflow-skills`): committed at `83bc978` and pushed; `main` (with ADR-095, PR #117) merged in. Codex round 1 of 4 returned three findings, all fixed (see the ADR-096 row). Then further rounds within the ADR-089 cap and the owner's merge go-ahead.
+- ADR-096 (PR #118, branch `claude/workflow-skills`): committed at `83bc978` and pushed; `main` (with ADR-095, PR #117) merged in. Codex rounds 1 and 2 of 4 each returned three findings, all fixed (see the ADR-096 row); round 3 next. Then further rounds within the ADR-089 cap and the owner's merge go-ahead.
 - Owner decision OL-036: whether the architect may launch external harness workers automatically. Until then a human runs any harness worker (ADR-083).
 
 ## Notes

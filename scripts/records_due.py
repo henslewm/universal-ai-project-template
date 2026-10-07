@@ -56,10 +56,12 @@ def changed_between(root: Path, start: str) -> set[str]:
     return {p for p in (out or "").split("\0") if p}
 
 
-def committed_after_handoff(root: Path, base: str | None) -> set[str]:
-    """Work paths committed after the last commit on this branch that touched the handoff."""
-    span = f"{base}..HEAD" if base else "HEAD"
-    last = (git(root, "log", "-1", "--format=%H", span, "--", HANDOFF) or "").strip()
+def committed_after_handoff(root: Path) -> set[str]:
+    """Work paths committed after the last commit in HEAD's history that touched the handoff.
+
+    The whole history, not only the branch, so work committed directly on the default branch,
+    where the merge-base is HEAD itself, is still found (Codex round 2 on PR #118)."""
+    last = (git(root, "log", "-1", "--format=%H", "HEAD", "--", HANDOFF) or "").strip()
     if not last:
         return set()
     return {p for p in changed_between(root, last) if p not in RECORDS}
@@ -91,10 +93,13 @@ def evaluate(root: Path):
     working = working_changes(root)
     base = merge_base(root)
     changed = (changed_between(root, base) if base else set()) | working
-    work = sorted(p for p in changed if p not in RECORDS)
+    # A handoff edited in the working tree is newer than every commit; a committed one is behind
+    # any work committed after it (Codex rounds 1 and 2 on PR #118).
+    later = set() if HANDOFF in working else committed_after_handoff(root)
+    work = sorted({p for p in changed if p not in RECORDS} | later)
     if not work:
         return None
-    if HANDOFF in changed:
+    if HANDOFF in changed and not later:
         try:
             handoff_time = (root / HANDOFF).stat().st_mtime
         except OSError:
@@ -105,11 +110,12 @@ def evaluate(root: Path):
                 try:
                     newest = max(newest, (root / rel).stat().st_mtime)
                 except OSError:
-                    pass  # deleted file: no mtime
-        # A handoff edited in the working tree is newer than every commit; a committed one is
-        # behind any work committed after it (Codex round 1 on PR #118).
-        later = set() if HANDOFF in working else committed_after_handoff(root, base)
-        if newest <= handoff_time and not later:
+                    # A deleted file has no mtime. After a committed handoff the deletion is
+                    # newer than it, so it is due; a handoff edited in the working tree may
+                    # already account for it (Codex round 2 on PR #118).
+                    if HANDOFF not in working:
+                        newest = float("inf")
+        if newest <= handoff_time:
             return None
     branch = (git(root, "rev-parse", "--abbrev-ref", "HEAD") or "").strip() or "this branch"
     return branch, work

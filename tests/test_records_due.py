@@ -84,6 +84,27 @@ class RecordsDueTests(unittest.TestCase):
         git(self.root, "commit", "-q", "-am", "closeout again")
         self.assertEqual(self.run_hook().stdout, "")
 
+    def test_due_when_work_is_committed_after_the_handoff_on_the_default_branch(self):
+        # Codex round 2 on PR #118: on main the merge-base is HEAD itself.
+        git(self.root, "checkout", "-q", "main")
+        self.assertEqual(self.run_hook().stdout, "")
+        (self.root / "app.py").write_text("b\n")
+        git(self.root, "commit", "-q", "-am", "work on main")
+        self.assertEqual(json.loads(self.run_hook().stdout)["decision"], "block")
+        (self.root / "HANDOFF_CURRENT.md").write_text("h1\n")
+        git(self.root, "commit", "-q", "-am", "closeout on main")
+        self.assertEqual(self.run_hook().stdout, "")
+
+    def test_due_when_a_tracked_file_is_deleted_after_a_committed_handoff(self):
+        # Codex round 2 on PR #118: a deletion has no mtime to compare.
+        (self.root / "HANDOFF_CURRENT.md").write_text("h1\n")
+        git(self.root, "commit", "-q", "-am", "closeout")
+        self.assertEqual(self.run_hook().stdout, "")
+        (self.root / "app.py").unlink()
+        out = json.loads(self.run_hook().stdout)
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("app.py", out["reason"])
+
     def test_record_only_changes_not_due(self):
         (self.root / "CHANGELOG.md").write_text("c\n")
         self.assertEqual(self.run_hook().stdout, "")
