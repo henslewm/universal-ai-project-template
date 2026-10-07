@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-07 — Records after the PR #110 merge (ADR-093)
+
+- `PROJECT_STATE.md` current section: the active-branch bullet now records PR #110 merged by the owner at `ed30f33` (head `0fb220d`) after five Codex rounds, the fifth unintended and past the ADR-089 cap, with PR #115 following; the verified bullet points at this date's changelog entry.
+- `DECISIONS.md`: the full ADR-093 row's status now states the five rounds and the merge with head `0fb220d` unreviewed. No other row changed.
+- `HANDOFF_CURRENT.md`: merge recorded, no queued work, and two notes: never quote the Codex trigger phrase in a PR comment, and branch `claude/auto-closeout` holds unfinished ADR-094 work, so the next decision takes ADR-095 or later.
+
 ## 2026-10-07 — Require docs/REFERENCE.md in the validator (ADR-092 follow-up)
 
 - PR #114 moved the reference material to `docs/REFERENCE.md`; `scripts/validate_project.py` (with its `.agents`, `.claude` and payload copies, converged by `sync_skills.py`) now lists `docs/REFERENCE.md` in `REQUIRED`, so a checkout or generated project missing the moved reference fails validation. Regression added in `tests/test_validate_project.py`. No new ADR: this enforces the ADR-092 layout.

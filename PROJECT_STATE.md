@@ -6,9 +6,9 @@
 
 - **Scope:** the ADR-089 freeze is lifted for two owner objectives. Startup reads are now views checked by `scripts/validate_project.py` (current-section date, open-loop table, decision index), duplicated rule text is replaced by pointers, and full ADR rows 070 to 090 are archived verbatim. Claude Code sessions delegate bounded work to the `.claude/agents/` subagents by default (researcher, operator, record-keeper on sonnet; reviewer at the architect tier) with bounded-outcome reports.
 - **Not changed:** external harness dispatch stays operator-run (ADR-083); the owner decides OL-036. Review cap 4 and worker-attempt default 2 (ADR-089) stand.
-- **Verified:** `validate_project.py` passes with the new record-view checks; `sync_skills.py --check` clean; the unit suite passes (see the changelog entry of 2026-10-06).
+- **Verified:** `validate_project.py` passes with the new record-view checks; `sync_skills.py --check` clean; the unit suite passes (see the changelog entry of 2026-10-07).
 - **Open:** OL-036 (external auto-launch decision), OL-034 (hardware track dependency, informational).
-- **Active branch:** `claude/eager-davinci-lhxve0` (ADR-093, PR #110); `main` merged in on 2026-10-07. Four Codex rounds used, the last clean on `7e3b36f`; the owner decides whether the merged head needs a fifth.
+- **Active branch:** `main`. PR #110 (ADR-093) was merged by the owner on 2026-10-07 as `ed30f33` (head `0fb220d`) after five Codex rounds: rounds 1 to 3 found 3, 2 and 3 P2 findings (all fixed), round 4 on `7e3b36f` was clean, and round 5 on `1fa6e78` went past the ADR-089 cap because a PR comment quoted the trigger phrase; its one P2 was fixed in `0fb220d`, which no Codex round reviewed. PR #115 (`docs/REFERENCE.md` in the validator's REQUIRED list) followed, at `c27c0d6`.
 
 ## 2026-10-03: frozen at the software and hardware tracks (ADR-089)
 
