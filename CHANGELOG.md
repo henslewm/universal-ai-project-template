@@ -2,7 +2,7 @@
 
 ## 2026-10-06 — Ask rules for merges and GitHub writes (ADR-091)
 
-- `.claude/settings.json` gains `permissions.ask` rules (Bash and PowerShell) that prompt before merging PRs, editing or commenting on issues, deleting releases or remote branches, and `gh api` writes with an explicit method. The Bash denies gain `PowerShell(...)` mirrors, including recursive `Remove-Item`. Auto-mode classifier rules moved to the owner's user settings, because the classifier ignores `autoMode` in project settings (Codex P1 on PR #111).
+- `.claude/settings.json` gains `permissions.ask` rules (Bash and PowerShell) that prompt before merging PRs, editing or commenting on issues, deleting releases or remote branches, and `gh api` writes with an explicit method. The Bash denies gain `PowerShell(...)` mirrors, including recursive `Remove-Item`, and the force-push deny also covers `--force-with-lease`, `-f` and `+refspec`. Ask rules do not apply in `bypassPermissions` mode. Auto-mode classifier rules moved to the owner's user settings, because the classifier ignores `autoMode` in project settings (Codex P1 on PR #111).
 
 ## 2026-10-04 — Master issue #14 status section (ADR-090)
 
