@@ -135,7 +135,7 @@ class WebSetupWiringTests(unittest.TestCase):
 
     def test_validator_refuses_a_checkout_missing_any_web_setup_dependency(self) -> None:
         for name in ("scripts/web_setup.py", ".chatgpt/PROJECT_FILES.md", ".claude-web/PROJECT_KNOWLEDGE.md",
-                     ".mistral/PROJECT_KNOWLEDGE.md"):
+                     ".mistral/PROJECT_KNOWLEDGE.md", "docs/REFERENCE.md"):
             with self.subTest(path=name), tempfile.TemporaryDirectory() as temp:
                 destination = Path(temp) / "checkout"
                 repository_copy(destination)

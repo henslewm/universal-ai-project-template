@@ -35,7 +35,7 @@ REQUIRED = [
     "config/project.json", ".chatgpt/PROJECT_INSTRUCTIONS.md",
     ".chatgpt/PROJECT_FILES.md",
     ".claude-web/PROJECT_INSTRUCTIONS.md", ".claude-web/PROJECT_KNOWLEDGE.md",
-    "scripts/web_setup.py",
+    "scripts/web_setup.py", "docs/REFERENCE.md",
     ".mistral/PROJECT_INSTRUCTIONS.md", ".mistral/PROJECT_KNOWLEDGE.md",
     ".codex/config.toml",
     ".vibe/config.toml",
