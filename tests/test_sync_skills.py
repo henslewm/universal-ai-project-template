@@ -424,6 +424,66 @@ class SyncSkillsTests(unittest.TestCase):
         self.assertFalse((native / "references/renamed.md").exists())
         self.assertEqual(sync_skills.sync(check=True), [])
 
+    def _add_second_skill(self):
+        other = self.root / "skills/review-round"
+        (other / "references").mkdir(parents=True)
+        (other / "SKILL.md").write_text("# Review round\n", encoding="utf-8")
+        (other / "references/notes.md").write_text("# Notes\n", encoding="utf-8")
+        return other
+
+    def test_every_canonical_skill_is_mirrored_and_shipped(self):
+        self._add_second_skill()
+        drift = sync_skills.sync(check=True)
+        self.assertIn(".claude/skills/review-round/SKILL.md", drift)
+        sync_skills.sync()
+        asset = self.skill / "assets/project-template"
+        for base in (self.root / ".agents/skills", self.root / ".claude/skills", asset / "skills",
+                     asset / ".agents/skills", asset / ".claude/skills"):
+            self.assertEqual((base / "review-round/SKILL.md").read_text(encoding="utf-8"), "# Review round\n", base)
+            self.assertTrue((base / "review-round/references/notes.md").exists(), base)
+        self.assertFalse((self.root / ".claude/skills/review-round/scripts").exists(),
+                         "the bootstrapper's scripts are not copied into other skills")
+        self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_a_file_deleted_from_another_skill_is_pruned_from_its_mirrors(self):
+        other = self._add_second_skill()
+        sync_skills.sync()
+        (other / "references/notes.md").unlink()
+        drift = sync_skills.sync(check=True)
+        self.assertIn(".agents/skills/review-round/references/notes.md", drift)
+        self.assertIn(".claude/skills/review-round/references/notes.md", drift)
+        sync_skills.sync()
+        for native in (".agents/skills", ".claude/skills"):
+            self.assertFalse((self.root / native / "review-round/references/notes.md").exists())
+            self.assertTrue((self.root / native / "review-round/SKILL.md").exists())
+        self.assertEqual(sync_skills.sync(check=True), [])
+
+    def test_a_linked_canonical_skill_is_refused(self):
+        real = self.root / "elsewhere"
+        real.mkdir()
+        (real / "SKILL.md").write_text("# Linked\n", encoding="utf-8")
+        try:
+            os.symlink(real, self.root / "skills/linked", target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symbolic links are unavailable on this host")
+        with self.assertRaises(ValueError):
+            sync_skills.sync(check=True)
+        with mock.patch("builtins.print") as printed, mock.patch("sys.argv", ["sync_skills.py"]):
+            self.assertEqual(sync_skills.main(), 1)
+        self.assertIn("REFUSED", printed.call_args_list[0].args[0])
+
+    def test_an_orphaned_native_skill_is_left_reported_and_not_drift(self):
+        orphan = self.root / ".claude/skills/native-only"
+        orphan.mkdir(parents=True)
+        (orphan / "SKILL.md").write_text("# Native only\n", encoding="utf-8")
+        self.assertEqual(sync_skills.orphan_skills(), [".claude/skills/native-only"])
+        sync_skills.sync()
+        self.assertTrue((orphan / "SKILL.md").exists())
+        self.assertEqual(sync_skills.sync(check=True), [])
+        with mock.patch("builtins.print") as printed, mock.patch("sys.argv", ["sync_skills.py", "--check"]):
+            self.assertEqual(sync_skills.main(), 0)
+        self.assertIn(".claude/skills/native-only", "\n".join(str(c.args[0]) for c in printed.call_args_list))
+
 
 if __name__ == "__main__":
     unittest.main()

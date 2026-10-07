@@ -35,14 +35,23 @@ REQUIRED = [
     "config/project.json", ".chatgpt/PROJECT_INSTRUCTIONS.md",
     ".chatgpt/PROJECT_FILES.md",
     ".claude-web/PROJECT_INSTRUCTIONS.md", ".claude-web/PROJECT_KNOWLEDGE.md",
-    "scripts/web_setup.py", "docs/REFERENCE.md",
+    "scripts/web_setup.py", "scripts/records_due.py", "docs/REFERENCE.md",
     ".mistral/PROJECT_INSTRUCTIONS.md", ".mistral/PROJECT_KNOWLEDGE.md",
     ".codex/config.toml",
     ".vibe/config.toml",
     ".claude/settings.json", "prompts/BOOTSTRAP_NEW_PROJECT.md",
     "skills/complex-project-bootstrapper/SKILL.md",
+    "skills/review-round/SKILL.md",
+    "skills/records/SKILL.md",
+    "skills/status/SKILL.md",
     ".agents/skills/complex-project-bootstrapper/SKILL.md",
     ".claude/skills/complex-project-bootstrapper/SKILL.md",
+    ".agents/skills/review-round/SKILL.md",
+    ".claude/skills/review-round/SKILL.md",
+    ".agents/skills/records/SKILL.md",
+    ".claude/skills/records/SKILL.md",
+    ".agents/skills/status/SKILL.md",
+    ".claude/skills/status/SKILL.md",
     "BOOTSTRAP_PROTOCOL.md", "prompts/INTERACTIVE_BOOTSTRAP.md",
     "config/bootstrap.schema.json", "scripts/validate_bootstrap.py", "scripts/bootstrap_gate.py",
     "WORK_PACKET_PROTOCOL.md", "config/work-packet.schema.json", "scripts/work_packet.py",
@@ -327,14 +336,14 @@ def main() -> int:
             if SECRET_NAMES.search(rel):
                 error(errors, f"Potential secret file must not be tracked: {rel}")
 
-    canonical = ROOT / "skills/complex-project-bootstrapper/SKILL.md"
-    for rel in [
-        ".agents/skills/complex-project-bootstrapper/SKILL.md",
-        ".claude/skills/complex-project-bootstrapper/SKILL.md",
-    ]:
-        native = ROOT / rel
-        if canonical.exists() and native.exists() and canonical.read_bytes() != native.read_bytes():
-            error(errors, f"Native skill copy differs from canonical: {rel}; run scripts/sync_skills.py")
+    for canonical in sorted((ROOT / "skills").glob("*/SKILL.md")):
+        for native_root in (".agents/skills", ".claude/skills"):
+            rel = f"{native_root}/{canonical.parent.name}/SKILL.md"
+            native = ROOT / rel
+            if not native.exists():
+                error(errors, f"Native skill copy missing: {rel}; run scripts/sync_skills.py")
+            elif canonical.read_bytes() != native.read_bytes():
+                error(errors, f"Native skill copy differs from canonical: {rel}; run scripts/sync_skills.py")
 
     if not (ROOT / "HANDOFF_CURRENT.md").exists():
         warnings.append("No current handoff")

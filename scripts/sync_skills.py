@@ -26,14 +26,46 @@ EXCLUDED = {'.git', '__pycache__', '.pytest_cache', '.venv', 'venv', 'dist', 'bu
 PRUNE_SKIPPED = {'.git', '__pycache__', '.pytest_cache'}
 
 
-def files_under(root: Path, every_file: bool = False):
+def other_skills() -> list[Path]:
+    """Canonical skills other than the bootstrapper: each direct subdirectory of skills/ with a SKILL.md."""
+    base = ROOT / 'skills'
+    if not base.is_dir():
+        return []
+    found = []
+    for path in sorted(base.iterdir()):
+        if path.name == SKILL.name:
+            continue
+        # validate_project.py globs skills/*/SKILL.md and follows a link, so a linked skill must
+        # be refused here, never skipped: skipping would leave a failure no sync can fix.
+        if path.is_symlink() or is_junction(path):
+            raise ValueError(f'Refusing to sync a linked skill: {path.relative_to(ROOT).as_posix()}')
+        if path.is_dir() and (path / 'SKILL.md').is_file():
+            found.append(path)
+    return found
+
+
+def orphan_skills() -> list[str]:
+    """Native skill folders with no canonical skills/<name>. Informational only: Claude Code users
+    legitimately keep native-only project skills, so these are never pruned or counted as drift.
+    Removing the mirrors of a renamed or deleted canonical skill is a manual step."""
+    canonical = {SKILL.name, *(path.name for path in other_skills())}
+    orphans = []
+    for native in ('.agents/skills', '.claude/skills'):
+        base = ROOT / native
+        if base.is_dir():
+            orphans.extend(f'{native}/{path.name}' for path in sorted(base.iterdir())
+                           if path.is_dir() and path.name not in canonical)
+    return orphans
+
+
+def files_under(root: Path, every_file: bool = False, keep_assets: bool = False):
     """Files under `root`.
 
     By default only files that may become payload, never descending into EXCLUDED directories.
     `every_file=True` is for pruning a mirror, whose invariant is that it holds exactly what the
     copy produced: it yields every file present, whatever its name or directory, except under
     PRUNE_SKIPPED, so anything the copy filters would never have produced is found and removed."""
-    skipped = PRUNE_SKIPPED if every_file else EXCLUDED
+    skipped = PRUNE_SKIPPED if every_file else EXCLUDED - ({'assets'} if keep_assets else set())
     for directory, dirs, files in os.walk(root):
         # os.walk does not stop at a Windows junction on its own (is_symlink() is False for one),
         # so it is excluded from descent here explicitly, the same as an excluded/skipped name.
@@ -94,10 +126,15 @@ def sync(check: bool = False) -> list[str]:
     differences = []
     expected = set()
     mirrors = [ROOT / native / SKILL.name for native in ('.agents/skills', '.claude/skills')]
+    # Every other canonical skill is mirrored the same way; only the bootstrapper's scripts, its
+    # `assets` exclusion and the payload are specific to it.
+    others = [(skill, [ROOT / native / skill.name for native in ('.agents/skills', '.claude/skills')])
+              for skill in other_skills()]
+    all_mirrors = mirrors + [mirror for _, group in others for mirror in group]
     asset = SKILL / 'assets/project-template'
     # Checked once, before anything is copied, pruned or unlinked: every destination root and each
     # directory above it is real, so no write or deletion can land outside the repository.
-    for destination in [SKILL / 'scripts', *mirrors, asset]:
+    for destination in [SKILL / 'scripts', *all_mirrors, asset]:
         refuse_linked_path(destination)
 
     def unlink_all(mirror: Path):
@@ -213,14 +250,20 @@ def sync(check: bool = False) -> list[str]:
                 else:
                     shutil.rmtree(path)
 
-    for mirror in mirrors:
+    for mirror in all_mirrors:
         unlink_all(mirror)
     for source in files_under(SKILL):
         for mirror in mirrors:
             copy(source, mirror / source.relative_to(SKILL))
+    # Mirrors are created and pruned only for canonical skills. A mirror whose canonical skill was
+    # renamed or deleted is left in place (see orphan_skills); removing it is manual.
+    for skill, group in others:
+        for source in files_under(skill, keep_assets=True):
+            for mirror in group:
+                copy(source, mirror / source.relative_to(skill))
     # Prune the native mirrors before they are themselves copied into the payload, so one sync
     # converges instead of carrying an obsolete file into the payload for one more round.
-    for mirror in mirrors:
+    for mirror in all_mirrors:
         prune(mirror)
     unlink_all(asset)
     for source in files_under(ROOT):
@@ -241,6 +284,10 @@ def main() -> int:
     if args.check and differences:
         print('BOOTSTRAP PAYLOAD DRIFT\n' + '\n'.join(differences))
         return 1
+    orphans = orphan_skills()
+    if orphans:
+        print('Native skill folders with no canonical skills/<name> (left in place; remove manually '
+              'if their skill was renamed or deleted):\n' + '\n'.join(orphans))
     print(f'Bootstrap payloads {"verified" if args.check else "synchronized"}; {len(differences)} files differed.')
     return 0
 

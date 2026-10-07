@@ -5,6 +5,9 @@
 ## Always available or recommended
 
 - `complex-project-bootstrapper`: initialize or retrofit a complex repo-backed project.
+- `review-round` (user-invoked): one automated-review round on the current pull request, within the ADR-089 cap.
+- `records`: the closeout record updates, delegated to the `record-keeper` agent and validated. Started by the user or by the Stop hook (`scripts/records_due.py`) when the records are behind the work; never commits.
+- `status`: a read-only, one-screen summary of the branch, pull request, next action and validator result.
 - Skill creator: create or update a repeatable workflow only after concrete inputs, outputs, and connector needs are known.
 - Planning / execution-plan skill: use for long-horizon, multi-stage implementation.
 - Skill installer or public skill search: discover reviewed skills rather than copying unknown instructions blindly.

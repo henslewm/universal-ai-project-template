@@ -88,6 +88,37 @@ class MistralWiringTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
 
 
+class NativeSkillCopyTests(unittest.TestCase):
+    """Every canonical skill's native copies must exist and equal it, not only the bootstrapper's."""
+
+    def _validate(self, change) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as temp:
+            destination = Path(temp) / "checkout"
+            repository_copy(destination)
+            change(destination)
+            return subprocess.run([sys.executable, str(destination / "scripts/validate_project.py")],
+                                  cwd=destination, text=True, capture_output=True)
+
+    def test_new_skills_are_required(self) -> None:
+        required = set(validate_project.REQUIRED)
+        for name in ("review-round", "records", "status"):
+            for base in ("skills", ".agents/skills", ".claude/skills"):
+                self.assertIn(f"{base}/{name}/SKILL.md", required)
+
+    def test_validator_refuses_a_differing_native_copy_of_another_skill(self) -> None:
+        def change(destination: Path) -> None:
+            with (destination / ".claude/skills/review-round/SKILL.md").open("a", encoding="utf-8") as handle:
+                handle.write("\ndrift\n")
+        result = self._validate(change)
+        self.assertNotEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn("Native skill copy differs from canonical: .claude/skills/review-round/SKILL.md", result.stdout)
+
+    def test_validator_refuses_a_missing_native_copy_of_another_skill(self) -> None:
+        result = self._validate(lambda destination: (destination / ".agents/skills/status/SKILL.md").unlink())
+        self.assertNotEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+        self.assertIn(".agents/skills/status/SKILL.md", result.stdout)
+
+
 class IssueTemplateGuidanceTests(unittest.TestCase):
     def test_evidence_gap_template_warns_against_placeholder_reports(self) -> None:
         canonical = ROOT / ".github/ISSUE_TEMPLATE/evidence-gap.yml"
