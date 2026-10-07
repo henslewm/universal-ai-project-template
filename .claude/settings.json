@@ -16,12 +16,10 @@
       "Bash(git push -d *)",
       "Bash(git push * -d *)",
       "Bash(git push * :*)",
-      "Bash(gh api * -X *)",
+      "Bash(gh api *-X*)",
       "Bash(gh api * --method *)",
-      "Bash(gh api -X *)",
       "Bash(gh api --method *)",
       "Bash(gh api *--method=*)",
-      "Bash(gh api *-X=*)",
       "PowerShell(gh pr merge *)",
       "PowerShell(gh pr close *)",
       "PowerShell(gh pr edit *)",
@@ -36,12 +34,10 @@
       "PowerShell(git push -d *)",
       "PowerShell(git push * -d *)",
       "PowerShell(git push * :*)",
-      "PowerShell(gh api * -X *)",
+      "PowerShell(gh api *-X*)",
       "PowerShell(gh api * --method *)",
-      "PowerShell(gh api -X *)",
       "PowerShell(gh api --method *)",
-      "PowerShell(gh api *--method=*)",
-      "PowerShell(gh api *-X=*)"
+      "PowerShell(gh api *--method=*)"
     ],
     "deny": [
       "Read(./.env)",
