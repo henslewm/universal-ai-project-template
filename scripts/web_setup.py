@@ -32,6 +32,24 @@ def listed_files(doc: Path) -> list[str]:
             if (match := LIST_ITEM.match(line))]
 
 
+def inside(root: Path, name: str) -> Path | None:
+    """The regular file `name` names under `root`; None for an absolute, escaping or symlinked path."""
+    relative = Path(name)
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    path = root / relative
+    # Every component is checked, so a symlinked directory cannot carry the path outside the root.
+    for part in [path, *path.parents]:
+        if part == root:
+            break
+        if part.is_symlink():
+            return None
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root) or not resolved.is_file():
+        return None
+    return resolved
+
+
 def copy_to_clipboard(text: str) -> bool:
     if sys.platform == "win32":
         commands = [["clip"]]
@@ -55,20 +73,22 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(args.root).expanduser().resolve()
     instructions_name, list_name, label = CLIENTS[args.client]
-    instructions, file_list = root / instructions_name, root / list_name
-    for path in (instructions, file_list):
-        if not path.is_file():
-            print(f"Web setup refused: missing {path}")
+    instructions, file_list = inside(root, instructions_name), inside(root, list_name)
+    for name, path in ((instructions_name, instructions), (list_name, file_list)):
+        if path is None:
+            print(f"Web setup refused: missing {root / name} (or it is a link or lies outside the project)")
             return 1
     names = listed_files(file_list)
-    missing = [name for name in names if not (root / name).is_file()]
+    paths = {name: inside(root, name) for name in names}
+    missing = [name for name, path in paths.items() if path is None]
     if not names or missing:
-        print("Web setup refused: " + (f"missing {', '.join(missing)}" if missing else f"no files listed in {list_name}"))
+        print("Web setup refused: " + (f"missing {', '.join(missing)} (or a link or a path outside the project)"
+                                       if missing else f"no files listed in {list_name}"))
         return 1
     archive = root / f"web-setup-{args.client}.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
-        for name in names:
-            bundle.write(root / name, name)
+        for name, path in paths.items():
+            bundle.write(path, name)
     copied = copy_to_clipboard(instructions.read_text(encoding="utf-8"))
     print(f"{label} web Project setup")
     print(f"1. Create a new Project in {label}.")

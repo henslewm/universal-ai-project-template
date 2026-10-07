@@ -50,6 +50,32 @@ class WebSetupTests(unittest.TestCase):
         self.assertIn("Web setup refused: missing SKILL_PLAN.md", result.stdout)
         self.assertFalse((self.root / "web-setup-chatgpt.zip").exists())
 
+    def test_paths_outside_the_project_are_refused(self):
+        outside = Path(self.temp.name) / "secret.txt"
+        outside.write_text("credential", encoding="utf-8")
+        listing = self.root / ".chatgpt/PROJECT_FILES.md"
+        original = listing.read_text(encoding="utf-8")
+        for entry in (str(outside), "../secret.txt"):
+            with self.subTest(entry=entry):
+                listing.write_text(original + f"\n11. `{entry}`\n", encoding="utf-8")
+                result = self.run_cli("--client", "chatgpt")
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("outside the project", result.stdout)
+                self.assertFalse((self.root / "web-setup-chatgpt.zip").exists())
+
+    def test_symlinked_listed_file_is_refused(self):
+        outside = Path(self.temp.name) / "secret.txt"
+        outside.write_text("credential", encoding="utf-8")
+        target = self.root / "SKILL_PLAN.md"
+        target.unlink()
+        try:
+            target.symlink_to(outside)
+        except OSError:
+            self.skipTest("symlinks are not available on this system")
+        result = self.run_cli("--client", "chatgpt")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("SKILL_PLAN.md", result.stdout)
+
     def test_clipboard_copy_uses_the_platform_tool(self):
         with mock.patch.object(web_setup.shutil, "which", return_value="tool"), \
                 mock.patch.object(web_setup.subprocess, "run") as run:
