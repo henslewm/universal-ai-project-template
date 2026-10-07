@@ -11,9 +11,9 @@ The shared files are vendor-neutral. Native entrypoints make each client actuall
 
 ## ChatGPT web
 
-1. Create a new Project.
-2. Paste `.chatgpt/PROJECT_INSTRUCTIONS.md` into Project settings.
-3. Add the compact files in `.chatgpt/PROJECT_FILES.md`.
+1. Run `python scripts/web_setup.py --client chatgpt` in the project folder. It writes `web-setup-chatgpt.zip` and copies the Project instructions to your clipboard.
+2. Create a new Project and paste the instructions into Project settings.
+3. Upload the files inside the zip.
 4. Connect GitHub and only the additional apps listed in `CONNECTOR_PLAN.md`.
 5. Install `skill.zip` through the Skills interface when you want the bootstrap workflow available across chats.
 6. Start with `prompts/START_SESSION.md` or the bootstrap prompt.
@@ -29,9 +29,9 @@ The shared files are vendor-neutral. Native entrypoints make each client actuall
 
 ## Claude web
 
-1. Create a Project and paste `.claude-web/PROJECT_INSTRUCTIONS.md`.
+1. Run `python scripts/web_setup.py --client claude`, create a Project, and paste the instructions from your clipboard.
 2. Add the repository through the GitHub integration.
-3. If the full repo cannot be added, add the compact knowledge set listed in `.claude-web/PROJECT_KNOWLEDGE.md`.
+3. If the full repo cannot be added, upload the files inside `web-setup-claude.zip`.
 4. Treat project knowledge, not prior chat history, as the cross-chat source.
 
 ## Claude Code

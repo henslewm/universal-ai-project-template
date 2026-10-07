@@ -6,6 +6,7 @@
 
 ## What was done
 
+- ADR-092 part 1 on branch `claude/fewer-copy-pastes`: interactive intake by default, plain next steps, and `scripts/web_setup.py`. Part 2, the layperson README with reference material moved to `docs/`, follows after this merges.
 - On the owner's request, `.claude/settings.json` gained `permissions.ask` rules (ADR-091) that prompt before merges, issue writes, deletions and `gh api` writes (Bash and PowerShell), plus PowerShell mirrors of the deny rules and broader force-push denies. The repository-scoped auto-mode rules went into the owner's `~/.claude/settings.json`, because the classifier ignores `autoMode` in project settings. Merged as PR #111 (`e76a20b`) after four Codex rounds. On the owner's explicit choice the final head `4158a3a` merged without a fifth review (recorded in ADR-091). Ask rules do not apply in `bypassPermissions` mode.
 - Previous pass (2026-10-04): status section on master issue #14 (ADR-090).
 

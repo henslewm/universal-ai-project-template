@@ -533,7 +533,7 @@ def publish_github(dest: Path, owner: str | None, visibility: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--interactive", action="store_true", help="Ask the concise intake questions")
+    parser.add_argument("--interactive", action="store_true", help="Ask the intake questions (the default without --answers)")
     parser.add_argument("--answers", help="Path to JSON answers")
     parser.add_argument("--profile", choices=sorted(PROFILES), help="Canonical domain; otherwise recovered from the intake or template")
     parser.add_argument("--no-hardware", action="store_true", help="Software-only project: skip the hardware intake and load the web-ui track")
@@ -545,8 +545,8 @@ def main() -> int:
     parser.add_argument("--visibility", choices=["private", "public", "internal"], default="private")
     args = parser.parse_args()
 
-    if not args.answers and not args.interactive:
-        parser.error("Use --interactive or --answers <file>.")
+    if not args.answers:
+        args.interactive = True
     source = locate_template_root(args.template_root)
     destination = Path(args.destination).expanduser().resolve()
     # Never overwrite an existing project's approval or durable user records.
@@ -613,9 +613,11 @@ def main() -> int:
     print(git_status)
     print(publish_status)
     print("\nNext steps:")
-    print("1. Complete the foundation in config/bootstrap.json using prompts/INTERACTIVE_BOOTSTRAP.md.")
-    print("2. Run python scripts/bootstrap_gate.py review and present BOOTSTRAP_REVIEW.md to the user.")
-    print("3. Only explicit approval via python scripts/bootstrap_gate.py activate enables autonomy.")
+    print(f"1. Open Claude Code (or Codex) in {destination}")
+    print('2. Say: "finish the bootstrap". It drafts the plan, runs the review and shows it to you.')
+    print("3. When you agree with it, run this yourself and type the approval line it asks for:")
+    print("   python scripts/bootstrap_gate.py activate")
+    print("Using ChatGPT, Claude or Mistral on the web? Run: python scripts/web_setup.py --client chatgpt|claude|mistral")
     print("Autonomy: OFF. Generating files or initializing Git never activates a project.")
     if not args.github:
         owner = args.github_owner or "OWNER"
