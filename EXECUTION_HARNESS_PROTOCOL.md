@@ -45,7 +45,7 @@ A failed attempt is recorded with its evidence and fingerprint, and the next bri
 
 A worker that writes no report, or writes one the validator refuses, is a real outcome but never an inferred one. `ingest` refuses both and leaves the reservation untouched; `abandon` closes it, recording the operator's stated reason as the attempt's evidence. Because nothing was reported, scope is genuinely unknown, so the controller moves to an architect decision rather than looping a worker that may be structurally unable to complete the packet. The reason is required, bounded and credential-checked; absence alone never closes an attempt.
 
-Ctrl+C stops a command, never an attempt. The command exits 130 (README.md, "CLI exit codes"), and a reservation made before the interrupt stays pending until `ingest` or `abandon` closes it.
+Ctrl+C stops a command, never an attempt. The command exits 130 (docs/REFERENCE.md, "CLI exit codes"), and a reservation made before the interrupt stays pending until `ingest` or `abandon` closes it.
 
 If preparation refuses after the reservation is already spent — no binding for the routed resource, an oversized brief, a brief that cannot fit the window the resource is served in — the attempt is closed as `PROVIDER_UNAVAILABLE` with the refusal as evidence rather than left pending. The controller escalates that to the architect rather than retrying, which is deliberate: a harness that cannot be prepared is an architecture or configuration problem, not a transient failure to loop on.
 

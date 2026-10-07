@@ -1,6 +1,6 @@
 """CLI exit codes (ADR-072) and Ctrl+C handling (#31, #32) for every scripts/*.py command line.
 
-README.md, "CLI exit codes", is the table these tests hold the commands to. Nothing here
+docs/REFERENCE.md, "CLI exit codes", is the table these tests hold the commands to. Nothing here
 reclassifies an outcome: each case pins the code a command already returned.
 """
 from __future__ import annotations

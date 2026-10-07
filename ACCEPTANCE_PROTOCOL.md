@@ -51,7 +51,7 @@ python scripts/acceptance.py --config config/acceptance.json sync-feedback LEDGE
 python scripts/acceptance.py --config config/acceptance.json verify-review RUNDIR/review-packet.json RUNDIR/review-report.json
 ```
 
-Exit codes are listed in README.md, "CLI exit codes". Ctrl+C during `run-checks` is one more controller exit: the check's owner ends its tree, and the command exits 130 only once the tree is confirmed stopped, refusing otherwise. An interrupt records no outcome; the gates still decide acceptance.
+Exit codes are listed in docs/REFERENCE.md, "CLI exit codes". Ctrl+C during `run-checks` is one more controller exit: the check's owner ends its tree, and the command exits 130 only once the tree is confirmed stopped, refusing otherwise. An interrupt records no outcome; the gates still decide acceptance.
 
 ## Domain rules at the gates
 
