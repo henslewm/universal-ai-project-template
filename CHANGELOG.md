@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-07 — Require docs/REFERENCE.md in the validator (ADR-092 follow-up)
+
+- PR #114 moved the reference material to `docs/REFERENCE.md`; `scripts/validate_project.py` (with its `.agents`, `.claude` and payload copies, converged by `sync_skills.py`) now lists `docs/REFERENCE.md` in `REQUIRED`, so a checkout or generated project missing the moved reference fails validation. Regression added in `tests/test_validate_project.py`. No new ADR: this enforces the ADR-092 layout.
+
 ## 2026-10-07 — Unfreeze for startup views and delegation (ADR-093)
 
 - Authored 2026-10-06 as ADR-091 and renumbered ADR-093 when main was merged in, because main had taken ADR-091 (ask rules, PR #111) and ADR-092 (fewer copy/pastes, PRs #113 and #114).
