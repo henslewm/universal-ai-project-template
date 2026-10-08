@@ -57,6 +57,15 @@ if mode in ("report", "orphan", "tamper"):
               "cost_evidence": "Synthetic zero-cost run; no model calls made."}
     with open(report_path, "w", encoding="utf-8") as stream:
         json.dump(report, stream)
+if mode in ("unmark", "unmark-wait"):
+    # Delete the launcher's one-launch marker and exit without a report.
+    os.remove(os.path.join(os.path.dirname(brief_path), "launch.json"))
+if mode == "unmark-wait":
+    # Say the marker is gone, then keep running until the test releases this run.
+    open(os.path.join(here, "unmarked.txt"), "w").close()
+    deadline = time.monotonic() + 20
+    while not os.path.exists(os.path.join(here, "release.txt")) and time.monotonic() < deadline:
+        time.sleep(0.02)
 if mode == "tamper":
     # Change the brief while the run is under way; the launcher must notice once the tree stops.
     with open(brief_path, "a", encoding="utf-8") as stream:
@@ -453,6 +462,57 @@ class LauncherRunTests(LauncherBase):
         self.assertIn("changed while the harness ran", err)
         self.assertIn("abandon", err)
         self.assertEqual(out, "")
+        self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+
+    def test_a_harness_that_deletes_the_launch_marker_cannot_be_launched_again(self):
+        # PR #124 post-merge Codex finding: the marker is the one-launch guard, and the worker can write
+        # in its run directory, so the launcher restores it once the tree is stopped and refuses the run.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("unmark")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1)
+        self.assertIn("launch.json", err)
+        self.assertIn("abandon", err)
+        self.assertEqual(out, "")
+        self.assertTrue((rundir / "launch.json").exists(), "the one-launch guard is restored")
+        self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+        (self.tool / "observed.json").unlink()
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1)
+        self.assertIn("already launched", err)
+        self.assertIsNone(self.observed(), "a second launch must not start the harness")
+
+    def test_a_marker_deleted_by_a_running_harness_does_not_admit_a_second_launch(self):
+        # PR #126 Codex round 1: the guard must hold for the whole run, not only once the tree stops.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("unmark-wait")
+        first = {}
+
+        def run_first():
+            try:
+                first["result"] = launcher.launch(self.ledger, self.config, rundir, self.project)
+            except ValueError as exc:
+                first["error"] = str(exc)
+
+        with self.environment():
+            thread = threading.Thread(target=run_first)
+            thread.start()
+            try:
+                deadline = time.monotonic() + 20
+                while not (self.tool / "unmarked.txt").exists() and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue((self.tool / "unmarked.txt").exists(), "the harness should have deleted its marker")
+                self.assertFalse((rundir / "launch.json").exists())
+                with self.assertRaisesRegex(ValueError, "already launched"):
+                    launcher.launch(self.ledger, self.config, rundir, self.project)
+            finally:
+                (self.tool / "release.txt").touch()
+                thread.join(30)
+        self.assertIn("launch.json", first.get("error", ""))
         self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
 
     def test_a_harness_that_cannot_be_started_refuses_and_frees_the_run_directory(self):
