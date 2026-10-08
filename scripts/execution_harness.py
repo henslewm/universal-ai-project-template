@@ -553,13 +553,15 @@ def abandon(directory, config, reason):
     text = str(reason).strip()
     require(20 <= len(text) <= 2000, "Abandoning an attempt requires a specific recorded reason")
     secret_free(text, "Abandonment reason")
-    recorded = feedback.complete(directory, {
+    metered = state["attempts"][-1].get("api_metered", True)
+    recorded = feedback.abandon(directory, {
         "dispatch_id": state["pending"], "outcome": "FAIL",
         "summary": "Dispatched worker produced no usable report; the attempt was abandoned with a recorded reason.",
         "scope_status": "unknown", "architecture_conflict": False, "validation": [],
-        "evidence": [f"attempt-abandoned: {text}"], "discoveries": [], "api_cost_usd": None,
+        "evidence": [f"attempt-abandoned: {text}"], "discoveries": [], "api_cost_usd": None if metered else 0,
         "cost_evidence": ("Unknown: the worker reported no accounting and a metered provider may have charged. "
-                          "Routing treats this cost as unknown, never as zero.")})
+                          "Routing treats this cost as unknown, never as zero." if metered else
+                          "Zero: the routed resource declared no API price when it was dispatched.")})
     return {"status": recorded["status"], "outcome": "FAIL", "dispatch_id": state["pending"],
             "attempts_used": len(recorded["attempts"]),
             "remaining_task_attempts": recorded["total_cap"] - len(recorded["attempts"]),

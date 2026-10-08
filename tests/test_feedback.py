@@ -637,10 +637,16 @@ class FeedbackTests(unittest.TestCase):
         directory = self.start(settings=settings)
         dispatch = self.reserve(directory, settings)
         self.assertEqual(feedback.replay(directory)[0]["attempts"][-1]["resource_id"], "paid")
+        self.assertTrue(feedback.replay(directory)[0]["attempts"][-1]["api_metered"])
         reported = result(dispatch, feedback.replay(directory)[0]["packet"])
         reported.update(scope_status="unknown", api_cost_usd=None,
                         cost_evidence="Unknown: abandoned with no accounting (synthetic).")
-        feedback.complete(directory, reported, self.tick())
+        # PR #122 Codex P2: only an abandonment may record an unknown cost, and not as zero when metered.
+        with self.assertRaisesRegex(ValueError, "only by abandoning"):
+            feedback.complete(directory, reported, self.tick())
+        with self.assertRaisesRegex(ValueError, "unknown \\(null\\) cost on a metered resource"):
+            feedback.abandon(directory, {**reported, "api_cost_usd": 0}, self.tick())
+        feedback.abandon(directory, reported, self.tick())
         self.repair(directory)
         self.reserve(directory, settings)
         state = feedback.replay(directory)[0]

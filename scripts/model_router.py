@@ -126,19 +126,9 @@ def dec(value):
     return Decimal(str(value))
 
 
-def unmetered(config, resource_id):
-    """True when the resource declares zero API price, so an unknown cost on it is known to be zero."""
-    resource = next((r for r in config["resources"] if r["id"] == resource_id), None)
-    return bool(resource) and dec(resource["input_million_usd"]) == 0 and dec(resource["output_million_usd"]) == 0
-
-
 def metered(resource):
+    """A resource that declares a nonzero API price, so an attempt on it may have charged."""
     return dec(resource["input_million_usd"]) > 0 or dec(resource["output_million_usd"]) > 0
-
-
-def unknown_costs(attempts, config, cost=lambda a: a["api_cost_usd"], resource_id=lambda a: a["resource_id"]):
-    """Attempts whose API cost is unknown (null) on a resource that may have charged."""
-    return [a for a in attempts if cost(a) is None and not unmetered(config, resource_id(a))]
 
 
 def number(value):
@@ -196,7 +186,9 @@ def _route(packet, config, request):
     floor = max(min(tiers), risk_floor, complexity_floor)
     # A null cost is unknown, not zero: only known costs are summed, and an unknown one bars metered resources.
     spent = sum((dec(a["api_cost_usd"]) for a in attempts if a["api_cost_usd"] is not None), dec(0))
-    unknown = unknown_costs(attempts, config)
+    # Whether an abandoned attempt could have charged is settled when it is recorded, from the
+    # prices saved with its dispatch (ADR-097); a later re-pricing of the same resource id cannot clear it.
+    unknown = [a for a in attempts if a["api_cost_usd"] is None]
     result = {"schema_version": "1.0", "algorithm_version": ALGORITHM, "policy_version": policy["version"],
               "binding": binding, "packet_hash": digest(packet), "config_hash": digest(config),
               "request_hash": digest(request), "status": "STOP", "reason_codes": [], "selected": None,

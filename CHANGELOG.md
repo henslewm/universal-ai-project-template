@@ -2,9 +2,9 @@
 
 ## 2026-10-08 — Unknown-cost state (ADR-097)
 
-- `scripts/execution_harness.py`: `abandon` records `api_cost_usd: null` (unknown) instead of 0; a worker report must state a number.
-- `scripts/model_router.py` and `scripts/feedback.py`: only known costs are summed; an unknown cost on a metered resource bars every metered candidate (`PRIOR_API_COST_UNKNOWN`), across contract repairs too; zero-priced resources stay eligible.
-- `config/feedback.schema.json`, `config/model-router.schema.json`: `api_cost_usd` accepts `null`. Protocol docs updated (`EXECUTION_HARNESS_PROTOCOL.md`, `FEEDBACK_PROTOCOL.md`, `MODEL_ROUTING.md`). Five regressions, shown failing on the earlier code.
+- `scripts/execution_harness.py` and `scripts/feedback.py`: `abandon` writes a distinct `ABANDON` event recording `api_cost_usd: null` (unknown) when the routed resource was metered at dispatch, 0 when it was not; `complete` and worker reports refuse `null` (PR #122 Codex round 1).
+- `scripts/model_router.py` and `scripts/feedback.py`: only known costs are summed; an unknown cost on a metered resource bars every metered candidate (`PRIOR_API_COST_UNKNOWN`), across contract repairs too; zero-priced resources stay eligible; a past attempt is never re-classified from current prices.
+- `config/feedback.schema.json`, `config/model-router.schema.json`: `api_cost_usd` accepts `null`. Protocol docs updated (`EXECUTION_HARNESS_PROTOCOL.md`, `FEEDBACK_PROTOCOL.md`, `MODEL_ROUTING.md`). Regressions shown failing on the earlier code.
 
 ## 2026-10-08 — Template activated; records current (ADR-096)
 

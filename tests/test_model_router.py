@@ -261,13 +261,16 @@ class RoutingTests(unittest.TestCase):
         only_paid = config(resource("paid", tier=1, api=0.1, latency=0))
         self.assert_stop(router.route(packet, only_paid, request(packet, attempts=history[:1])), "NO_ELIGIBLE_RESOURCE")
 
-    def test_unknown_cost_on_a_zero_priced_resource_is_known_zero(self):
+    def test_unknown_cost_stays_unknown_after_its_resource_is_repriced_to_zero(self):
+        # PR #122 Codex P1: metering is settled when the attempt is recorded, not from current prices.
         packet = make_packet()
-        settings = config(resource(), resource("paid", tier=1, api=0.1, latency=0))
-        result = router.route(packet, settings, request(packet, attempts=[attempt(1, api=None)]))
-        self.assertNotIn("unknown_api_cost_attempts", result)
-        row = next(item for item in result["candidates"] if item["resource_id"] == "paid")
-        self.assertNotIn("PRIOR_API_COST_UNKNOWN", row["reason_codes"])
+        settings = config(resource("paid"), resource("other", tier=1, api=0.1, latency=0))
+        settings["policy"]["failures_per_tier"] = 20
+        history = [attempt(1, resource_id="paid", api=None)]
+        result = router.route(packet, settings, request(packet, attempts=history))
+        self.assertEqual(result["unknown_api_cost_attempts"], [history[0]["decision_id"]])
+        row = next(item for item in result["candidates"] if item["resource_id"] == "other")
+        self.assertIn("PRIOR_API_COST_UNKNOWN", row["reason_codes"])
 
     def test_zero_api_budget_still_allows_zero_api_cost_resource(self):
         packet = make_packet()
