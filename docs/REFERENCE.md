@@ -103,6 +103,7 @@ Every `scripts/*.py` command follows one exit-code policy (ADR-072). Adopting it
 | `validate_project.py` | `VALIDATION PASSED` | `VALIDATION FAILED` | — (it takes no arguments) |
 | `web_setup.py` | Zip written and next steps printed | `Web setup refused: …` (a missing instructions, list or listed file) | — |
 | `work_packet.py` | Valid, rendered or recorded | `WORK PACKET INVALID: …` | — |
+| `worker_launcher.py` | JSON `status` `REPORT_WRITTEN` | `Worker launcher refused: …`, including a changed run directory or a tree that could not be confirmed stopped | JSON `status` `NO_REPORT` or `TIMED_OUT`; an interrupted run prints JSON `status` `INTERRUPTED` and exits 130 |
 
 An interrupt stops work without undoing it. Every command routes through `scripts/cli_exit.py`, which reports the interrupt and exits 130; it never writes, repairs or removes a ledger, report or evidence file. Records written before the interrupt stay, so check `status` before retrying. An event being appended to an acceptance or feedback ledger, and a new file being created by the packet, routing, acceptance or harness commands, is finished before the interrupt takes effect. The bootstrap commands give no such guarantee: an interrupted `bootstrap_project.py` can leave a partly generated destination, which holds no approval and must be removed before generating again, and an interrupted `bootstrap_gate.py review` can leave approval revoked until review is run again.
 

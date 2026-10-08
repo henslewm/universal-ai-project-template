@@ -1,6 +1,6 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-08 (cloud session that answered PR #116 Codex round 3)
+- **Prepared:** 2026-10-08 (cloud session that finished PR #116 and built the launcher milestone)
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Gate:** ACTIVE since 2026-10-08 (`validate_bootstrap.py config/bootstrap.json --require-active` passes).
 - **Scope:** the four ADR-096 milestones only; nothing outside them. Shipped milestones take defect fixes only (ADR-098).
@@ -11,21 +11,26 @@
 |---|---|
 | Records current | Done: PR #121 merged (`4ac2d68`); frozen (ADR-098) |
 | Unknown-cost state (ADR-097) | Done: PR #122 merged (`4921427`); frozen (ADR-098) |
-| Auto-closeout (ADR-094) | PR #116, still a **draft**: Codex rounds 1 to 3 answered, every finding fixed with a regression, every thread resolved, CI green; round 4 of 4, the last (ADR-089), on `e0a76f3` answered (stdin hang fixed, branch-delete race declined with the owner). Owner marks it ready and merges. Frozen once merged |
-| External worker launcher (OL-036) | Not started; next after #116 merges |
+| Auto-closeout (ADR-094) | Done: PR #116 merged (`066a37c`) after 4 Codex rounds; frozen (ADR-098) |
+| External worker launcher (OL-036) | Built on `claude/worker-launcher` (ADR-099): the old launcher restored with the ADR-077 limits, 27 tests passing unchanged. Not done until the owner's first real launch succeeds |
 
 ## Next action
 
-1. PR #116: the owner marks it ready for review and merges it (`closeout.py merge` cannot merge its own pull request). Marking it ready may start one automatic Codex review; answer any finding before the merge under ADR-063 and ADR-098.
-2. After #116 merges: the launcher milestone on a new branch from `main`, scoped under `EXECUTION_HARNESS_PROTOCOL.md` from the ADR-077 limits and relying on ADR-097. It builds on the frozen harness, feedback and router through their interfaces; a change to them that is not a defect fix goes to the owner first (ADR-098).
-3. Owner: decide OL-040 (PR #118 reuses ADR-095/096 and is outside scope; PR #119 is superseded).
+1. Launcher PR: answer each Codex round (at most 4, ADR-089) under ADR-063 and ADR-098; the owner merges.
+2. Owner, after merge: edit `MASTER_CLAUDE_CODE.md` → Delegation, the sentence "Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036)", to say the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Agents are refused edits to that file.
+3. Owner, first real launch, on the Mac or Windows 11:
+   - On Windows, first run `python -m unittest discover -s tests -p "test_worker_launcher.py"`; the Windows path has never run.
+   - Use a zero-priced (local) binding first: `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097).
+   - A Node-based harness such as Cline needs an absolute-path wrapper that sets `PATH` (and `SystemRoot` on Windows); the child environment holds only the binding's credential variable.
+   - Set `role_api_budget_usd` in the router configuration; the architect never raises it.
+4. Owner: decide OL-040 (PR #118 reuses ADR-095/096 and is outside scope; PR #119 is superseded).
 
 ## Notes
 
-- `closeout.py ready` counts CodeRabbit's 2026-10-07 review as a round, so after Codex round 4 it reports PR #116 past the cap of 4; the owner merges #116 by hand either way.
-- The owner removed the ADR-091 `ask` block on `main` (`fcfecf8`). The Claude Code auto-mode classifier refuses an agent editing `.claude/settings.json`, `MASTER_CLAUDE_CODE.md` and, at times, this file. Leave such edits to the owner and do not work around the refusal.
+- The architect runs `launch` as a background task or with `--timeout-seconds` below its command timeout (R-022): the launcher stops the tree only at the bound or on Ctrl+C.
 - `closeout.py ready` and `merge` need gh GraphQL. Claude cloud sessions refuse GraphQL, so run them on the owner's machine.
+- The Claude Code auto-mode classifier refuses an agent editing `.claude/settings.json`, `MASTER_CLAUDE_CODE.md` and, at times, this file. Leave such edits to the owner and do not work around the refusal.
 - After switching branches, run `python3 scripts/sync_skills.py` before the suite. The gitignored payload keeps the previous branch's files (OL-037), and a stale one fails `test_bootstrap_integration`.
 - `test_cli_exit_codes` times out when stdin is an open pipe (OL-039); run the suite with `< /dev/null`.
-- Next free ADR: ADR-099. ADR-062: one writer per tree. A session on the owner's Mac also works this repository; check for its pushes before multi-file work.
+- Next free ADR: ADR-100. ADR-062: one writer per tree. A session on the owner's Mac also works this repository; check for its pushes before multi-file work.
 - Never write the Codex trigger phrase in a PR comment unless requesting a review.
