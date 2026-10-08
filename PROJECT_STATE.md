@@ -1,14 +1,14 @@
 # Project State
 
-## Current (2026-10-07): bootstrap retrofit awaiting owner approval (ADR-096)
+## Current (2026-10-07): bootstrap retrofit under its own gate (ADR-096)
 
 - **Status:** AWAITING_APPROVAL — autonomy OFF
-- **Gate:** the template now carries its own `config/bootstrap.json` at `AWAITING_APPROVAL` (branch `claude/bootstrap-retrofit`); `template_mode` stays true and every record is preserved. Autonomy is OFF until the owner runs `python scripts/bootstrap_gate.py activate`. The review packet is `BOOTSTRAP_REVIEW.md`.
+- **Gate:** the template carries its own `config/bootstrap.json` (branch `claude/bootstrap-retrofit`); `template_mode` stays true and every record is preserved. The Status line above is the only live gate state in this view: `bootstrap_gate.py` review and activate rewrite it, and `validate_bootstrap.py config/bootstrap.json --require-active` is authoritative. The review packet is `BOOTSTRAP_REVIEW.md`.
 - **Owner decisions (ADR-096):** risk low, sensitivity public; OL-036 yes (scope a launcher); finish ADR-094 as directed; fix the cost-as-zero defect, #12 and #13 stay deferred; no features beyond the owner's requirements.
 - **Approved milestones once activated:** Records current → Unknown-cost state → External worker launcher OL-036; Records current → Auto-closeout ADR-094.
 - **Corrected:** PR #117 (ADR-095) merged at `ff5f5a4`; the next free ADR after this one is ADR-097 (ADR-094 stays reserved for `claude/auto-closeout`).
-- **Verified:** `validate_project.py` passes; `validate_bootstrap.py` reports VALID at AWAITING_APPROVAL; unit suite and `sync_skills.py --check` per the changelog entry of 2026-10-07. A fresh clone fails `sync_skills.py --check` and two tests until `sync_skills.py` builds the gitignored payload (OL-037).
-- **Open:** OL-037 (fresh-clone payload), OL-038 (owner activation), OL-034 (informational).
+- **Verified:** `validate_project.py` passes; `validate_bootstrap.py` reported VALID after the 2026-10-07 review; unit suite and `sync_skills.py --check` per the changelog entry of 2026-10-07. A fresh clone fails `sync_skills.py --check` and two tests until `sync_skills.py` builds the gitignored payload (OL-037).
+- **Open:** OL-037 (fresh-clone payload), OL-038 (owner activation; the Records current milestone closes it once `--require-active` passes), OL-034 (informational).
 
 ## 2026-10-07: unfrozen for startup views and delegation (ADR-093)
 

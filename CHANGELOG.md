@@ -7,6 +7,7 @@
 - `config/project.json`: template placeholders replaced with the template's own values; `template_mode` stays true.
 - `PROJECT_CHARTER.md`: risk low, sensitivity public, and the ADR-096 owner decisions (OL-036 yes, finish ADR-094, unknown-cost fix, #12/#13 deferred, no features beyond requirements).
 - `scripts/bootstrap_gate.py`: `update_project_status` now changes only the `## Current` section's Status line (whole file if there is none), so activation updates the startup view and never rewrites history; `PROJECT_STATE.md`'s current section gains the Status line it updates (Codex round 3 P2). Regressions in `tests/test_bootstrap_gate.py`, shown failing on the earlier code.
+- `PROJECT_STATE.md`: the current section's Gate, Verified and Open lines and its heading no longer restate the pre-activation state, so the Status line is the only live gate field and activation leaves no contradiction (Codex round 4 P2). Regression `test_activation_leaves_no_stale_gate_state_in_template_view`, shown failing on the earlier text.
 - Records: ADR-096; OL-036 closed; OL-037 (fresh-clone payload) and OL-038 (activation) opened; R-019 to R-021; stale "PR #117 pending" and "next ADR 095" corrected. The review command's rewrite of the historical `Status` line in `PROJECT_STATE.md` was reverted.
 
 ## 2026-10-07 — Records after the PR #110 merge (ADR-093); record-keeper gets Bash (ADR-095)

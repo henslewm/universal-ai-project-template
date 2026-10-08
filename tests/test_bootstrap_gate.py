@@ -168,3 +168,14 @@ class ProjectStatusViewTests(unittest.TestCase):
         text = (ROOT / "PROJECT_STATE.md").read_text(encoding="utf-8")
         current = text.split("## Current (", 1)[1].split("\n## ", 1)[0]
         self.assertIn("- **Status:** ", current)
+
+    def test_activation_leaves_no_stale_gate_state_in_template_view(self) -> None:
+        # PR #120 Codex round 4: activation rewrote only the Status line, leaving other Current lines
+        # still reporting AWAITING_APPROVAL, so the startup view contradicted itself.
+        (self.root / "PROJECT_STATE.md").write_text((ROOT / "PROJECT_STATE.md").read_text(encoding="utf-8"), encoding="utf-8")
+        self.gate.update_project_status(self.root, "ACTIVE — approved foundation")
+        text = (self.root / "PROJECT_STATE.md").read_text(encoding="utf-8")
+        current = text.split("## Current (", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("- **Status:** ACTIVE — approved foundation\n", current)
+        for stale in ("AWAITING_APPROVAL", "autonomy OFF", "Autonomy is OFF"):
+            self.assertNotIn(stale, current)
