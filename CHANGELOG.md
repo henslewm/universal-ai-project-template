@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-08 — Freeze shipped milestones (ADR-098)
+
+- `DECISIONS.md` ADR-098: Records current and Unknown-cost state are frozen, and Auto-closeout joins them when PR #116 merges. Frozen work takes reproduced-defect fixes only; other review findings on it are declined.
+- `AGENTS.md` gains "Review guidelines" for Codex's reviewer: report only findings that pass the ADR-063 actionable test, and only defects on frozen work.
+
 ## 2026-10-08 — Automatic closeout (ADR-094)
 
 - `scripts/closeout.py`: `push`, `ready`, `merge`, `issue`, `sync-loops` (from the 2026-10-07 WIP on PR #116); `ready` now also counts a clean Codex round from its Completed summary row. PR #116 review round 1: the cap is enforced even on a reviewed head and counts every round; more than 100 threads, a changes-requested review of the head, or a cross-repository pull request refuse; git, gh and test calls time out; `sync-loops` creates a missing Closed table; an issue URL is matched rather than assumed. Round 2: `merge` deletes the branch only after GitHub reports the pull request merged, so a queued merge keeps its branch. Round 3: rerun after a queued merge lands, `merge` only cleans up, and keeps a branch that moved past the merged head; `validate_closeout` checks all 19 force-push, hard-reset and recursive-delete denies, and treats a Bash or PowerShell rule as a gate when its `*` wildcards, trailing `:*` or bare tool name match a closeout command. Also fixed: a review bot's thread reply, filed as an empty COMMENTED review on the then head, no longer counts as a review round or as a review of that head. An independent review of `4dae8f2` found two defects, fixed: the cleanup never deletes a protected head branch, and a rule naming a closeout command gates it whatever arguments it pins.
