@@ -19,7 +19,7 @@ The short version is in [README.md](README.md). This page adds the other ways in
 Create your repository with **Use this template**, clone it, and tailor it in place from its folder:
 
 ```bash
-python scripts/bootstrap_project.py --destination .
+python scripts/bootstrap_project.py --destination . --replace-template-state
 ```
 
 Then continue with steps 2 and 3 of section A.
