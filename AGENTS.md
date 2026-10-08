@@ -27,4 +27,9 @@ Apply `MASTER_INSTRUCTIONS.md` → "Bootstrap / autonomy gate" exactly as stated
 
 ## Safety
 
-Do not force-push, delete evidence, expose secrets, send external communications, change permissions, or perform consequential external writes without explicit user authority.
+Do not force-push, delete evidence, expose secrets, send external communications, change permissions, or perform consequential external writes without explicit user authority. The automatic closeout commands in `MASTER_INSTRUCTIONS.md` → "Automatic closeout (ADR-094)" are standing owner direction.
+
+## Review guidelines
+
+- Report only findings that pass the actionable test in `MASTER_INSTRUCTIONS.md` → "Review findings and merge discipline": a concrete defect, with the input that triggers it. No improvements, hardening, refactors or style.
+- Work that `DECISIONS.md` records as frozen takes defect fixes only; report nothing else on it.

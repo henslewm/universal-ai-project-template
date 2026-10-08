@@ -4,9 +4,10 @@
 
 - **Status:** ACTIVE — approved foundation
 - **Activation:** PR #120 (ADR-096 retrofit) merged to `main` at `7f04c75` on 2026-10-08 (owner merge; last head `9967655` was pushed by a separate session on the owner's Mac after Codex round 4 of 4, so no Codex review covers that head; CI green). The owner activated the package on 2026-10-08 in commit `72ff167` on `claude/activate-template`: from a phone he sent identity "henslewm" and the approval line in chat, and this session passed both unchanged to `bootstrap_gate.py activate` (approved_at 2026-10-08T14:29:43Z). `validate_bootstrap.py config/bootstrap.json --require-active` passes.
-- **Approved milestones:** Records current (done, PR #121) → Unknown-cost state (done, ADR-097, branch `claude/unknown-cost`) → External worker launcher OL-036; Records current → Auto-closeout ADR-094. Next: Auto-closeout ADR-094 or the launcher. Nothing outside them.
-- **Open PRs (other sessions, not touched):**
-  - #116 draft `claude/auto-closeout`: ADR-094 work in progress, an approved milestone; finished under it.
+- **Approved milestones:** Records current (done, PR #121) → Unknown-cost state (done, ADR-097, PR #122 merged) → External worker launcher OL-036; Records current → Auto-closeout ADR-094. Next: the owner merges #116 once Codex round 4 is clean, then the launcher. Nothing outside them.
+- **Freeze (ADR-098):** Records current and Unknown-cost state take defect fixes only; Auto-closeout joins them when #116 merges.
+- **Open PRs** (#118 and #119 not touched by this session):
+  - #116 draft `claude/auto-closeout`: ADR-094, implemented on the owner's instruction (2026-10-08); the owner removed the ADR-091 `ask` block on `main` (`fcfecf8`). Codex rounds 1 to 3 answered: every finding fixed with a regression shown failing first (round 3: 3 findings; this session also fixed a bot thread reply miscounted as a review of the head, and two defects an independent review found), every thread resolved; round 4 of 4, the last (ADR-089), on `e0a76f3` found two: the stdin hang, fixed with a regression, and a branch-delete race, declined with the owner's agreement. The final one-line head has no Codex review; the owner marks #116 ready and merges it.
   - #118 `claude/workflow-skills`: claims ADR-095 and ADR-096, which `main` already uses; has merge conflicts; its feature is outside the approved milestones (OL-040).
   - #119 draft `claude/eager-davinci-lhxve0`: handoff update after PR #117; has conflicts and is superseded by PR #120's records (OL-040).
 - **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-040 (PRs #118 and #119), OL-034 (informational).

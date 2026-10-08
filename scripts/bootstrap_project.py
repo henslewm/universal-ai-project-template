@@ -317,6 +317,8 @@ The `## Open` table is the startup read. Closed loops move to `## Closed` verbat
 
 ## Open
 
+<!-- issue-mirror-from: OL-004 -->
+
 | ID | Priority | Open item | Owner | Next action | Dependency | Due | Status |
 |---|---|---|---|---|---|---|---|
 | OL-001 | High | Approve project foundation | {answers['owner']} | Review charter, connectors, and skills | Intake | {target} | Open |

@@ -35,7 +35,7 @@ REQUIRED = [
     "config/project.json", ".chatgpt/PROJECT_INSTRUCTIONS.md",
     ".chatgpt/PROJECT_FILES.md",
     ".claude-web/PROJECT_INSTRUCTIONS.md", ".claude-web/PROJECT_KNOWLEDGE.md",
-    "scripts/web_setup.py", "docs/REFERENCE.md",
+    "scripts/web_setup.py", "docs/REFERENCE.md", "scripts/closeout.py",
     ".mistral/PROJECT_INSTRUCTIONS.md", ".mistral/PROJECT_KNOWLEDGE.md",
     ".codex/config.toml",
     ".vibe/config.toml",
@@ -223,6 +223,85 @@ def validate_record_views(root: Path) -> list[str]:
     return errors
 
 
+CLOSEOUT_HEADING = "## Automatic closeout (ADR-094)"
+ISSUE_MIRROR = re.compile(r"<!-- issue-mirror-from: OL-(\d+) -->")
+ISSUE_LINK = re.compile(r"\[#\d+\]\(https://github\.com/[^)\s]+/issues/\d+\)")
+# ADR-094 grants push, ready-merge and issue mirroring only; every force-push, hard-reset and
+# recursive-delete deny must survive it.
+_FORCE_AND_RESET = ["git push --force *", "git push *--force*", "git push -f *", "git push * -f *", "git push * -f",
+                    "git push * +*", "git reset --hard *"]
+KEPT_DENIES = ([f"Bash({rule})" for rule in _FORCE_AND_RESET + ["rm -rf *"]]
+               + [f"PowerShell({rule})" for rule in _FORCE_AND_RESET + ["Remove-Item *-Recurse*", "Remove-Item -r *",
+                                                                         "Remove-Item * -r *", "Remove-Item * -r"]])
+# The commands automatic closeout runs, each with a sample command line. A rule gates one when it
+# names the command, whatever arguments it pins, or when its wildcards match the sample line.
+CLOSEOUT_COMMANDS = {"gh pr merge": "gh pr merge 1 --merge --match-head-commit 0",
+                     "gh issue create": "gh issue create --title t --body b",
+                     "gh issue close": "gh issue close 1 --comment c",
+                     "git push -u": "git push -u origin topic",
+                     "git push origin --delete": "git push origin --delete topic"}
+SHELL_RULE = re.compile(r"(?:Bash|PowerShell)(?:\((.*)\))?")
+
+
+def gates(rule: str, command: str) -> bool:
+    """True when a Bash or PowerShell permission rule matches the command line: `*` matches any text,
+    a trailing `:*` is the legacy prefix form, and a bare tool name matches every command."""
+    match = SHELL_RULE.fullmatch(rule.strip())
+    if not match:
+        return False
+    pattern = match.group(1)
+    if pattern is None:
+        return True
+    if pattern.endswith(":*"):
+        pattern = pattern[:-2] + "*"
+    return re.fullmatch(".*".join(re.escape(part) for part in pattern.split("*")), command) is not None
+
+
+def has_github_origin(root: Path) -> bool:
+    import subprocess
+    try:
+        url = subprocess.run(["git", "config", "--get", "remote.origin.url"], cwd=root,
+                             capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "github.com" in url
+
+
+def validate_closeout(root: Path, github: bool) -> list[str]:
+    """ADR-094: the closeout rules are stated, the commands they need are not gated, the force-push,
+    hard-reset and recursive-delete denies stay, and on a GitHub project every loop from the mirror
+    threshold on links its issue."""
+    errors: list[str] = []
+    master = root / "MASTER_INSTRUCTIONS.md"
+    if master.is_file() and CLOSEOUT_HEADING not in master.read_text(encoding="utf-8").split("\n"):
+        errors.append(f"MASTER_INSTRUCTIONS.md needs the '{CLOSEOUT_HEADING}' section")
+    settings_path = root / ".claude/settings.json"
+    try:
+        permissions = json.loads(settings_path.read_text(encoding="utf-8")).get("permissions", {})
+    except (OSError, ValueError):
+        permissions = None  # reported by main()
+    if permissions is not None:
+        for rule in KEPT_DENIES:
+            if rule not in permissions.get("deny", []):
+                errors.append(f".claude/settings.json must keep the deny rule {rule} (ADR-094 does not widen it)")
+        for rule in permissions.get("ask", []) + permissions.get("deny", []):
+            if any(name in rule or gates(rule, line) for name, line in CLOSEOUT_COMMANDS.items()):
+                errors.append(f".claude/settings.json gates {rule}, which automatic closeout runs (ADR-094)")
+    loops = root / "OPEN_LOOPS.md"
+    if loops.is_file():
+        text = loops.read_text(encoding="utf-8")
+        marker = ISSUE_MIRROR.search(text)
+        if not marker:
+            errors.append("OPEN_LOOPS.md needs an '<!-- issue-mirror-from: OL-NNN -->' marker (ADR-094)")
+        elif github:
+            for cells in _table_rows(text, "OL-"):
+                number = int(cells[0][3:]) if cells[0][3:].isdigit() else -1
+                if number >= int(marker.group(1)) and not ISSUE_LINK.search(cells[2]):
+                    errors.append(f"OPEN_LOOPS.md: {cells[0]} has no mirrored GitHub issue; "
+                                  "run `python scripts/closeout.py issue --loop` (ADR-094)")
+    return errors
+
+
 def error(errors: list[str], message: str) -> None:
     errors.append(message)
 
@@ -283,6 +362,7 @@ def main() -> int:
             elif archive.stat().st_size == 0:
                 error(errors, f"Required file is empty: {rel}")
     errors.extend(validate_record_views(ROOT))
+    errors.extend(validate_closeout(ROOT, has_github_origin(ROOT)))
     bootstrap_path = ROOT / "config/bootstrap.json"
     if bootstrap_path.exists():
         try:

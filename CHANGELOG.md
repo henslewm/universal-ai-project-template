@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-08 — Freeze shipped milestones (ADR-098)
+
+- `DECISIONS.md` ADR-098: Records current and Unknown-cost state are frozen, and Auto-closeout joins them when PR #116 merges. Frozen work takes reproduced-defect fixes only; other review findings on it are declined.
+- `AGENTS.md` gains "Review guidelines" for Codex's reviewer: report only findings that pass the ADR-063 actionable test, and only defects on frozen work.
+
+## 2026-10-08 — Automatic closeout (ADR-094)
+
+- `scripts/closeout.py`: `push`, `ready`, `merge`, `issue`, `sync-loops` (from the 2026-10-07 WIP on PR #116); `ready` now also counts a clean Codex round from its Completed summary row. PR #116 review round 1: the cap is enforced even on a reviewed head and counts every round; more than 100 threads, a changes-requested review of the head, or a cross-repository pull request refuse; git, gh and test calls time out; `sync-loops` creates a missing Closed table; an issue URL is matched rather than assumed. Round 2: `merge` deletes the branch only after GitHub reports the pull request merged, so a queued merge keeps its branch. Round 3: rerun after a queued merge lands, `merge` only cleans up, and keeps a branch that moved past the merged head; `validate_closeout` checks all 19 force-push, hard-reset and recursive-delete denies, and treats a Bash or PowerShell rule as a gate when its `*` wildcards, trailing `:*` or bare tool name match a closeout command. Also fixed: a review bot's thread reply, filed as an empty COMMENTED review on the then head, no longer counts as a review round or as a review of that head. An independent review of `4dae8f2` found two defects, fixed: the cleanup never deletes a protected head branch, and a rule naming a closeout command gates it whatever arguments it pins. Round 4: `ready` runs the validator and the suite with stdin closed, so an inherited pipe or terminal cannot stall a CLI test into a false failure; the branch-delete race finding was declined with the owner's agreement.
+- `MASTER_INSTRUCTIONS.md` gains "Automatic closeout (ADR-094)"; closeout step 9 and the merge rule point at it; `.claude/rules/02`, `.claude/rules/04` and `AGENTS.md` point at it too.
+- `OPEN_LOOPS.md` mirrors issues from OL-041; generated projects from OL-004. `validate_project.py` gains `validate_closeout`; `docs/REFERENCE.md` gains the exit-code row; `tests/test_closeout.py` (26 tests).
+- `.claude/settings.json`: the ADR-091 `ask` block is removed by the owner on `main` (`fcfecf8`; an agent may not edit its own permissions); every deny stays.
+
 ## 2026-10-08 — Unknown-cost state (ADR-097)
 
 - `scripts/execution_harness.py` and `scripts/feedback.py`: `abandon` writes a distinct `ABANDON` event recording `api_cost_usd: null` (unknown) when the routed resource was metered at dispatch, 0 when it was not; `complete` and worker reports refuse `null` (PR #122 Codex round 1); an `ABANDON` event must have the fixed no-report shape, so it can never pass (round 2).
