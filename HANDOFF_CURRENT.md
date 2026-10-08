@@ -1,6 +1,6 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-08 (cloud session that finished PR #116 and built the launcher milestone)
+- **Prepared:** 2026-10-08 (cloud session that finished PR #116, built the launcher milestone and recorded PR #124's merge)
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Gate:** ACTIVE since 2026-10-08 (`validate_bootstrap.py config/bootstrap.json --require-active` passes).
 - **Scope:** the four ADR-096 milestones only; nothing outside them. Shipped milestones take defect fixes only (ADR-098).
@@ -12,12 +12,12 @@
 | Records current | Done: PR #121 merged (`4ac2d68`); frozen (ADR-098) |
 | Unknown-cost state (ADR-097) | Done: PR #122 merged (`4921427`); frozen (ADR-098) |
 | Auto-closeout (ADR-094) | Done: PR #116 merged (`066a37c`) after 4 Codex rounds; frozen (ADR-098) |
-| External worker launcher (OL-036) | Built on `claude/worker-launcher` (ADR-099): the old launcher restored with the ADR-077 limits, 27 tests passing unchanged. Not done until the owner's first real launch succeeds |
+| External worker launcher (OL-036) | Merged: PR #124 (`41e3a68`, ADR-099), the old launcher restored with the ADR-077 limits. No automated review covered head `f1a61b4` before the merge; a post-merge Codex review was requested. Not done until the owner's first real launch succeeds |
 
 ## Next action
 
-1. Launcher PR: answer each Codex round (at most 4, ADR-089) under ADR-063 and ADR-098; the owner merges.
-2. Owner, after merge: edit `MASTER_CLAUDE_CODE.md` → Delegation, the sentence "Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036)", to say the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Agents are refused edits to that file.
+1. Post-merge Codex review of PR #124 (head `f1a61b4`): read it with `gh api` on PR #124 and answer each finding under ADR-063; a fix goes in a new pull request with a regression shown failing first.
+2. Owner: edit `MASTER_CLAUDE_CODE.md` → Delegation, the sentence "Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036)", to say the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Agents are refused edits to that file.
 3. Owner, first real launch, on the Mac or Windows 11:
    - On Windows, first run `python -m unittest discover -s tests -p "test_worker_launcher.py"`; the Windows path has never run.
    - Use a zero-priced (local) binding first: `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097).
