@@ -132,3 +132,39 @@ class BootstrapGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProjectStatusViewTests(unittest.TestCase):
+    """ADR-096, PR #120 Codex round 3: activation updates the startup view, never the history."""
+
+    def setUp(self) -> None:
+        import sys
+        import tempfile
+        sys.path.insert(0, str(ROOT / "scripts"))
+        spec = importlib.util.spec_from_file_location("bootstrap_gate_view", ROOT / "scripts" / "bootstrap_gate.py")
+        self.gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.gate)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_only_current_section_status_changes(self) -> None:
+        text = ("# Project State\n\n## Current (2026-10-07): retrofit\n\n- **Status:** AWAITING_APPROVAL\n- **Gate:** x\n\n"
+                "## 2026-10-03: history\n\n- **Status:** TEMPLATE FROZEN (ADR-089)\n")
+        (self.root / "PROJECT_STATE.md").write_text(text, encoding="utf-8")
+        self.gate.update_project_status(self.root, "ACTIVE — approved foundation")
+        result = (self.root / "PROJECT_STATE.md").read_text(encoding="utf-8")
+        self.assertIn("## Current (2026-10-07): retrofit\n\n- **Status:** ACTIVE — approved foundation\n", result)
+        self.assertIn("- **Status:** TEMPLATE FROZEN (ADR-089)\n", result)
+
+    def test_file_without_current_section_keeps_previous_behavior(self) -> None:
+        (self.root / "PROJECT_STATE.md").write_text("# Project State\n\n- **Status:** SETUP\n", encoding="utf-8")
+        self.gate.update_project_status(self.root, "ACTIVE — approved foundation")
+        self.assertIn("- **Status:** ACTIVE — approved foundation\n", (self.root / "PROJECT_STATE.md").read_text(encoding="utf-8"))
+
+    def test_template_current_section_has_a_status_line(self) -> None:
+        text = (ROOT / "PROJECT_STATE.md").read_text(encoding="utf-8")
+        current = text.split("## Current (", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("- **Status:** ", current)

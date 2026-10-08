@@ -2,6 +2,7 @@
 
 ## Current (2026-10-07): bootstrap retrofit awaiting owner approval (ADR-096)
 
+- **Status:** AWAITING_APPROVAL — autonomy OFF
 - **Gate:** the template now carries its own `config/bootstrap.json` at `AWAITING_APPROVAL` (branch `claude/bootstrap-retrofit`); `template_mode` stays true and every record is preserved. Autonomy is OFF until the owner runs `python scripts/bootstrap_gate.py activate`. The review packet is `BOOTSTRAP_REVIEW.md`.
 - **Owner decisions (ADR-096):** risk low, sensitivity public; OL-036 yes (scope a launcher); finish ADR-094 as directed; fix the cost-as-zero defect, #12 and #13 stay deferred; no features beyond the owner's requirements.
 - **Approved milestones once activated:** Records current → Unknown-cost state → External worker launcher OL-036; Records current → Auto-closeout ADR-094.

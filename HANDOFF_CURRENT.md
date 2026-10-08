@@ -24,7 +24,7 @@
 ## Notes
 
 - The next free ADR is ADR-097; ADR-094 stays reserved for `claude/auto-closeout`.
-- `bootstrap_gate.py review` rewrites every `- **Status:**` line in `PROJECT_STATE.md`, including the historical one in the 2026-10-03 section; restore it after each review.
+- `bootstrap_gate.py` review and activate now update only the `- **Status:**` line of the `## Current` section of `PROJECT_STATE.md`; dated history sections are left alone (Codex round 3). After activation, the Records current milestone closes OL-038 and rewrites the current section.
 - Preserve ADR-062: confirm no other unattended agent is writing to the same tree before multi-file work.
 - Never write the Codex trigger phrase in a PR comment unless requesting a review.
 - `software_hardware.py` lazily imports `acceptance` (OL-034).
