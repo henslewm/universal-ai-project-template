@@ -57,6 +57,9 @@ if mode in ("report", "orphan", "tamper"):
               "cost_evidence": "Synthetic zero-cost run; no model calls made."}
     with open(report_path, "w", encoding="utf-8") as stream:
         json.dump(report, stream)
+if mode == "unmark":
+    # Delete the launcher's one-launch marker and exit without a report.
+    os.remove(os.path.join(os.path.dirname(brief_path), "launch.json"))
 if mode == "tamper":
     # Change the brief while the run is under way; the launcher must notice once the tree stops.
     with open(brief_path, "a", encoding="utf-8") as stream:
@@ -454,6 +457,27 @@ class LauncherRunTests(LauncherBase):
         self.assertIn("abandon", err)
         self.assertEqual(out, "")
         self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+
+    def test_a_harness_that_deletes_the_launch_marker_cannot_be_launched_again(self):
+        # PR #124 post-merge Codex finding: the marker is the one-launch guard, and the worker can write
+        # in its run directory, so the launcher restores it once the tree is stopped and refuses the run.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("unmark")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1)
+        self.assertIn("launch.json", err)
+        self.assertIn("abandon", err)
+        self.assertEqual(out, "")
+        self.assertTrue((rundir / "launch.json").exists(), "the one-launch guard is restored")
+        self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+        (self.tool / "observed.json").unlink()
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1)
+        self.assertIn("already launched", err)
+        self.assertIsNone(self.observed(), "a second launch must not start the harness")
 
     def test_a_harness_that_cannot_be_started_refuses_and_frees_the_run_directory(self):
         missing = self.base / "missing-harness-executable"

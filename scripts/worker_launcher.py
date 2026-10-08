@@ -191,10 +191,11 @@ def launch(directory, config, rundir, root, timeout=None):
     with Interrupts() as interrupts:
         interrupts.holding = True
         # Exclusive creation is the guard: this run directory launches once. It holds names only.
+        record = json.dumps({"dispatch_id": run["dispatch_id"], "launched_at": wp.now(),
+                             "deadline": run["deadline"], "bound_seconds": round(run["bound"], 3),
+                             "environment_names": run["names"]}, indent=2) + "\n"
         try:
-            wp.write_new(marker, json.dumps({"dispatch_id": run["dispatch_id"], "launched_at": wp.now(),
-                                             "deadline": run["deadline"], "bound_seconds": round(run["bound"], 3),
-                                             "environment_names": run["names"]}, indent=2) + "\n")
+            wp.write_new(marker, record)
         except FileExistsError as exc:
             raise ValueError("Another launch of this run directory started first") from exc
         try:
@@ -232,6 +233,18 @@ def launch(directory, config, rundir, root, timeout=None):
             interrupted = True
         require(tree.stopped, f"The harness process tree (pid {process.pid}) could not be confirmed stopped; "
                               "stop it before recording the attempt")
+        # The worker can write in its run directory, so the one-launch guard is checked and, once the
+        # tree is stopped, restored: a deleted marker must never let this reservation run twice.
+        try:
+            intact = marker.read_bytes().decode("utf-8") == record
+        except (OSError, UnicodeDecodeError):
+            intact = False
+        if not intact:
+            # A link or directory in its place still blocks a launch, and is never written through.
+            if not os.path.lexists(marker) or (marker.is_file() and not marker.is_symlink()):
+                marker.write_text(record, encoding="utf-8")
+            raise ValueError(f"The harness changed {MARKER} while it ran; the one-launch guard is kept so this run "
+                             "directory is not launched again; do not ingest its report; record the attempt with abandon")
         try:
             verify_prepared(run["rundir"], run["expected"])
         except (ValueError, OSError) as exc:
