@@ -5,7 +5,8 @@
 whether the branch's pull request may merge: validator and tests green, an automated review on
 the exact head (ADR-074), every review thread resolved, and the ADR-089 cap of 4 rounds. `merge`
 merges only when `ready` passes, then deletes the branch locally and remotely, returns to the
-base branch, pulls and verifies a clean tree. `issue` opens a GitHub issue mirroring an
+base branch, pulls and verifies a clean tree; rerun after a queued merge lands, it only cleans
+up. `issue` opens a GitHub issue mirroring an
 `OPEN_LOOPS.md` row; `sync-loops` keeps the pair's open/closed state in step. OPEN_LOOPS.md is
 the record of truth; the issue is its tracker mirror.
 
@@ -74,11 +75,18 @@ def gh_json(args: list[str]):
 
 # --- readiness (pure) -------------------------------------------------------------------------
 
+def is_round(review: dict) -> bool:
+    """A bot review that is a review round. A reply in a review thread is filed as a COMMENTED review
+    with an empty body on the then head: it is neither a round nor a review of that head."""
+    return (review.get("user", {}).get("login") in REVIEW_BOTS and bool(review.get("commit_id"))
+            and (bool((review.get("body") or "").strip()) or review.get("state") != "COMMENTED"))
+
+
 def review_rounds(reviews: list[dict], comments: list[dict]) -> int:
-    """Automated review rounds: each bot review, and each bot comment naming a reviewed commit (a
-    clean Codex round). Repeat rounds on one commit count separately; the edited-in-place summary
+    """Automated review rounds: each bot review round, and each bot comment naming a reviewed commit
+    (a clean Codex round). Repeat rounds on one commit count separately; the edited-in-place summary
     comment never counts, because it only restates the latest round."""
-    return (sum(1 for r in reviews if r.get("user", {}).get("login") in REVIEW_BOTS and r.get("commit_id"))
+    return (sum(1 for r in reviews if is_round(r))
             + sum(1 for c in comments if c.get("user", {}).get("login") in REVIEW_BOTS
                   and REVIEWED.search(c.get("body") or "")))
 
@@ -92,8 +100,7 @@ def changes_requested(reviews: list[dict], head: str) -> bool:
 def review_signals(reviews: list[dict], comments: list[dict]) -> list[str]:
     """Commit SHAs (full or abbreviated) an automated reviewer reviewed, oldest first. A review
     carries its commit_id; a clean Codex round is an issue comment naming the reviewed commit."""
-    signals = [(r.get("submitted_at") or "", r["commit_id"]) for r in reviews
-               if r.get("user", {}).get("login") in REVIEW_BOTS and r.get("commit_id")]
+    signals = [(r.get("submitted_at") or "", r["commit_id"]) for r in reviews if is_round(r)]
     for c in comments:
         if c.get("user", {}).get("login") not in REVIEW_BOTS:
             continue
@@ -210,8 +217,13 @@ def cmd_push(args) -> int:
     return 0
 
 
-def readiness(pr: str | None) -> tuple[dict, list[str]]:
-    view = gh_json(["pr", "view", *([pr] if pr else []), "--json", "number,headRefName,headRefOid,state,isDraft,baseRefName,url,isCrossRepository"])
+def pr_view(pr: str | None) -> dict:
+    return gh_json(["pr", "view", *([pr] if pr else []), "--json",
+                    "number,headRefName,headRefOid,state,isDraft,baseRefName,url,isCrossRepository,mergeCommit"])
+
+
+def readiness(pr: str | None, view: dict | None = None) -> tuple[dict, list[str]]:
+    view = view or pr_view(pr)
     reasons = []
     if view["state"] != "OPEN":
         raise Refused(f"PR #{view['number']} is {view['state'].lower()}")
@@ -257,13 +269,17 @@ def cmd_ready(args) -> int:
 
 
 def cmd_merge(args) -> int:
-    view, reasons = readiness(args.pr)
+    view = pr_view(args.pr)
+    if merged := merged_commit(view):
+        # The rerun a queued merge asks for: GitHub has merged it, so only the cleanup is left.
+        return clean_up(view, merged)
+    view, reasons = readiness(args.pr, view)
     if reasons:
         print(f"NOT MERGED: PR #{view['number']} is not ready")
         for reason in reasons:
             print(f"- {reason}")
         return 2
-    number, branch, base = str(view["number"]), view["headRefName"], view["baseRefName"]
+    number, branch = str(view["number"]), view["headRefName"]
     # No --delete-branch: with a merge queue or pending required checks, `gh pr merge` can succeed by
     # queuing the pull request, and deleting its branch then would close it unmerged.
     run(["gh", "pr", "merge", number, "--merge", "--match-head-commit", view["headRefOid"]])
@@ -272,12 +288,27 @@ def cmd_merge(args) -> int:
         print(f"QUEUED: PR #{number} is accepted for merge but not merged yet; {branch} is kept. "
               "Run `closeout.py merge` again after it merges to clean up.")
         return 0
+    return clean_up(view, merged)
+
+
+def clean_up(view: dict, merged: str) -> int:
+    """Delete a merged pull request's branch locally and on origin, return to the base branch, pull
+    and verify a clean tree. A branch that is not at the merged head holds other work and is kept."""
+    number, branch, base, head = view["number"], view["headRefName"], view["baseRefName"], view["headRefOid"]
+    if view.get("isCrossRepository"):
+        raise Refused(f"PR #{number} came from another repository: its branch is not this repository's to delete")
+    require_clean()
+    local = run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], check=False)
+    remote = run(["git", "ls-remote", "origin", f"refs/heads/{branch}"]).split("\t")[0]
+    for where, tip in (("local", local), ("origin", remote)):
+        if tip and tip != head:
+            raise Refused(f"PR #{number} merged; {where} {branch} is at {tip[:7]}, not the merged head {head[:7]}, so it is kept")
     if current_branch() != base:
         run(["git", "switch", base])
     run(["git", "pull", "--ff-only"])
-    if run(["git", "branch", "--list", branch]):
+    if local:
         run(["git", "branch", "-D", branch])
-    if run(["git", "ls-remote", "--heads", "origin", branch]):
+    if remote:
         run(["git", "push", "origin", "--delete", branch])
     if run(["git", "status", "--porcelain"]):
         raise Refused(f"merged, but the working tree on {base} is not clean")

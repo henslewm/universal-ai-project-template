@@ -226,10 +226,31 @@ def validate_record_views(root: Path) -> list[str]:
 CLOSEOUT_HEADING = "## Automatic closeout (ADR-094)"
 ISSUE_MIRROR = re.compile(r"<!-- issue-mirror-from: OL-(\d+) -->")
 ISSUE_LINK = re.compile(r"\[#\d+\]\(https://github\.com/[^)\s]+/issues/\d+\)")
-# ADR-094 grants push, ready-merge and issue mirroring only; these denies must survive it.
-KEPT_DENIES = ["Bash(git push --force *)", "Bash(git push -f *)", "Bash(git reset --hard *)",
-               "PowerShell(git push --force *)", "PowerShell(git push -f *)", "PowerShell(git reset --hard *)"]
-CLOSEOUT_COMMANDS = ("gh pr merge", "gh issue create", "gh issue close", "git push -u", "git push origin --delete")
+# ADR-094 grants push, ready-merge and issue mirroring only; every force-push, hard-reset and
+# recursive-delete deny must survive it.
+_FORCE_AND_RESET = ["git push --force *", "git push *--force*", "git push -f *", "git push * -f *", "git push * -f",
+                    "git push * +*", "git reset --hard *"]
+KEPT_DENIES = ([f"Bash({rule})" for rule in _FORCE_AND_RESET + ["rm -rf *"]]
+               + [f"PowerShell({rule})" for rule in _FORCE_AND_RESET + ["Remove-Item *-Recurse*", "Remove-Item -r *",
+                                                                         "Remove-Item * -r *", "Remove-Item * -r"]])
+# The command lines automatic closeout runs, with placeholder arguments; a rule that matches one gates it.
+CLOSEOUT_COMMANDS = ("gh pr merge 1 --merge --match-head-commit 0", "gh issue create --title t --body b",
+                     "gh issue close 1 --comment c", "git push -u origin topic", "git push origin --delete topic")
+SHELL_RULE = re.compile(r"(?:Bash|PowerShell)(?:\((.*)\))?")
+
+
+def gates(rule: str, command: str) -> bool:
+    """True when a Bash or PowerShell permission rule matches the command line: `*` matches any text,
+    a trailing `:*` is the legacy prefix form, and a bare tool name matches every command."""
+    match = SHELL_RULE.fullmatch(rule.strip())
+    if not match:
+        return False
+    pattern = match.group(1)
+    if pattern is None:
+        return True
+    if pattern.endswith(":*"):
+        pattern = pattern[:-2] + "*"
+    return re.fullmatch(".*".join(re.escape(part) for part in pattern.split("*")), command) is not None
 
 
 def has_github_origin(root: Path) -> bool:
@@ -243,9 +264,9 @@ def has_github_origin(root: Path) -> bool:
 
 
 def validate_closeout(root: Path, github: bool) -> list[str]:
-    """ADR-094: the closeout rules are stated, the commands they need are not gated, the force-push
-    and hard-reset denies stay, and on a GitHub project every loop from the mirror threshold on
-    links its issue."""
+    """ADR-094: the closeout rules are stated, the commands they need are not gated, the force-push,
+    hard-reset and recursive-delete denies stay, and on a GitHub project every loop from the mirror
+    threshold on links its issue."""
     errors: list[str] = []
     master = root / "MASTER_INSTRUCTIONS.md"
     if master.is_file() and CLOSEOUT_HEADING not in master.read_text(encoding="utf-8").split("\n"):
@@ -260,7 +281,7 @@ def validate_closeout(root: Path, github: bool) -> list[str]:
             if rule not in permissions.get("deny", []):
                 errors.append(f".claude/settings.json must keep the deny rule {rule} (ADR-094 does not widen it)")
         for rule in permissions.get("ask", []) + permissions.get("deny", []):
-            if any(command in rule for command in CLOSEOUT_COMMANDS):
+            if any(gates(rule, command) for command in CLOSEOUT_COMMANDS):
                 errors.append(f".claude/settings.json gates {rule}, which automatic closeout runs (ADR-094)")
     loops = root / "OPEN_LOOPS.md"
     if loops.is_file():

@@ -23,10 +23,13 @@ SPEC.loader.exec_module(VALIDATOR)
 
 CODEX = {"login": "chatgpt-codex-connector[bot]"}
 HEAD = "9967655070453697de2933ac15d710470ee9c2b5"
+BRANCH = "claude/auto-closeout"
+MERGED = {"number": 116, "state": "MERGED", "mergeCommit": {"oid": "f" * 40}, "headRefName": BRANCH,
+          "headRefOid": HEAD, "baseRefName": "main", "isCrossRepository": False, "isDraft": False}
 
 
 def review(sha, at):
-    return {"user": CODEX, "commit_id": sha, "submitted_at": at}
+    return {"user": CODEX, "commit_id": sha, "submitted_at": at, "state": "COMMENTED", "body": "### 💡 Codex Review"}
 
 
 def summary(sha, status="Completed"):
@@ -45,6 +48,15 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(signals, [HEAD[:7]])
         self.assertEqual(closeout.assess(HEAD, signals, 0), [])
         self.assertEqual(closeout.review_signals([], [summary(HEAD[:7], status="Running")]), [])
+
+    def test_a_bot_thread_reply_is_neither_a_round_nor_a_review_of_the_head(self):
+        # PR #116: CodeRabbit's thread replies are filed as empty COMMENTED reviews on the then head.
+        reply = {"user": {"login": "coderabbitai[bot]"}, "commit_id": HEAD, "submitted_at": "2",
+                 "state": "COMMENTED", "body": ""}
+        reviews = [review("c97ce9b8ef", "1"), reply]
+        self.assertEqual(closeout.review_rounds(reviews, []), 1)
+        reasons = closeout.assess(HEAD, closeout.review_signals(reviews, []), 0, rounds=1)
+        self.assertIn("no automated review on head", reasons[0])
 
     def test_a_human_comment_is_not_a_review_signal(self):
         human = {"user": {"login": "henslewm"}, "body": f"**Reviewed commit:** `{HEAD[:7]}`"}
@@ -91,15 +103,50 @@ class MergeTests(unittest.TestCase):
     def merge_with(self, state):
         calls = []
         args = type("Args", (), {"pr": "116"})()
-        view = {"number": 116, "headRefName": "claude/auto-closeout", "baseRefName": "main", "headRefOid": HEAD}
+        view = {"number": 116, "headRefName": BRANCH, "baseRefName": "main", "headRefOid": HEAD}
         originals = (closeout.readiness, closeout.run, closeout.gh_json)
-        closeout.readiness = lambda pr: (view, [])
+        closeout.readiness = lambda pr, view_=None: (view, [])
         closeout.run = lambda cmd, check=True, timeout=0: calls.append(cmd) or ""
         closeout.gh_json = lambda args_: state
         try:
             return closeout.cmd_merge(args), calls
         finally:
             closeout.readiness, closeout.run, closeout.gh_json = originals
+
+    def rerun(self, local=HEAD, remote=HEAD, **view):
+        """`closeout.py merge` run again after GitHub merged the queued pull request; git and gh are faked."""
+        self.calls = []
+        replies = {("git", "branch", "--show-current"): BRANCH,
+                   ("git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"): local,
+                   ("git", "ls-remote", "origin", f"refs/heads/{BRANCH}"): remote and f"{remote}\trefs/heads/{BRANCH}"}
+        originals = (closeout.run, closeout.gh_json, closeout.passes)
+        closeout.run = lambda cmd, check=True, timeout=0: self.calls.append(cmd) or replies.get(tuple(cmd), "")
+        closeout.gh_json = lambda args_: {**MERGED, **view}
+        closeout.passes = lambda cmd, timeout: True
+        try:
+            return closeout.cmd_merge(type("Args", (), {"pr": "116"})())
+        finally:
+            closeout.run, closeout.gh_json, closeout.passes = originals
+
+    def deleted(self):
+        return [cmd for cmd in self.calls if cmd[:3] == ["git", "branch", "-D"] or "--delete" in cmd]
+
+    def test_rerun_after_a_queued_merge_cleans_up(self):
+        # PR #116 Codex round 3: the rerun the QUEUED message asks for refused the merged pull request.
+        self.assertEqual(self.rerun(), 0)
+        self.assertEqual(self.deleted(), [["git", "branch", "-D", BRANCH], ["git", "push", "origin", "--delete", BRANCH]])
+        self.assertFalse(any(cmd[:3] == ["gh", "pr", "merge"] for cmd in self.calls))
+        self.assertEqual(self.rerun(local="", remote=""), 0)  # already cleaned up: nothing left to delete
+        self.assertEqual(self.deleted(), [])
+
+    def test_rerun_keeps_a_branch_that_moved_past_the_merged_head(self):
+        for local, remote in (("a" * 40, HEAD), (HEAD, "a" * 40)):
+            with self.assertRaisesRegex(closeout.Refused, "not the merged head"):
+                self.rerun(local=local, remote=remote)
+            self.assertEqual(self.deleted(), [])
+        with self.assertRaisesRegex(closeout.Refused, "another repository"):
+            self.rerun(isCrossRepository=True)
+        self.assertEqual(self.deleted(), [])
 
     def test_queued_merge_keeps_the_branch(self):
         code, calls = self.merge_with({"state": "OPEN", "mergeCommit": None})
@@ -180,11 +227,31 @@ class ValidatorTests(unittest.TestCase):
         self.assertTrue(any("issue-mirror-from" in e for e in errors))
         self.assertTrue(any("git push --force" in e for e in errors))
 
+    def test_dropping_any_force_push_hard_reset_or_recursive_delete_deny_fails(self):
+        # PR #116 Codex round 3: only 6 of the template's 19 such denies were checked, no recursive delete.
+        denies = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
+        kept = [rule for rule in denies if any(word in rule for word in ("git push", "git reset", "rm -rf", "Remove-Item"))]
+        self.assertEqual(len(kept), 19)
+        for rule in kept:
+            errors = VALIDATOR.validate_closeout(
+                self.project(permissions={"deny": [other for other in denies if other != rule]}), github=False)
+            self.assertEqual(errors, [f".claude/settings.json must keep the deny rule {rule} (ADR-094 does not widen it)"])
+
     def test_a_gated_closeout_command_fails(self):
         errors = VALIDATOR.validate_closeout(
             self.project(permissions={"deny": DENIES, "ask": ["Bash(gh pr merge *)"]}), github=False)
         self.assertEqual(len(errors), 1)
         self.assertIn("gh pr merge", errors[0])
+
+    def test_a_wildcard_gate_on_a_closeout_command_fails(self):
+        # PR #116 Codex round 3: a broader rule gates the same commands without naming them.
+        for rule in ("Bash(gh *)", "Bash(git push *)", "PowerShell(gh issue *)", "Bash(git:*)", "Bash(*)", "Bash"):
+            errors = VALIDATOR.validate_closeout(self.project(permissions={"deny": DENIES, "ask": [rule]}), github=False)
+            self.assertEqual(len(errors), 1, rule)
+            self.assertIn(f"gates {rule},", errors[0])
+        for rule in ("Bash(gh pr view *)", "Bash(git push * -d *)", "Read(./gh *)"):
+            self.assertEqual(VALIDATOR.validate_closeout(
+                self.project(permissions={"deny": DENIES, "ask": [rule]}), github=False), [], rule)
 
     def test_on_github_loops_from_the_marker_need_an_issue(self):
         errors = VALIDATOR.validate_closeout(self.project(), github=True)
