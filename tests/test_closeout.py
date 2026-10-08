@@ -113,39 +113,49 @@ class MergeTests(unittest.TestCase):
         finally:
             closeout.readiness, closeout.run, closeout.gh_json = originals
 
-    def rerun(self, local=HEAD, remote=HEAD, **view):
-        """`closeout.py merge` run again after GitHub merged the queued pull request; git and gh are faked."""
+    def merge(self, *views, local=HEAD, remote=HEAD):
+        """`closeout.py merge --pr 116` with git, gh and readiness faked. `views` are the successive
+        `gh pr view` results; by default the pull request is already merged, as a rerun finds it."""
+        views = views or (MERGED,)
+        branch, pending = views[0]["headRefName"], iter(views)
         self.calls = []
-        replies = {("git", "branch", "--show-current"): BRANCH,
-                   ("git", "rev-parse", "--verify", "--quiet", f"refs/heads/{BRANCH}"): local,
-                   ("git", "ls-remote", "origin", f"refs/heads/{BRANCH}"): remote and f"{remote}\trefs/heads/{BRANCH}"}
-        originals = (closeout.run, closeout.gh_json, closeout.passes)
+        replies = {("git", "branch", "--show-current"): branch,
+                   ("git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"): local,
+                   ("git", "ls-remote", "origin", f"refs/heads/{branch}"): remote and f"{remote}\trefs/heads/{branch}"}
+        originals = (closeout.run, closeout.gh_json, closeout.passes, closeout.readiness)
         closeout.run = lambda cmd, check=True, timeout=0: self.calls.append(cmd) or replies.get(tuple(cmd), "")
-        closeout.gh_json = lambda args_: {**MERGED, **view}
+        closeout.gh_json = lambda args_: next(pending)
         closeout.passes = lambda cmd, timeout: True
+        closeout.readiness = lambda pr, view=None: (view, [])
         try:
             return closeout.cmd_merge(type("Args", (), {"pr": "116"})())
         finally:
-            closeout.run, closeout.gh_json, closeout.passes = originals
+            closeout.run, closeout.gh_json, closeout.passes, closeout.readiness = originals
 
     def deleted(self):
         return [cmd for cmd in self.calls if cmd[:3] == ["git", "branch", "-D"] or "--delete" in cmd]
 
     def test_rerun_after_a_queued_merge_cleans_up(self):
         # PR #116 Codex round 3: the rerun the QUEUED message asks for refused the merged pull request.
-        self.assertEqual(self.rerun(), 0)
+        self.assertEqual(self.merge(), 0)
         self.assertEqual(self.deleted(), [["git", "branch", "-D", BRANCH], ["git", "push", "origin", "--delete", BRANCH]])
         self.assertFalse(any(cmd[:3] == ["gh", "pr", "merge"] for cmd in self.calls))
-        self.assertEqual(self.rerun(local="", remote=""), 0)  # already cleaned up: nothing left to delete
+        self.assertEqual(self.merge(local="", remote=""), 0)  # already cleaned up: nothing left to delete
         self.assertEqual(self.deleted(), [])
 
     def test_rerun_keeps_a_branch_that_moved_past_the_merged_head(self):
         for local, remote in (("a" * 40, HEAD), (HEAD, "a" * 40)):
             with self.assertRaisesRegex(closeout.Refused, "not the merged head"):
-                self.rerun(local=local, remote=remote)
+                self.merge(local=local, remote=remote)
             self.assertEqual(self.deleted(), [])
         with self.assertRaisesRegex(closeout.Refused, "another repository"):
-            self.rerun(isCrossRepository=True)
+            self.merge({**MERGED, "isCrossRepository": True})
+        self.assertEqual(self.deleted(), [])
+
+    def test_a_protected_head_branch_is_never_deleted(self):
+        # Independent review of 4dae8f2: a rerun reaches the cleanup for any merged pull request.
+        with self.assertRaisesRegex(closeout.Refused, "protected"):
+            self.merge({**MERGED, "headRefName": "main", "baseRefName": "release"})
         self.assertEqual(self.deleted(), [])
 
     def test_queued_merge_keeps_the_branch(self):
@@ -252,6 +262,13 @@ class ValidatorTests(unittest.TestCase):
         for rule in ("Bash(gh pr view *)", "Bash(git push * -d *)", "Read(./gh *)"):
             self.assertEqual(VALIDATOR.validate_closeout(
                 self.project(permissions={"deny": DENIES, "ask": [rule]}), github=False), [], rule)
+
+    def test_a_rule_naming_a_closeout_command_gates_it_whatever_its_arguments(self):
+        # Independent review of 4dae8f2: a rule pinning real arguments missed the sample command lines.
+        for rule in ("Bash(gh pr merge 116 *)", "Bash(git push -u origin claude/*)"):
+            errors = VALIDATOR.validate_closeout(self.project(permissions={"deny": DENIES, "ask": [rule]}), github=False)
+            self.assertEqual(len(errors), 1, rule)
+            self.assertIn(f"gates {rule},", errors[0])
 
     def test_on_github_loops_from_the_marker_need_an_issue(self):
         errors = VALIDATOR.validate_closeout(self.project(), github=True)

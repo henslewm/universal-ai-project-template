@@ -293,8 +293,11 @@ def cmd_merge(args) -> int:
 
 def clean_up(view: dict, merged: str) -> int:
     """Delete a merged pull request's branch locally and on origin, return to the base branch, pull
-    and verify a clean tree. A branch that is not at the merged head holds other work and is kept."""
+    and verify a clean tree. A protected branch is never deleted; a branch that is not at the merged
+    head holds other work and is kept."""
     number, branch, base, head = view["number"], view["headRefName"], view["baseRefName"], view["headRefOid"]
+    if branch in PROTECTED:
+        raise Refused(f"PR #{number} merged; its head {branch} is protected and is never deleted")
     if view.get("isCrossRepository"):
         raise Refused(f"PR #{number} came from another repository: its branch is not this repository's to delete")
     require_clean()

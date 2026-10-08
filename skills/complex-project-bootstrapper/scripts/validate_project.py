@@ -233,9 +233,13 @@ _FORCE_AND_RESET = ["git push --force *", "git push *--force*", "git push -f *",
 KEPT_DENIES = ([f"Bash({rule})" for rule in _FORCE_AND_RESET + ["rm -rf *"]]
                + [f"PowerShell({rule})" for rule in _FORCE_AND_RESET + ["Remove-Item *-Recurse*", "Remove-Item -r *",
                                                                          "Remove-Item * -r *", "Remove-Item * -r"]])
-# The command lines automatic closeout runs, with placeholder arguments; a rule that matches one gates it.
-CLOSEOUT_COMMANDS = ("gh pr merge 1 --merge --match-head-commit 0", "gh issue create --title t --body b",
-                     "gh issue close 1 --comment c", "git push -u origin topic", "git push origin --delete topic")
+# The commands automatic closeout runs, each with a sample command line. A rule gates one when it
+# names the command, whatever arguments it pins, or when its wildcards match the sample line.
+CLOSEOUT_COMMANDS = {"gh pr merge": "gh pr merge 1 --merge --match-head-commit 0",
+                     "gh issue create": "gh issue create --title t --body b",
+                     "gh issue close": "gh issue close 1 --comment c",
+                     "git push -u": "git push -u origin topic",
+                     "git push origin --delete": "git push origin --delete topic"}
 SHELL_RULE = re.compile(r"(?:Bash|PowerShell)(?:\((.*)\))?")
 
 
@@ -281,7 +285,7 @@ def validate_closeout(root: Path, github: bool) -> list[str]:
             if rule not in permissions.get("deny", []):
                 errors.append(f".claude/settings.json must keep the deny rule {rule} (ADR-094 does not widen it)")
         for rule in permissions.get("ask", []) + permissions.get("deny", []):
-            if any(gates(rule, command) for command in CLOSEOUT_COMMANDS):
+            if any(name in rule or gates(rule, line) for name, line in CLOSEOUT_COMMANDS.items()):
                 errors.append(f".claude/settings.json gates {rule}, which automatic closeout runs (ADR-094)")
     loops = root / "OPEN_LOOPS.md"
     if loops.is_file():
