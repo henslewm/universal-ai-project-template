@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Worker launcher restored for the architect (ADR-099, OL-036)
+
+- `scripts/worker_launcher.py` and `tests/test_worker_launcher.py` restored from `53de2db^`; only wording changed. The 27 tests pass unchanged against the current harness, and no frozen file (ADR-098) changed.
+- `EXECUTION_HARNESS_PROTOCOL.md` regains the launcher section: the architect session may run `launch`, paid resources included, within the per-packet budget and attempt limits; a wrapper path for harnesses that need more environment; an automated caller runs `launch` as a background task or with `--timeout-seconds` below its own timeout.
+- `.claude/rules/04-permissions.md` and `AGENTS.md`: a metered launch within those limits needs no further prompt only where `DECISIONS.md` records the owner's direction. `docs/REFERENCE.md` regains the launcher's exit-code row; `SOURCE_INDEX.md` SRC-033 points at the renamed section.
+- ADR-099; R-019 to R-021 are live; R-022 added.
+
 ## 2026-10-08 — Freeze shipped milestones (ADR-098)
 
 - `DECISIONS.md` ADR-098: Records current and Unknown-cost state are frozen, and Auto-closeout joins them when PR #116 merges. Frozen work takes reproduced-defect fixes only; other review findings on it are declined.
