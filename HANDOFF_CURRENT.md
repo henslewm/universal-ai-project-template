@@ -1,32 +1,31 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-08
+- **Prepared:** 2026-10-08 (end of the cloud session that ran the ADR-096 retrofit)
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Branch:** `claude/unknown-cost` (ADR-097), stacked on `claude/activate-template` (PR #121)
-- **Scope:** milestones Records current (PR #121) and Unknown-cost state (ADR-097).
+- **Gate:** ACTIVE since 2026-10-08 (`validate_bootstrap.py config/bootstrap.json --require-active` passes on `main`).
+- **Scope:** the four ADR-096 milestones only; nothing outside them.
 
-## What was done
+## Milestones
 
-- PR #120 (ADR-096 retrofit) merged to `main` at `7f04c75` on 2026-10-08. The owner merged it; the last head `9967655` came from a separate session on the owner's Mac after Codex round 4 of 4, so no Codex review covers it. CI was green.
-- The owner activated the package on 2026-10-08 (commit `72ff167`). He sent identity "henslewm" and the approval line from a phone; this session passed both unchanged to `bootstrap_gate.py activate` (approved_at 2026-10-08T14:29:43Z).
-- Unknown-cost state (ADR-097): abandoned attempts record `api_cost_usd: null`; routing sums only known costs and bars metered resources while a cost is unknown, across contract repairs; five regressions shown failing first.
-- Records current: `PROJECT_STATE.md` has a new current section and the 2026-10-07 retrofit section is now history; OL-038 closed; OL-040 opened; changelog entry added.
-
-## Verified state
-
-- `python3 scripts/validate_bootstrap.py config/bootstrap.json --require-active` passes (ACTIVE). Run `python3 scripts/validate_project.py` before relying on the views.
-- Open PRs from other sessions, untouched: #116 (draft `claude/auto-closeout`, ADR-094 WIP, an approved milestone); #118 (`claude/workflow-skills`, ADR number collision, conflicts, outside scope); #119 (draft, conflicts, superseded by PR #120's records). #118 and #119 are OL-040.
+| Milestone | State |
+|---|---|
+| Records current | Done: PR #121 merged (`4ac2d68`) |
+| Unknown-cost state (ADR-097) | Done: PR #122 merged (`4921427`) after 3 Codex rounds, all findings fixed |
+| Auto-closeout (ADR-094) | PR #116, head `64b463a`, Codex round 3 of 4 requested; 2 rounds answered (11 findings, all fixed or answered, every thread resolved); CI green; still a **draft** |
+| External worker launcher (OL-036) | Not started; next after #116 |
 
 ## Next action
 
-1. Owner: merge PR #121, then the Unknown-cost state PR.
-2. Next milestones: External worker launcher OL-036 (unblocked by ADR-097) and Auto-closeout ADR-094 (finish `claude/auto-closeout`, PR #116). Nothing outside the approved milestones.
-3. Owner: decide OL-040 (whether #118 is wanted, which needs renumbering to ADR-097+ and an approval revision; whether to close #119).
+1. PR #116: read Codex round 3 on `64b463a` with `gh api` (reviews, review comments, issue comments). Do not rely on notifications; they missed round 1. Fix actionable findings with regressions; round 4 is the last allowed (ADR-089). The owner marks it ready for review and merges it, because `closeout.py merge` cannot run until #116 is on `main`.
+2. Then the launcher milestone: scope it under `EXECUTION_HARNESS_PROTOCOL.md`, starting from the ADR-077 limits, and rely on ADR-097 (unknown costs bar metered resources). Branch from `main`.
+3. Owner: decide OL-040 (PR #118 reuses ADR-095/096 and is outside scope; PR #119 is superseded).
 
 ## Notes
 
-- The next free ADR is ADR-098; ADR-094 stays reserved for `claude/auto-closeout`.
-- ADR-062: one writer per tree. A second session on the owner's Mac also works this repository, so confirm no other agent is writing before multi-file work.
-- Any edit to a bound document (charter, connector plan, skill plan, domain profile) or `config/project.json` needs `bootstrap_gate.py review` and renewed approval.
+- The owner removed the ADR-091 `ask` block on `main` (`fcfecf8`). The Claude Code auto-mode classifier refuses an agent editing `.claude/settings.json`, `MASTER_CLAUDE_CODE.md` and, at times, this file. Leave such edits to the owner and do not work around the refusal.
+- `closeout.py ready` and `merge` need gh GraphQL. Claude cloud sessions refuse GraphQL, so run them on the owner's machine.
+- After switching branches, run `python3 scripts/sync_skills.py` before the suite. The gitignored payload keeps the previous branch's files (OL-037), and a stale one fails `test_bootstrap_integration`.
+- `test_cli_exit_codes` times out when stdin is an open pipe (OL-039); run the suite with `< /dev/null`.
+- Next free ADR: ADR-098. ADR-062: one writer per tree. A session on the owner's Mac also works this repository; check for its pushes before multi-file work.
 - Never write the Codex trigger phrase in a PR comment unless requesting a review.
-- OL-034: `software_hardware.py` lazily imports `acceptance`. OL-037 (fresh-clone payload; run `python scripts/sync_skills.py`) and OL-039 (CLI test stdin) are open and outside the milestones.
+- A stash on the cloud clone (`superseded by 9967655`) holds a duplicate of an already-merged fix; it is safe to ignore.
