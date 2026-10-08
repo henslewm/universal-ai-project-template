@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-07 — Bootstrap retrofit of the template (ADR-096)
+
+- `config/bootstrap.json` and `BOOTSTRAP_REVIEW.md` added; `bootstrap_gate.py review` reached `AWAITING_APPROVAL`. Autonomy stays OFF until the owner runs `bootstrap_gate.py activate`.
+- `scripts/bootstrap_project.py`: a repository created from the GitHub template inherits the template's `config/bootstrap.json`; in-place tailoring of a `template_mode` copy at the template root now replaces it instead of refusing. Every other existing bootstrap state is still refused. Found by `test_bootstrap_in_place`; regression `test_bootstrap_state_outside_template_root_still_refused` added.
+- `config/project.json`: template placeholders replaced with the template's own values; `template_mode` stays true.
+- `PROJECT_CHARTER.md`: risk low, sensitivity public, and the ADR-096 owner decisions (OL-036 yes, finish ADR-094, unknown-cost fix, #12/#13 deferred, no features beyond requirements).
+- Records: ADR-096; OL-036 closed; OL-037 (fresh-clone payload) and OL-038 (activation) opened; R-019 to R-021; stale "PR #117 pending" and "next ADR 095" corrected. The review command's rewrite of the historical `Status` line in `PROJECT_STATE.md` was reverted.
+
 ## 2026-10-07 — Records after the PR #110 merge (ADR-093); record-keeper gets Bash (ADR-095)
 
 - `.claude/agents/record-keeper.md`: `Bash` added to its tools, on the owner's instruction, so it runs `validate_project.py` and `git diff --stat` before reporting; its instructions limit the shell to those checks and read-only git commands. ADR-095 records it; ADR-094 is skipped because unmerged branch `claude/auto-closeout` has claimed it.

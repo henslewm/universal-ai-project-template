@@ -2,32 +2,29 @@
 
 - **Prepared:** 2026-10-07
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Scope:** the template is unfrozen (ADR-093) for two owner objectives: less drift and token cost at session start, and delegation by default. Owner-requested work since the freeze also landed on `main`: ask rules (ADR-091) and fewer copy/pastes with a layperson README (ADR-092).
+- **Branch:** `claude/bootstrap-retrofit` (ADR-096)
+- **Scope:** the template now runs under its own bootstrap gate. Autonomy is OFF until the owner activates the package.
 
 ## What was done
 
-- ADR-093 (PR #110, branch `claude/eager-davinci-lhxve0`): startup reads are validator-checked views, the `## Current (date)` section of `PROJECT_STATE.md`, the `## Open` table of `OPEN_LOOPS.md` and the `## Index` of `DECISIONS.md`. `scripts/validate_project.py` → `validate_record_views` fails on a stale or repeated Current section, a closed loop in the open table, a repeated heading or ID, or an index row that does not resolve to exactly one full or archived row, in both directions. Full ADR rows 070 to 090 are archived verbatim. Duplicated rule text is replaced by pointers to `MASTER_INSTRUCTIONS.md`. Claude Code subagents carry model tiers and bounded-outcome reports, and `MASTER_CLAUDE_CODE.md` → Delegation makes delegation the default there only.
-- The decision was authored as ADR-091 and renumbered ADR-093 when `main` was merged in.
-- PR #110 was merged by the owner on 2026-10-07 as `ed30f33` (head `0fb220d`, not reviewed by Codex after its last fix); PR #115 (`docs/REFERENCE.md` in the validator's REQUIRED list) followed, at `c27c0d6`.
-- ADR-095 (PR #117, pending merge): the `record-keeper` subagent has Bash so it can run the validator itself; its instructions limit the shell to that check and read-only git commands. The first delegated records pass had to be validated by the architect because the agent had no shell.
-- From `main`: ADR-091 `permissions.ask` rules in `.claude/settings.json` (PR #111); ADR-092 interactive intake by default, `scripts/web_setup.py` and a layperson README with reference moved to `docs/REFERENCE.md` (PRs #113 and #114).
+- ADR-096: `config/bootstrap.json` written by hand as a retrofit and taken to `AWAITING_APPROVAL` by `bootstrap_gate.py review`; `BOOTSTRAP_REVIEW.md` is the approval packet. `bootstrap_project.py --destination .` was not used, because a scratch dry run showed it rewrites the records, deletes `archive/` and sets `template_mode` false.
+- `config/project.json` holds the template's own values (still `template_mode: true`); the charter records the owner's 2026-10-07 decisions.
+- Records corrected: PR #117 (ADR-095) is merged at `ff5f5a4`.
 
 ## Verified state
 
-- `python scripts/validate_project.py` passes; `python scripts/sync_skills.py --check` clean; `python -m unittest discover -s tests -p "test_*.py"` passes (count in the changelog entry of 2026-10-07).
-- The `permissions.ask` rules from ADR-091 are not live-verified; they need a restart before a dry `gh pr merge` can confirm the prompt.
-- No project is activated from this template; `config/bootstrap.json` is absent, as expected.
+- `python scripts/validate_project.py` passes; `python scripts/validate_bootstrap.py config/bootstrap.json` reports VALID at AWAITING_APPROVAL; `--require-active` fails (not activated, as expected).
+- Unit suite and `sync_skills.py --check` pass after `python scripts/sync_skills.py` builds the gitignored payload (OL-037).
 
 ## Next action
 
-- No queued work; ask the owner before starting anything new.
-- Owner decision OL-036: whether the architect may launch external harness workers automatically. Until then a human runs any harness worker (ADR-083).
+1. Owner: merge this branch's PR, then run `python scripts/bootstrap_gate.py activate` at the repository root and type the approval line (OL-038). Any edit to a bound document (charter, connector plan, skill plan, domain profile) or `config/project.json` before activation needs `bootstrap_gate.py review` again.
+2. After `--require-active` passes, work the approved milestones in order: Records current; Unknown-cost state; then Auto-closeout ADR-094 (finish branch `claude/auto-closeout`) and External worker launcher OL-036. Nothing outside them.
 
 ## Notes
 
-- Closeout dates the current section of `PROJECT_STATE.md`; a changelog entry newer than it fails validation.
+- The next free ADR is ADR-097; ADR-094 stays reserved for `claude/auto-closeout`.
+- `bootstrap_gate.py review` rewrites every `- **Status:**` line in `PROJECT_STATE.md`, including the historical one in the 2026-10-03 section; restore it after each review.
 - Preserve ADR-062: confirm no other unattended agent is writing to the same tree before multi-file work.
+- Never write the Codex trigger phrase in a PR comment unless requesting a review.
 - `software_hardware.py` lazily imports `acceptance` (OL-034).
-- The master's immutability rule still applies to issue #14's original text; future status changes stay comments.
-- Never write the Codex trigger phrase in a PR comment unless requesting a review, because Codex acts on quoted text; that is how PR #110 went past the ADR-089 review cap.
-- Branch `claude/auto-closeout` holds unfinished ADR-094 work from another session (`scripts/closeout.py` and validator checks); the next new decision should take ADR-095 or later and check that branch first.

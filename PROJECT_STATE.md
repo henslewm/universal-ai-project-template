@@ -1,6 +1,15 @@
 # Project State
 
-## Current (2026-10-07): unfrozen for startup views and delegation (ADR-093)
+## Current (2026-10-07): bootstrap retrofit awaiting owner approval (ADR-096)
+
+- **Gate:** the template now carries its own `config/bootstrap.json` at `AWAITING_APPROVAL` (branch `claude/bootstrap-retrofit`); `template_mode` stays true and every record is preserved. Autonomy is OFF until the owner runs `python scripts/bootstrap_gate.py activate`. The review packet is `BOOTSTRAP_REVIEW.md`.
+- **Owner decisions (ADR-096):** risk low, sensitivity public; OL-036 yes (scope a launcher); finish ADR-094 as directed; fix the cost-as-zero defect, #12 and #13 stay deferred; no features beyond the owner's requirements.
+- **Approved milestones once activated:** Records current → Unknown-cost state → External worker launcher OL-036; Records current → Auto-closeout ADR-094.
+- **Corrected:** PR #117 (ADR-095) merged at `ff5f5a4`; the next free ADR after this one is ADR-097 (ADR-094 stays reserved for `claude/auto-closeout`).
+- **Verified:** `validate_project.py` passes; `validate_bootstrap.py` reports VALID at AWAITING_APPROVAL; unit suite and `sync_skills.py --check` per the changelog entry of 2026-10-07. A fresh clone fails `sync_skills.py --check` and two tests until `sync_skills.py` builds the gitignored payload (OL-037).
+- **Open:** OL-037 (fresh-clone payload), OL-038 (owner activation), OL-034 (informational).
+
+## 2026-10-07: unfrozen for startup views and delegation (ADR-093)
 
 - **Main since the freeze:** owner-requested work merged on 2026-10-06 and 2026-10-07: `permissions.ask` rules for merges, issue writes, deletions and `gh api` writes (ADR-091, PR #111); interactive intake by default, `scripts/web_setup.py`, and a layperson README with reference moved to `docs/REFERENCE.md` (ADR-092, PRs #113 and #114). The ask rules are not live-verified.
 

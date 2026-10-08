@@ -560,13 +560,17 @@ def main() -> int:
         args.interactive = True
     source = locate_template_root(args.template_root)
     destination = Path(args.destination).expanduser().resolve()
-    # Never overwrite an existing project's approval or durable user records.
-    if (destination / "config/bootstrap.json").exists():
-        parser.error("Project already has bootstrap state. Revise it with scripts/bootstrap_gate.py review; rebootstrap is refused.")
     existing_path = destination / "config/project.json"
+    existing = json.loads(existing_path.read_text(encoding="utf-8")) if existing_path.exists() else {}
+    # ADR-096: the template carries its own bootstrap state. A repository created from the GitHub
+    # template inherits it while still in template mode; tailoring that copy in place replaces the
+    # template's state with the new project's. Any other bootstrap state belongs to a real project.
+    template_copy = destination == source.resolve() and existing.get("template_mode") is True
+    # Never overwrite an existing project's approval or durable user records.
+    if (destination / "config/bootstrap.json").exists() and not template_copy:
+        parser.error("Project already has bootstrap state. Revise it with scripts/bootstrap_gate.py review; rebootstrap is refused.")
     raw = {}
     if existing_path.exists():
-        existing = json.loads(existing_path.read_text(encoding="utf-8"))
         if not existing.get("template_mode", True):
             parser.error("Existing initialized project: preserve its records and follow the retrofit/review protocol.")
     if args.answers:

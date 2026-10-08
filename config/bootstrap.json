@@ -1,0 +1,160 @@
+{
+  "schema_version": "1.0",
+  "domain_profile": "software-hardware",
+  "state": "AWAITING_APPROVAL",
+  "project": {
+    "name": "Universal AI Project Template",
+    "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+    "definition_of_done": [
+      "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+      "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
+      "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
+    ],
+    "non_goals": [
+      "Any feature outside the owner's stated requirements and the milestones below (owner, 2026-10-07)",
+      "Legal work; it stays archived under archive/legal/",
+      "A combined ledger (ADR-089 D)",
+      "Savings telemetry and dry runs, issues #12 and #13 (deferred, ADR-089 G and ADR-096)"
+    ],
+    "constraints": [
+      "Preserve authoritative source material and provenance; keep secrets and restricted material out of Git",
+      "Simulations or guesses are never acceptable as verification",
+      "template_mode stays true and every existing record is preserved",
+      "Review cap of 4 automated rounds per pull request (ADR-089 A); worker-attempt default 2 (ADR-089 B)"
+    ]
+  },
+  "architecture": {
+    "summary": "Unchanged template architecture: Markdown control files and validator-checked startup views; Python CLIs for bootstrap and gate, work packets, acceptance, feedback, model routing and the execution harness; the software-hardware profile with hardware and web-ui tracks; the complex-project-bootstrapper skill payload synchronized by sync_skills.py. Approved work is four milestones that complete owner requirements already stated; none adds a new capability beyond them.",
+    "boundaries": [
+      "Bootstrap and approval gate semantics (bootstrap_gate.py, validate_bootstrap.py) change only with renewed owner approval",
+      "Acceptance-controller evidence binding and the work-packet schema change only with owner approval",
+      "Merge and review discipline (ADR-074, ADR-063, ADR-089 A) changes only as ADR-094 states it",
+      "Permission rules in .claude/settings.json change only as ADR-094 states it",
+      "The launcher dispatches only within EXECUTION_HARNESS_PROTOCOL.md and the per-packet budget and attempt limits",
+      "Generated-project payload shape and the template_mode contract stay compatible with bootstrap_project.py"
+    ],
+    "milestones": [
+      "Records current",
+      "Unknown-cost state",
+      "Auto-closeout ADR-094",
+      "External worker launcher OL-036"
+    ],
+    "dependencies": [
+      "Records current -> Unknown-cost state",
+      "Records current -> Auto-closeout ADR-094",
+      "Unknown-cost state -> External worker launcher OL-036"
+    ]
+  },
+  "sources": [
+    "Repository control files on main at ff5f5a4: PROJECT_CHARTER.md, DECISIONS.md, OPEN_LOOPS.md, PROJECT_STATE.md, the protocol files",
+    "GitHub issues and pull requests of henslewm/universal-ai-project-template, read with gh api",
+    "docs/AUDIT_2026-10-03.md section 2 (cost-as-zero defect)",
+    "Branch claude/auto-closeout commit 7cca94e (owner direction for ADR-094)",
+    "Owner decisions in the session of 2026-10-07 (ADR-096)"
+  ],
+  "risks": [
+    "Auto-merge removes the human merge check; a defective change merges if the automated review misses it (mitigated by ADR-074 exact-head review, green validator and tests, resolved threads, cap of 4)",
+    "An automatic launcher spends money on external models; undercounted cost lets budget caps pass (mitigated by landing the unknown-cost state first)",
+    "Removing the ADR-091 ask rules removes prompts for issue writes, deletions and gh api writes",
+    "The local gate does not authenticate a human or constrain an actor who rewrites gate code (R-004)",
+    "A fresh clone fails sync_skills --check and two tests until sync_skills.py builds the gitignored payload"
+  ],
+  "routing": {
+    "policy": "The architect session decomposes and integrates; bounded research, edits and records go to the .claude/agents subagents on sonnet; independent review stays at the architect tier (ADR-093). Once the launcher lands, packets may go to the cheapest external or local tier expected to pass acceptance, within per-packet budget and attempt limits (MODEL_ROUTING.md). Automated PR review by Codex or CodeRabbit."
+  },
+  "workflow": {
+    "policy": "One branch and pull request per milestone. Before merge: validate_project.py and the unit suite green, sync_skills.py --check clean, an automated review on the exact head (ADR-074), every actionable finding answered (ADR-063), at most 4 rounds (ADR-089). The owner merges until ADR-094 lands; after that, auto-merge applies only under its stated conditions. Closeout records per MASTER_INSTRUCTIONS.md."
+  },
+  "human_gates": [
+    "Running bootstrap_gate.py activate (owner only)",
+    "Any material architecture change outside the approved milestones",
+    "Merging a pull request, until ADR-094 auto-merge lands; afterwards only merges that fail its conditions",
+    "Sending, filing or publishing outside this repository, and purchases",
+    "Permission changes other than the ADR-094 removal of the ADR-091 ask rules",
+    "Deleting or overwriting original evidence, sources or history; force pushes",
+    "Raising a launcher budget or attempt limit above the per-packet contract"
+  ],
+  "domain": {
+    "baseline": "main at ff5f5a4 (merge of PR #117, 2026-10-07): validate_project.py passes with 85 required paths; 462 unit tests pass (3 skipped) after sync_skills.py builds the payload. Source: this session's runs on Linux, Python 3.13.",
+    "hardware_identity": "None: software-only project; no hardware is in scope",
+    "interfaces": "Python CLIs in scripts/ (bootstrap_project, bootstrap_gate, validate_bootstrap, validate_project, work_packet, acceptance, feedback, model_router, execution_harness, sync_skills); JSON schemas config/*.schema.json at schema_version 1.0; Markdown control files; GitHub REST via gh api.",
+    "specifications": "BOOTSTRAP_PROTOCOL.md, WORK_PACKET_PROTOCOL.md, ACCEPTANCE_PROTOCOL.md, FEEDBACK_PROTOCOL.md, MODEL_ROUTING.md, EXECUTION_HARNESS_PROTOCOL.md, MASTER_INSTRUCTIONS.md and config/*.schema.json, held in this repository.",
+    "environment": "Python 3.11 or newer, Git and the gh CLI on Windows (owner) and Linux (cloud sessions); GitHub Actions workflow validate-project.yml; no deployment target.",
+    "known_paths": "Known-good: validate_project.py, the unit suite and sync_skills.py --check after the payload is built (observed 2026-10-07). Known-failing: a fresh clone fails sync_skills.py --check and two tests until sync_skills.py runs (observed 2026-10-07). Unverified: the ADR-091 ask rules live; any real cheaper-model run (only synthetic harness runs exist).",
+    "validation_resources": "tests/ unit suite, validate_project.py, validate_bootstrap.py, sync_skills.py --check, the CI workflow, the synthetic harness and fake device examples, and Codex or CodeRabbit review on GitHub.",
+    "physical_access": "None: software-only project; no hardware is in scope",
+    "architecture_boundaries": "The gate, acceptance binding, work-packet schema, merge and review rules, permission rules and the template payload contract; changes outside the approved milestones need owner approval."
+  },
+  "unresolved": [],
+  "configuration": {
+    "template_mode": true,
+    "template_version": "1.0.0",
+    "created": "2026-08-29",
+    "project_name": "Universal AI Project Template",
+    "project_slug": "universal-ai-project-template",
+    "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+    "problem_statement": "All AI models hallucinate, drift and deviate from requests, goals, requirements and specs, so the controls must prevent that; having the strongest model do all the work costs too much, and one chat's memory does not carry across models or sessions (PROJECT_CHARTER.md).",
+    "success_criteria": [
+      "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+      "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
+      "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
+    ],
+    "deliverables": [],
+    "target_date": "",
+    "domain": "software-hardware",
+    "jurisdiction_or_version": "",
+    "risk_tier": "low",
+    "sensitivity": "public",
+    "owner": "henslewm",
+    "ai_clients": [
+      "chatgpt",
+      "codex",
+      "claude",
+      "claude-code"
+    ],
+    "connectors": [
+      "github",
+      "web"
+    ],
+    "connector_permissions": {
+      "github": "read-and-project-write",
+      "web": "read"
+    },
+    "source_locations": [
+      "Repository control files on main at ff5f5a4: PROJECT_CHARTER.md, DECISIONS.md, OPEN_LOOPS.md, PROJECT_STATE.md, the protocol files",
+      "GitHub issues and pull requests of henslewm/universal-ai-project-template, read with gh api",
+      "docs/AUDIT_2026-10-03.md section 2 (cost-as-zero defect)",
+      "Branch claude/auto-closeout commit 7cca94e (owner direction for ADR-094)",
+      "Owner decisions in the session of 2026-10-07 (ADR-096)"
+    ],
+    "repeatable_workflows": [],
+    "output_formats": [
+      "markdown"
+    ],
+    "constraints": [
+      "Preserve authoritative source material and provenance; keep secrets and restricted material out of Git",
+      "Simulations or guesses are never acceptable as verification",
+      "template_mode stays true and every existing record is preserved",
+      "Review cap of 4 automated rounds per pull request (ADR-089 A); worker-attempt default 2 (ADR-089 B)"
+    ],
+    "out_of_scope": [
+      "Any feature outside the owner's stated requirements and the milestones below (owner, 2026-10-07)",
+      "Legal work; it stays archived under archive/legal/",
+      "A combined ledger (ADR-089 D)",
+      "Savings telemetry and dry runs, issues #12 and #13 (deferred, ADR-089 G and ADR-096)"
+    ],
+    "domain_profile": "software-hardware"
+  },
+  "documents": {
+    "PROJECT_CHARTER.md": "844f24858bf93a6083c80b9bdeccb30ab60aff08162dea0ed036e7d80c11ef19",
+    "CONNECTOR_PLAN.md": "f1871dc620ceeaa8bda289e04723a96c0ffbb53b2b9434403c4bc289c94167d4",
+    "SKILL_PLAN.md": "6d1b8c44b088d462ae588ae81d191bc523878ee66e08eb5c38802df851585e1d",
+    "DOMAIN_PROFILE.md": "91d42727ef1a1b26894f5c3e9f6938c01ac8e372544079da97b7140665875e65"
+  },
+  "approval": {
+    "approved": false,
+    "approved_by": null,
+    "approved_at": null,
+    "architecture_fingerprint": null
+  }
+}

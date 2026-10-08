@@ -42,6 +42,23 @@ class BootstrapTests(unittest.TestCase):
             )
             self.assertEqual(validation.returncode, 0, msg=validation.stdout + validation.stderr)
 
+    def test_bootstrap_state_outside_template_root_still_refused(self) -> None:
+        # ADR-096: only an in-place tailoring of a template-mode copy may replace the template's own
+        # bootstrap state. A template-mode folder that is not the template root keeps the refusal.
+        with tempfile.TemporaryDirectory() as temp:
+            destination = Path(temp) / "other-folder"
+            (destination / "config").mkdir(parents=True)
+            (destination / "config/project.json").write_text(json.dumps({"template_mode": True}), encoding="utf-8")
+            (destination / "config/bootstrap.json").write_text("{}", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "scripts/bootstrap_project.py"), "--answers",
+                 str(ROOT / "tests/fixtures/software-project.json"), "--destination", str(destination), "--no-git"],
+                cwd=ROOT, text=True, capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("rebootstrap is refused", result.stderr)
+            self.assertEqual((destination / "config/bootstrap.json").read_text(encoding="utf-8"), "{}")
+
     def test_bootstrap_in_place(self) -> None:
         # In-place bootstrap is refused once a project is generated (bootstrap_project.py
         # rejects existing bootstrap state and template_mode=false), so only a template
@@ -75,6 +92,11 @@ class BootstrapTests(unittest.TestCase):
             config = json.loads((destination / "config/project.json").read_text(encoding="utf-8"))
             self.assertFalse(config["template_mode"])
             self.assertEqual(config["project_slug"], "example-complex-matter")
+            # ADR-096: the template's own bootstrap state is replaced by the new project's, never kept.
+            state = json.loads((destination / "config/bootstrap.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["state"], "INTAKE")
+            self.assertFalse(state["approval"]["approved"])
+            self.assertNotEqual(state["project"]["name"], "Universal AI Project Template")
             # In place, as by copy, a generated project has no payload, so its inherited CI skips
             # the payload-drift check it could never pass (PR #61 Codex round 1).
             self.assertFalse((destination / "skills/complex-project-bootstrapper/assets/project-template").exists())

@@ -2,18 +2,22 @@
   "template_mode": true,
   "template_version": "1.0.0",
   "created": "2026-08-29",
-  "project_name": "{{PROJECT_NAME}}",
-  "project_slug": "{{PROJECT_SLUG}}",
-  "objective": "{{OBJECTIVE}}",
-  "problem_statement": "{{PROBLEM_STATEMENT}}",
-  "success_criteria": [],
+  "project_name": "Universal AI Project Template",
+  "project_slug": "universal-ai-project-template",
+  "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+  "problem_statement": "All AI models hallucinate, drift and deviate from requests, goals, requirements and specs, so the controls must prevent that; having the strongest model do all the work costs too much, and one chat's memory does not carry across models or sessions (PROJECT_CHARTER.md).",
+  "success_criteria": [
+    "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+    "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
+    "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
+  ],
   "deliverables": [],
   "target_date": "",
-  "domain": "other",
+  "domain": "software-hardware",
   "jurisdiction_or_version": "",
-  "risk_tier": "medium",
-  "sensitivity": "private",
-  "owner": "",
+  "risk_tier": "low",
+  "sensitivity": "public",
+  "owner": "henslewm",
   "ai_clients": [
     "chatgpt",
     "codex",
@@ -28,11 +32,28 @@
     "github": "read-and-project-write",
     "web": "read"
   },
-  "source_locations": [],
+  "source_locations": [
+    "Repository control files on main at ff5f5a4: PROJECT_CHARTER.md, DECISIONS.md, OPEN_LOOPS.md, PROJECT_STATE.md, the protocol files",
+    "GitHub issues and pull requests of henslewm/universal-ai-project-template, read with gh api",
+    "docs/AUDIT_2026-10-03.md section 2 (cost-as-zero defect)",
+    "Branch claude/auto-closeout commit 7cca94e (owner direction for ADR-094)",
+    "Owner decisions in the session of 2026-10-07 (ADR-096)"
+  ],
   "repeatable_workflows": [],
   "output_formats": [
     "markdown"
   ],
-  "constraints": [],
-  "out_of_scope": []
+  "constraints": [
+    "Preserve authoritative source material and provenance; keep secrets and restricted material out of Git",
+    "Simulations or guesses are never acceptable as verification",
+    "template_mode stays true and every existing record is preserved",
+    "Review cap of 4 automated rounds per pull request (ADR-089 A); worker-attempt default 2 (ADR-089 B)"
+  ],
+  "out_of_scope": [
+    "Any feature outside the owner's stated requirements and the milestones below (owner, 2026-10-07)",
+    "Legal work; it stays archived under archive/legal/",
+    "A combined ledger (ADR-089 D)",
+    "Savings telemetry and dry runs, issues #12 and #13 (deferred, ADR-089 G and ADR-096)"
+  ],
+  "domain_profile": "software-hardware"
 }
