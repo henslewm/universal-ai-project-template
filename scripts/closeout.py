@@ -36,10 +36,13 @@ REVIEWED = re.compile(r"\*\*Reviewed commit:\*\*\s*`([0-9a-f]{7,40})`")
 # A Codex round with no findings posts no review: it only marks its summary comment's row Completed
 # for the commit it reviewed (the comment is edited in place, so it names the latest round only).
 SUMMARY_COMPLETED = re.compile(r"\*\*Completed\*\*[^|\n]*\|\s*`([0-9a-f]{7,40})`")
+ISSUE_URL = re.compile(r"https://github\.com/\S+/issues/(\d+)")
+COMMAND_TIMEOUT = 300  # seconds; a credential prompt or network stall becomes a refusal, not a hang
+TEST_TIMEOUT = 1800
 ISSUE_LINK = re.compile(r"\[#(\d+)\]\((https://github\.com/[^)\s]+/issues/(\d+))\)")
 THREADS_QUERY = """query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { pullRequest(number: $number) {
-    reviewThreads(first: 100) { nodes { isResolved path comments(first: 1) { nodes { author { login } } } } }
+    reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved path comments(first: 1) { nodes { author { login } } } } }
   } }
 }"""
 
@@ -48,11 +51,21 @@ class Refused(Exception):
     """A handled refusal: exit 1 with the reason."""
 
 
-def run(cmd: list[str], check: bool = True) -> str:
-    result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+def run(cmd: list[str], check: bool = True, timeout: int = COMMAND_TIMEOUT) -> str:
+    try:
+        result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise Refused(f"`{' '.join(cmd[:3])}` did not finish within {timeout} seconds")
     if check and result.returncode != 0:
         raise Refused(f"`{' '.join(cmd[:3])}` failed: {(result.stderr or result.stdout).strip()}")
     return result.stdout.strip()
+
+
+def passes(cmd: list[str], timeout: int) -> bool:
+    try:
+        return subprocess.run(cmd, cwd=ROOT, capture_output=True, timeout=timeout).returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
 
 
 def gh_json(args: list[str]):
@@ -60,6 +73,21 @@ def gh_json(args: list[str]):
 
 
 # --- readiness (pure) -------------------------------------------------------------------------
+
+def review_rounds(reviews: list[dict], comments: list[dict]) -> int:
+    """Automated review rounds: each bot review, and each bot comment naming a reviewed commit (a
+    clean Codex round). Repeat rounds on one commit count separately; the edited-in-place summary
+    comment never counts, because it only restates the latest round."""
+    return (sum(1 for r in reviews if r.get("user", {}).get("login") in REVIEW_BOTS and r.get("commit_id"))
+            + sum(1 for c in comments if c.get("user", {}).get("login") in REVIEW_BOTS
+                  and REVIEWED.search(c.get("body") or "")))
+
+
+def changes_requested(reviews: list[dict], head: str) -> bool:
+    """True when a bot review of the head asks for changes: a body-only finding has no thread to resolve."""
+    return any(r.get("user", {}).get("login") in REVIEW_BOTS and r.get("state") == "CHANGES_REQUESTED"
+               and head.startswith(r.get("commit_id") or "-") for r in reviews)
+
 
 def review_signals(reviews: list[dict], comments: list[dict]) -> list[str]:
     """Commit SHAs (full or abbreviated) an automated reviewer reviewed, oldest first. A review
@@ -77,11 +105,15 @@ def review_signals(reviews: list[dict], comments: list[dict]) -> list[str]:
     return [sha for _, sha in sorted(signals)]
 
 
-def assess(head: str, signals: list[str], unresolved: int) -> list[str]:
+def assess(head: str, signals: list[str], unresolved: int, rounds: int | None = None,
+           more_threads: bool = False, changes: bool = False) -> list[str]:
     """Reasons the head is not ready to merge; an empty list means ready."""
     reasons = []
-    rounds = len({sha[:7] for sha in signals})
-    if not any(head.startswith(sha) or sha.startswith(head) for sha in signals):
+    rounds = len({sha[:7] for sha in signals}) if rounds is None else rounds
+    if rounds > REVIEW_CAP:
+        # ADR-089: past the cap the maintainer decides, even when the latest round covers the head.
+        reasons.append(f"review cap exceeded ({rounds} rounds, ADR-089): the maintainer decides how to proceed")
+    elif not any(head.startswith(sha) or sha.startswith(head) for sha in signals):
         if rounds >= REVIEW_CAP:
             reasons.append(f"review cap reached ({rounds} rounds, ADR-089): answer the findings received and ask the owner how to proceed")
         else:
@@ -90,6 +122,10 @@ def assess(head: str, signals: list[str], unresolved: int) -> list[str]:
     if unresolved:
         reasons.append(f"{unresolved} unresolved review thread(s): answer each actionable finding (fix with a regression, "
                        "or a reasoned decline) and resolve the thread")
+    if more_threads:
+        reasons.append("more than 100 review threads: not every thread could be checked")
+    if changes:
+        reasons.append("an automated review of the head requests changes: answer its findings")
     return reasons
 
 
@@ -121,6 +157,10 @@ def close_loop(text: str, loop_id: str, status: str) -> str:
     cells = lines.pop(i).strip().strip("|").split("|")
     cells[-1] = f" {status} "
     row = "|" + "|".join(cells) + "|"
+    if "## Closed" not in lines:
+        # Generated projects start with only an Open table.
+        lines += ["", "## Closed", "", "| ID | Priority | Open item | Owner | Next action | Dependency | Due | Status |",
+                  "|---|---|---|---|---|---|---|---|"]
     start = lines.index("## Closed")
     last = end = start + 1
     while end < len(lines) and not lines[end].startswith("## "):
@@ -171,20 +211,22 @@ def cmd_push(args) -> int:
 
 
 def readiness(pr: str | None) -> tuple[dict, list[str]]:
-    view = gh_json(["pr", "view", *([pr] if pr else []), "--json", "number,headRefName,headRefOid,state,isDraft,baseRefName,url"])
+    view = gh_json(["pr", "view", *([pr] if pr else []), "--json", "number,headRefName,headRefOid,state,isDraft,baseRefName,url,isCrossRepository"])
     reasons = []
     if view["state"] != "OPEN":
         raise Refused(f"PR #{view['number']} is {view['state'].lower()}")
     if view["isDraft"]:
         reasons.append("the pull request is a draft")
+    if view.get("isCrossRepository"):
+        reasons.append("cross-repository pull request: its branch is not this repository's to delete; merge it by hand")
     if run(["git", "status", "--porcelain"]):
         reasons.append("working tree is not clean")
     if run(["git", "rev-parse", "HEAD"]) != view["headRefOid"]:
         reasons.append("local HEAD differs from the pull request head; push or pull first")
-    if subprocess.run([sys.executable, "scripts/validate_project.py"], cwd=ROOT, capture_output=True).returncode:
+    if not passes([sys.executable, "scripts/validate_project.py"], COMMAND_TIMEOUT):
         reasons.append("validate_project.py fails")
-    if (ROOT / "tests").is_dir() and subprocess.run(
-            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"], cwd=ROOT, capture_output=True).returncode:
+    if (ROOT / "tests").is_dir() and not passes(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"], TEST_TIMEOUT):
         reasons.append("the unit test suite fails")
     number = view["number"]
     reviews = gh_json(["api", "--paginate", "--slurp", f"repos/{{owner}}/{{repo}}/pulls/{number}/reviews"])
@@ -192,10 +234,15 @@ def readiness(pr: str | None) -> tuple[dict, list[str]]:
     repo = gh_json(["repo", "view", "--json", "owner,name"])
     threads = gh_json(["api", "graphql", "-f", f"query={THREADS_QUERY}", "-F", f"owner={repo['owner']['login']}",
                        "-F", f"name={repo['name']}", "-F", f"number={number}"])
-    nodes = threads["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
-    unresolved = sum(1 for node in nodes if not node["isResolved"])
-    signals = review_signals([r for page in reviews for r in page], [c for page in comments for c in page])
-    return view, reasons + assess(view["headRefOid"], signals, unresolved)
+    page = threads["data"]["repository"]["pullRequest"]["reviewThreads"]
+    unresolved = sum(1 for node in page["nodes"] if not node["isResolved"])
+    reviews = [r for p in reviews for r in p]
+    comments = [c for p in comments for c in p]
+    head = view["headRefOid"]
+    return view, reasons + assess(head, review_signals(reviews, comments), unresolved,
+                                  rounds=review_rounds(reviews, comments),
+                                  more_threads=page["pageInfo"]["hasNextPage"],
+                                  changes=changes_requested(reviews, head))
 
 
 def cmd_ready(args) -> int:
@@ -228,7 +275,7 @@ def cmd_merge(args) -> int:
     if run(["git", "status", "--porcelain"]):
         raise Refused(f"merged, but the working tree on {base} is not clean")
     merged = gh_json(["pr", "view", number, "--json", "mergeCommit"])["mergeCommit"]["oid"]
-    if subprocess.run(["git", "merge-base", "--is-ancestor", merged, "HEAD"], cwd=ROOT, capture_output=True).returncode:
+    if not passes(["git", "merge-base", "--is-ancestor", merged, "HEAD"], COMMAND_TIMEOUT):
         raise Refused(f"merged as {merged[:7]}, but local {base} does not contain it")
     print(f"MERGED: PR #{number} as {merged[:7]}; {branch} deleted locally and on origin; {base} clean")
     return 0
@@ -240,8 +287,11 @@ def cmd_issue(args) -> int:
     link_issue(text, args.loop, 0, "https://github.com/x/y/issues/0")  # refuse before creating anything
     body = (Path(args.body_file).read_text(encoding="utf-8") if args.body_file else args.body or "").strip()
     body += f"\n\n---\nMirrors `OPEN_LOOPS.md` {args.loop}, the record of truth. Closing either closes the other (ADR-094)."
-    url = run(["gh", "issue", "create", "--title", f"[{args.kind}] {args.title}", "--body", body]).splitlines()[-1]
-    number = int(url.rstrip("/").rsplit("/", 1)[-1])
+    output = run(["gh", "issue", "create", "--title", f"[{args.kind}] {args.title}", "--body", body])
+    match = ISSUE_URL.search(output)
+    if not match:
+        raise Refused(f"an issue may have been created, but its URL was not found in: {output[-200:]}; link it by hand")
+    url, number = match.group(0), int(match.group(1))
     loops.write_text(link_issue(text, args.loop, number, url), encoding="utf-8")
     print(f"ISSUE: #{number} mirrors {args.loop} ({url}); commit OPEN_LOOPS.md with the work")
     return 0

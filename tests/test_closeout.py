@@ -59,7 +59,25 @@ class ReadinessTests(unittest.TestCase):
         # PR #110: five rounds, the final head 0fb220d unreviewed.
         signals = ["a1b2c3d", "b2c3d4e", "c3d4e5f", "7e3b36f", "1fa6e78"]
         reasons = closeout.assess("0fb220d" + "0" * 33, signals, 0)
-        self.assertIn("review cap reached", reasons[0])
+        self.assertIn("review cap exceeded", reasons[0])
+
+    def test_cap_is_enforced_even_when_the_head_was_reviewed(self):
+        # PR #116 Codex round 1 P1: a fifth round on the head still goes to the maintainer.
+        self.assertIn("review cap exceeded", closeout.assess(HEAD, [HEAD], 0, rounds=5)[0])
+        self.assertEqual(closeout.assess(HEAD, [HEAD], 0, rounds=4), [])
+
+    def test_repeat_rounds_on_one_commit_each_count_and_the_summary_does_not(self):
+        reviews = [review(HEAD, "1"), review(HEAD, "2")]
+        clean = {"user": CODEX, "body": f"Codex Review: Didn't find any major issues.\n\n**Reviewed commit:** `{HEAD[:10]}`"}
+        self.assertEqual(closeout.review_rounds(reviews, [clean, summary(HEAD[:7])]), 3)
+
+    def test_more_threads_and_requested_changes_block(self):
+        reasons = closeout.assess(HEAD, [HEAD], 0, rounds=1, more_threads=True,
+                                  changes=closeout.changes_requested([{**review(HEAD, "1"), "state": "CHANGES_REQUESTED"}], HEAD))
+        self.assertEqual(len(reasons), 2)
+        self.assertIn("more than 100", reasons[0])
+        self.assertIn("requests changes", reasons[1])
+        self.assertFalse(closeout.changes_requested([{**review("c97ce9b8ef", "1"), "state": "CHANGES_REQUESTED"}], HEAD))
 
     def test_unresolved_threads_block_even_a_reviewed_head(self):
         reasons = closeout.assess(HEAD, [HEAD], 2)
@@ -97,6 +115,12 @@ class LoopMirrorTests(unittest.TestCase):
         self.assertEqual(closeout.mirrored_rows(closed), [("OL-041", "Closed", 130)])
         last_row = [line for line in closed.split("\n") if line.startswith("| OL-")][-1]
         self.assertTrue(last_row.startswith("| OL-041 |"))
+
+    def test_closing_creates_the_closed_section_a_generated_project_lacks(self):
+        # PR #116 Codex round 1 P2: generated OPEN_LOOPS.md files start with only an Open table.
+        open_only = LOOPS.split("## Closed")[0].rstrip("\n") + "\n"
+        closed = closeout.close_loop(closeout.link_issue(open_only, "OL-041", 130, URL), "OL-041", "Closed")
+        self.assertEqual(closeout.mirrored_rows(closed), [("OL-041", "Closed", 130)])
 
     def test_unknown_loop_is_refused(self):
         with self.assertRaisesRegex(closeout.Refused, "no row OL-099"):
