@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Automatic closeout (ADR-094)
+
+- `scripts/closeout.py`: `push`, `ready`, `merge`, `issue`, `sync-loops` (from the 2026-10-07 WIP on PR #116); `ready` now also counts a clean Codex round from its Completed summary row.
+- `MASTER_INSTRUCTIONS.md` gains "Automatic closeout (ADR-094)"; closeout step 9 and the merge rule point at it; `.claude/rules/02`, `.claude/rules/04` and `AGENTS.md` point at it too.
+- `OPEN_LOOPS.md` mirrors issues from OL-041; generated projects from OL-004. `validate_project.py` gains `validate_closeout`; `docs/REFERENCE.md` gains the exit-code row; `tests/test_closeout.py` (12 tests).
+- Pending the owner: removing the ADR-091 `ask` block from `.claude/settings.json` (an agent may not edit its own permissions); validation fails until then.
+
 ## 2026-10-08 — Template activated; records current (ADR-096)
 
 - PR #120 merged to `main` at `7f04c75`; the owner activated the bootstrap package (commit `72ff167`, approved_at 2026-10-08T14:29:43Z) and `validate_bootstrap.py config/bootstrap.json --require-active` passes.

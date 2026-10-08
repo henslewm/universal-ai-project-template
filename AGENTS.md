@@ -27,4 +27,4 @@ Apply `MASTER_INSTRUCTIONS.md` → "Bootstrap / autonomy gate" exactly as stated
 
 ## Safety
 
-Do not force-push, delete evidence, expose secrets, send external communications, change permissions, or perform consequential external writes without explicit user authority.
+Do not force-push, delete evidence, expose secrets, send external communications, change permissions, or perform consequential external writes without explicit user authority. The automatic closeout commands in `MASTER_INSTRUCTIONS.md` → "Automatic closeout (ADR-094)" are standing owner direction.

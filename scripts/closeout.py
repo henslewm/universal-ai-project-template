@@ -33,6 +33,9 @@ REVIEW_BOTS = ("chatgpt-codex-connector[bot]", "coderabbitai[bot]")
 REVIEW_CAP = 4  # automated-review rounds per pull request (ADR-089)
 PROTECTED = {"main", "master"}
 REVIEWED = re.compile(r"\*\*Reviewed commit:\*\*\s*`([0-9a-f]{7,40})`")
+# A Codex round with no findings posts no review: it only marks its summary comment's row Completed
+# for the commit it reviewed (the comment is edited in place, so it names the latest round only).
+SUMMARY_COMPLETED = re.compile(r"\*\*Completed\*\*[^|\n]*\|\s*`([0-9a-f]{7,40})`")
 ISSUE_LINK = re.compile(r"\[#(\d+)\]\((https://github\.com/[^)\s]+/issues/(\d+))\)")
 THREADS_QUERY = """query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { pullRequest(number: $number) {
@@ -64,8 +67,13 @@ def review_signals(reviews: list[dict], comments: list[dict]) -> list[str]:
     signals = [(r.get("submitted_at") or "", r["commit_id"]) for r in reviews
                if r.get("user", {}).get("login") in REVIEW_BOTS and r.get("commit_id")]
     for c in comments:
-        if c.get("user", {}).get("login") in REVIEW_BOTS and (match := REVIEWED.search(c.get("body") or "")):
+        if c.get("user", {}).get("login") not in REVIEW_BOTS:
+            continue
+        body = c.get("body") or ""
+        if match := REVIEWED.search(body):
             signals.append((c.get("created_at") or "", match.group(1)))
+        for match in SUMMARY_COMPLETED.finditer(body):
+            signals.append((c.get("updated_at") or c.get("created_at") or "", match.group(1)))
     return [sha for _, sha in sorted(signals)]
 
 

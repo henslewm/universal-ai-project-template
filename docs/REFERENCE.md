@@ -92,6 +92,7 @@ Every `scripts/*.py` command follows one exit-code policy (ADR-072). Adopting it
 | `acceptance.py` | JSON result with any other `status` | `Acceptance refused: …` | JSON `status` `ESCALATION_REQUIRED`, `ARCHITECTURE_CONFLICT` or `USER_REJECTED` |
 | `bootstrap_gate.py` | `Bootstrap state: …` | `BOOTSTRAP BLOCKED: …` (stdout) | — |
 | `bootstrap_project.py` | Project generated | `BOOTSTRAP BLOCKED: …`, or a stated reason such as an unrecognized template, a non-empty destination, invalid intake or a generated project that failed validation | Its `parser.error` refusals: existing bootstrap state, an initialized project, malformed answers, no canonical profile |
+| `closeout.py` | `PUSHED`, `READY`, `MERGED`, `ISSUE`, `SYNCED` | `Closeout refused: …` (a protected branch, an unclean tree, an unverified push, a failed git or gh call) | `ready` or `merge`: `NOT READY` / `NOT MERGED` with the reasons |
 | `execution_harness.py` | JSON result. A hold other than `BLOCKED` (such as `NEEDS_DECISION`, `NEEDS_ARCHITECT` or `HARNESS_UNAVAILABLE`) also exits 0 | `Execution harness refused: …` | JSON `status` `BLOCKED` |
 | `software_hardware.py` | JSON result | `Domain rule refused: …` | — |
 | `feedback.py` | JSON result. `next` exits 0 only for `DISPATCH`; every other command exits 0 whatever state it records | `Feedback control refused: …` | `next` with any other `status`, a recorded hold such as `BLOCKED`, `NEEDS_ARCHITECT` or `NEEDS_DECISION` |

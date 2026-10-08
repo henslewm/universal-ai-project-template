@@ -4,6 +4,8 @@ The `## Open` table is the startup read. Closed loops move to `## Closed` verbat
 
 ## Open
 
+<!-- issue-mirror-from: OL-041 -->
+
 | ID | Priority | Open item | Owner | Next action | Dependency | Due | Status |
 |---|---|---|---|---|---|---|---|
 | OL-013 | Medium | Same-model-family review of the template's own children | Maintainer | Structural gate delivered in #8; exercised in practice on #9: a same-family round approved a diff that the cross-family (openai) round rejected for a real defect, and acceptance rested on the cross-family approval with no waiver. Keep using a cross-family approver for later children | Master #14 goal 9; reviewer availability | Not set | Machinery closed in #8; practice exercised once in #9 |

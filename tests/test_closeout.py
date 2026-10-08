@@ -1,0 +1,146 @@
+"""Automatic closeout (ADR-094): readiness decisions, open-loop mirroring and the validator checks.
+
+The commands that call git and gh are exercised by the owner's own closeout runs; these tests cover
+every decision they make from the data those calls return.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+import closeout  # noqa: E402
+
+SPEC = importlib.util.spec_from_file_location("validate_project_closeout", ROOT / "scripts" / "validate_project.py")
+VALIDATOR = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(VALIDATOR)
+
+CODEX = {"login": "chatgpt-codex-connector[bot]"}
+HEAD = "9967655070453697de2933ac15d710470ee9c2b5"
+
+
+def review(sha, at):
+    return {"user": CODEX, "commit_id": sha, "submitted_at": at}
+
+
+def summary(sha, status="Completed"):
+    return {"user": CODEX, "updated_at": "2026-10-08T05:09:41Z",
+            "body": f"| 📝 **Code Review** | ✅ **{status}** <relative-time>t</relative-time> | `{sha}` | Manual request |"}
+
+
+class ReadinessTests(unittest.TestCase):
+    def test_review_on_the_exact_head_with_no_open_thread_is_ready(self):
+        signals = closeout.review_signals([review("c97ce9b8ef", "1"), review(HEAD, "2")], [])
+        self.assertEqual(closeout.assess(HEAD, signals, 0), [])
+
+    def test_a_clean_round_counts_from_the_summary_comment(self):
+        # A Codex round with no findings posts no review, only a Completed summary row.
+        signals = closeout.review_signals([], [summary(HEAD[:7])])
+        self.assertEqual(signals, [HEAD[:7]])
+        self.assertEqual(closeout.assess(HEAD, signals, 0), [])
+        self.assertEqual(closeout.review_signals([], [summary(HEAD[:7], status="Running")]), [])
+
+    def test_a_human_comment_is_not_a_review_signal(self):
+        human = {"user": {"login": "henslewm"}, "body": f"**Reviewed commit:** `{HEAD[:7]}`"}
+        self.assertEqual(closeout.review_signals([], [human]), [])
+
+    def test_stale_review_asks_for_the_next_round(self):
+        reasons = closeout.assess(HEAD, ["c97ce9b", "43fa5d9"], 0)
+        self.assertEqual(len(reasons), 1)
+        self.assertIn("round 3 of 4", reasons[0])
+
+    def test_pr_110_history_reports_the_cap_not_another_round(self):
+        # PR #110: five rounds, the final head 0fb220d unreviewed.
+        signals = ["a1b2c3d", "b2c3d4e", "c3d4e5f", "7e3b36f", "1fa6e78"]
+        reasons = closeout.assess("0fb220d" + "0" * 33, signals, 0)
+        self.assertIn("review cap reached", reasons[0])
+
+    def test_unresolved_threads_block_even_a_reviewed_head(self):
+        reasons = closeout.assess(HEAD, [HEAD], 2)
+        self.assertEqual(len(reasons), 1)
+        self.assertIn("2 unresolved review thread", reasons[0])
+
+
+LOOPS = """# Open Loops
+
+## Open
+
+<!-- issue-mirror-from: OL-041 -->
+
+| ID | Priority | Open item | Owner | Next action | Dependency | Due | Status |
+|---|---|---|---|---|---|---|---|
+| OL-040 | Medium | Older loop | Owner | Decide | None | Not set | Open |
+| OL-041 | High | New loop | Owner | Fix | None | Not set | Open |
+
+## Closed
+
+| ID | Priority | Open item | Owner | Next action | Dependency | Due | Status |
+|---|---|---|---|---|---|---|---|
+| OL-001 | High | Done | Owner | None | None | Complete | Closed |
+"""
+URL = "https://github.com/henslewm/universal-ai-project-template/issues/130"
+
+
+class LoopMirrorTests(unittest.TestCase):
+    def test_link_then_close_moves_the_row_and_keeps_the_link(self):
+        linked = closeout.link_issue(LOOPS, "OL-041", 130, URL)
+        self.assertEqual(closeout.mirrored_rows(linked), [("OL-041", "Open", 130)])
+        with self.assertRaisesRegex(closeout.Refused, "already mirrors"):
+            closeout.link_issue(linked, "OL-041", 131, URL)
+        closed = closeout.close_loop(linked, "OL-041", "Closed 2026-10-08: issue #130 closed")
+        self.assertEqual(closeout.mirrored_rows(closed), [("OL-041", "Closed", 130)])
+        last_row = [line for line in closed.split("\n") if line.startswith("| OL-")][-1]
+        self.assertTrue(last_row.startswith("| OL-041 |"))
+
+    def test_unknown_loop_is_refused(self):
+        with self.assertRaisesRegex(closeout.Refused, "no row OL-099"):
+            closeout.link_issue(LOOPS, "OL-099", 1, URL)
+
+
+DENIES = list(VALIDATOR.KEPT_DENIES)
+MASTER = "# Master\n\n## Automatic closeout (ADR-094)\n\nText.\n"
+
+
+class ValidatorTests(unittest.TestCase):
+    def project(self, master=MASTER, permissions=None, loops=LOOPS):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (directory / ".claude").mkdir()
+        (directory / "MASTER_INSTRUCTIONS.md").write_text(master, encoding="utf-8")
+        (directory / ".claude/settings.json").write_text(
+            json.dumps({"permissions": permissions if permissions is not None else {"deny": DENIES}}), encoding="utf-8")
+        (directory / "OPEN_LOOPS.md").write_text(loops, encoding="utf-8")
+        return directory
+
+    def test_complete_setup_passes_without_github(self):
+        self.assertEqual(VALIDATOR.validate_closeout(self.project(), github=False), [])
+
+    def test_missing_section_marker_or_denies_fail(self):
+        errors = VALIDATOR.validate_closeout(
+            self.project(master="# Master\n", permissions={"deny": []}, loops=LOOPS.replace("<!-- issue-mirror-from: OL-041 -->\n", "")),
+            github=False)
+        self.assertTrue(any("Automatic closeout" in e for e in errors))
+        self.assertTrue(any("issue-mirror-from" in e for e in errors))
+        self.assertTrue(any("git push --force" in e for e in errors))
+
+    def test_a_gated_closeout_command_fails(self):
+        errors = VALIDATOR.validate_closeout(
+            self.project(permissions={"deny": DENIES, "ask": ["Bash(gh pr merge *)"]}), github=False)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("gh pr merge", errors[0])
+
+    def test_on_github_loops_from_the_marker_need_an_issue(self):
+        errors = VALIDATOR.validate_closeout(self.project(), github=True)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("OL-041", errors[0])
+        linked = closeout.link_issue(LOOPS, "OL-041", 130, URL)
+        self.assertEqual(VALIDATOR.validate_closeout(self.project(loops=linked), github=True), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
