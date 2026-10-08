@@ -7,10 +7,8 @@
 - **Approved milestones:** Records current (done, PR #121) → Unknown-cost state (done, ADR-097, PR #122 merged) → External worker launcher OL-036; Records current → Auto-closeout ADR-094. Auto-closeout done: PR #116 merged at `066a37c`. Next: the launcher, branch `claude/worker-launcher` (ADR-099). Nothing outside them.
 - **Freeze (ADR-098):** Records current, Unknown-cost state and Auto-closeout take defect fixes only.
 - **Launcher (ADR-099):** `scripts/worker_launcher.py` restored with the ADR-077 limits; the architect session may launch paid cloud models within the per-packet budget and attempt limits (owner, 2026-10-08). Built and tested on Linux; done only after the owner's first real launch.
-- **Open PRs** (#118 and #119 not touched by this session):
-  - #118 `claude/workflow-skills`: claims ADR-095 and ADR-096, which `main` already uses; has merge conflicts; its feature is outside the approved milestones (OL-040).
-  - #119 draft `claude/eager-davinci-lhxve0`: handoff update after PR #117; has conflicts and is superseded by PR #120's records (OL-040).
-- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-040 (PRs #118 and #119), OL-034 (informational).
+- **Stale PRs closed (OL-040):** on 2026-10-08 the owner left #118 and #119 to Claude's judgement; both were closed unmerged with a comment, branches kept. #118 (`claude/workflow-skills`) claimed ADR-096 and is outside the approved milestones; #119 was superseded by PR #120's records.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
 
 ## 2026-10-07: bootstrap retrofit under its own gate (ADR-096)
 

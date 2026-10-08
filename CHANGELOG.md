@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-08 — Stale PRs #118 and #119 closed (OL-040)
+
+- The owner left OL-040 to Claude's judgement. PR #118 (`claude/workflow-skills`: claims ADR-096, outside the ADR-096 milestones, conflicts with `main`) and PR #119 (handoff draft superseded by PR #120's records) were closed unmerged with a comment each; both branches are kept.
+- `OPEN_LOOPS.md` moves OL-040 to Closed; `PROJECT_STATE.md` and `HANDOFF_CURRENT.md` drop it from the open items.
+
 ## 2026-10-08 — Worker launcher restored for the architect (ADR-099, OL-036)
 
 - `scripts/worker_launcher.py` and `tests/test_worker_launcher.py` restored from `53de2db^`; only wording changed. The 27 tests pass unchanged against the current harness, and no frozen file (ADR-098) changed.

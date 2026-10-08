@@ -23,7 +23,6 @@
    - Use a zero-priced (local) binding first: `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097).
    - A Node-based harness such as Cline needs an absolute-path wrapper that sets `PATH` (and `SystemRoot` on Windows); the child environment holds only the binding's credential variable.
    - Set `role_api_budget_usd` in the router configuration; the architect never raises it.
-4. Owner: decide OL-040 (PR #118 reuses ADR-095/096 and is outside scope; PR #119 is superseded).
 
 ## Notes
 
