@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Unknown-cost state (ADR-097)
+
+- `scripts/execution_harness.py` and `scripts/feedback.py`: `abandon` writes a distinct `ABANDON` event recording `api_cost_usd: null` (unknown) when the routed resource was metered at dispatch, 0 when it was not; `complete` and worker reports refuse `null` (PR #122 Codex round 1); an `ABANDON` event must have the fixed no-report shape, so it can never pass (round 2).
+- `scripts/model_router.py` and `scripts/feedback.py`: only known costs are summed; an unknown cost on a metered resource bars every metered candidate (`PRIOR_API_COST_UNKNOWN`), across contract repairs too; zero-priced resources stay eligible; a past attempt is never re-classified from current prices.
+- `config/feedback.schema.json`, `config/model-router.schema.json`: `api_cost_usd` accepts `null`. Protocol docs updated (`EXECUTION_HARNESS_PROTOCOL.md`, `FEEDBACK_PROTOCOL.md`, `MODEL_ROUTING.md`). Regressions shown failing on the earlier code.
+
 ## 2026-10-08 — Template activated; records current (ADR-096)
 
 - PR #120 merged to `main` at `7f04c75`; the owner activated the bootstrap package (commit `72ff167`, approved_at 2026-10-08T14:29:43Z) and `validate_bootstrap.py config/bootstrap.json --require-active` passes.
