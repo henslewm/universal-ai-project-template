@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "domain_profile": "software-hardware",
-  "state": "AWAITING_APPROVAL",
+  "state": "ACTIVE",
   "project": {
     "name": "Universal AI Project Template",
     "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
@@ -152,9 +152,9 @@
     "DOMAIN_PROFILE.md": "91d42727ef1a1b26894f5c3e9f6938c01ac8e372544079da97b7140665875e65"
   },
   "approval": {
-    "approved": false,
-    "approved_by": null,
-    "approved_at": null,
-    "architecture_fingerprint": null
+    "approved": true,
+    "approved_by": "henslewm",
+    "approved_at": "2026-10-08T14:29:43.815225+00:00",
+    "architecture_fingerprint": "f3954b7e97eed0922364e62acf1107e356087db9d18f59788234b7be1cbf7b34"
   }
 }
