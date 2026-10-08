@@ -551,6 +551,8 @@ def main() -> int:
     parser.add_argument("--destination", required=True, help="New project directory, or . to tailor a GitHub-template repository in place")
     parser.add_argument("--template-root", help="Explicit template root")
     parser.add_argument("--no-git", action="store_true", help="Do not initialize Git")
+    parser.add_argument("--replace-template-state", action="store_true",
+                        help="With --destination . in a new repository created from the GitHub template: replace the bootstrap state it inherited from the template")
     parser.add_argument("--github", action="store_true", help="Create and push a GitHub repository with gh")
     parser.add_argument("--github-owner", help="GitHub owner; defaults to authenticated user")
     parser.add_argument("--visibility", choices=["private", "public", "internal"], default="private")
@@ -562,13 +564,20 @@ def main() -> int:
     destination = Path(args.destination).expanduser().resolve()
     existing_path = destination / "config/project.json"
     existing = json.loads(existing_path.read_text(encoding="utf-8")) if existing_path.exists() else {}
-    # ADR-096: the template carries its own bootstrap state. A repository created from the GitHub
-    # template inherits it while still in template mode; tailoring that copy in place replaces the
-    # template's state with the new project's. Any other bootstrap state belongs to a real project.
-    template_copy = destination == source.resolve() and existing.get("template_mode") is True
+    # ADR-096: the template carries its own bootstrap state, and a repository created from the GitHub
+    # template inherits it byte for byte, so nothing in the files tells the two apart. Replacing that
+    # state therefore needs the explicit --replace-template-state opt-in, in place, in template mode.
+    in_place_template = destination == source.resolve() and existing.get("template_mode") is True
+    template_copy = in_place_template and args.replace_template_state
     # Never overwrite an existing project's approval or durable user records.
     if (destination / "config/bootstrap.json").exists() and not template_copy:
+        if in_place_template:
+            parser.error("This repository carries the template's own bootstrap state. If it is a new repository created "
+                         "from the GitHub template, rerun with --replace-template-state; otherwise revise it with "
+                         "scripts/bootstrap_gate.py review. Rebootstrap is refused.")
         parser.error("Project already has bootstrap state. Revise it with scripts/bootstrap_gate.py review; rebootstrap is refused.")
+    if args.replace_template_state and not in_place_template:
+        parser.error("--replace-template-state applies only with --destination . in a template-mode repository.")
     raw = {}
     if existing_path.exists():
         if not existing.get("template_mode", True):

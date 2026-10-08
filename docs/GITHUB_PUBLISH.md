@@ -32,7 +32,7 @@ Then tailor the cloned project in place:
 
 ```bash
 cd new-project
-python scripts/bootstrap_project.py --destination .
+python scripts/bootstrap_project.py --destination . --replace-template-state
 ```
 
 ## Install the project bootstrap skill from GitHub

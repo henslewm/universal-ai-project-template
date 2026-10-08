@@ -18,6 +18,7 @@ The `## Open` table is the startup read. Closed loops move to `## Closed` verbat
 | OL-034 | Medium | `scripts/software_hardware.py:369` lazily imports `acceptance`, so the hardware track depends on acceptance, feedback, router and harness | Maintainer | Account for this dependency when trimming further; it is not removable without a decision | None | Not set | Open; informational |
 | OL-037 | Medium | A fresh clone fails `sync_skills.py --check` and two tests (`test_bootstrap_integration` standalone entrypoint, `test_validate_project` evidence-gap mirror) because the skill payload is gitignored and unbuilt | Maintainer | Run `python scripts/sync_skills.py` after cloning; any fix needs owner direction because it is outside the approved milestones | None | Not set | Open; observed 2026-10-07 |
 | OL-038 | High | Owner activation of the template's bootstrap package (ADR-096) | Owner | Review `BOOTSTRAP_REVIEW.md` and run `python scripts/bootstrap_gate.py activate`; until then no autonomous work | Merge of `claude/bootstrap-retrofit` | Not set | Open |
+| OL-039 | Low | `test_cli_exit_codes.test_bootstrap_project_gate_and_validators` times out (120 s) when the test runner's stdin is an open pipe, because `cli()` inherits stdin and the interactive intake waits for input; passes with stdin closed (CI, terminals) | Maintainer | Pass `stdin=subprocess.DEVNULL` in `cli()` when the owner directs it; outside the ADR-096 milestones | None | Not set | Open; reproduced 2026-10-07 on `c97ce9b` and its fix |
 
 ## Closed
 

@@ -59,6 +59,26 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn("rebootstrap is refused", result.stderr)
             self.assertEqual((destination / "config/bootstrap.json").read_text(encoding="utf-8"), "{}")
 
+    def test_in_place_without_opt_in_keeps_template_state(self) -> None:
+        # ADR-096, PR #120 Codex P1: the template and a fresh GitHub-template copy are byte-identical, so
+        # an in-place run must not replace the inherited bootstrap state without the explicit opt-in.
+        if not (ROOT / "config/bootstrap.json").exists():
+            self.skipTest("only a template checkout that carries its own bootstrap state")
+        with tempfile.TemporaryDirectory() as temp:
+            destination = Path(temp) / "template-checkout"
+            shutil.copytree(ROOT, destination, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"))
+            before = (destination / "config/bootstrap.json").read_bytes()
+            result = subprocess.run(
+                [sys.executable, str(destination / "scripts/bootstrap_project.py"), "--answers",
+                 str(destination / "tests/fixtures/software-project.json"), "--template-root", str(destination),
+                 "--destination", str(destination), "--no-git"],
+                cwd=destination, text=True, capture_output=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("--replace-template-state", result.stderr)
+            self.assertEqual((destination / "config/bootstrap.json").read_bytes(), before)
+            self.assertTrue((destination / "archive").exists())
+
     def test_bootstrap_in_place(self) -> None:
         # In-place bootstrap is refused once a project is generated (bootstrap_project.py
         # rejects existing bootstrap state and template_mode=false), so only a template
@@ -82,6 +102,7 @@ class BootstrapTests(unittest.TestCase):
                     str(destination),
                     "--destination",
                     str(destination),
+                    "--replace-template-state",
                     "--no-git",
                 ],
                 cwd=destination,
