@@ -145,7 +145,15 @@ def write_state(root: Path, data: dict) -> None:
 def update_project_status(root: Path, status: str) -> None:
     path = root / "PROJECT_STATE.md"
     text = path.read_text(encoding="utf-8")
-    text = re.sub(r"^- \*\*Status:\*\*.*$", f"- **Status:** {status}", text, flags=re.M)
+    line = re.compile(r"^- \*\*Status:\*\*.*$", flags=re.M)
+    # Only the startup view (the `## Current` section, ADR-093) carries live status; older dated
+    # sections are history and keep their Status lines (ADR-096).
+    current = re.search(r"^## Current \(.*?(?=^## |\Z)", text, flags=re.M | re.S)
+    if current:
+        section = line.sub(lambda _: f"- **Status:** {status}", current.group(0))
+        text = text[:current.start()] + section + text[current.end():]
+    else:
+        text = line.sub(lambda _: f"- **Status:** {status}", text)
     path.write_text(text, encoding="utf-8")
 
 

@@ -5,8 +5,8 @@
 - **Name:** Universal AI Project Template
 - **Slug:** universal-ai-project-template
 - **Domain:** (inferred) Multi-model AI project control plane, as a reusable template. Served tracks: software development and serial hardware / hardware-software interfaces. Legal work was archived under `archive/legal/` (owner decision).
-- **Risk tier:** Not set
-- **Sensitivity:** Not set. The repository is public.
+- **Risk tier:** Low (owner, 2026-10-07, ADR-096)
+- **Sensitivity:** Public (owner, 2026-10-07, ADR-096). The repository is public.
 - **Owner:** henslewm
 - **Target date:** Not set
 
@@ -61,7 +61,7 @@ Stated by the owner. Each item below was decided; ADR-089 records them and withd
 - **B. Worker attempts:** preferred default 2, recorded only; the per-packet `retry_budget.max_attempts` stays the enforcement point.
 - **C. Approvals:** current rules stay (`MASTER_INSTRUCTIONS.md`, `.claude/rules/02` and `04`, `AGENTS.md`). Not changed.
 - **D. Single ledger:** not pursued. Question 2 is closed as no combined ledger.
-- **F. Delegation:** superseded in part by ADR-093: a Claude Code session delegates bounded work to the `.claude/agents/` subagents by default. A human still runs any external harness worker (ADR-083 removed the launcher) until OL-036 is decided.
+- **F. Delegation:** superseded in part by ADR-093: a Claude Code session delegates bounded work to the `.claude/agents/` subagents by default. A human still runs any external harness worker (ADR-083 removed the launcher) until the launcher approved by ADR-096 (OL-036, decided 2026-10-07) lands.
 - **G. Savings telemetry and dry runs (#12, #13):** deferred.
 - Filing and sending require explicit owner approval (unchanged).
 - Simulations or guesses are never acceptable as verification (unchanged).
@@ -73,3 +73,14 @@ Stated by the owner: the template is unfrozen to reduce drift and to auto-delega
 - Startup reads are validator-checked views (`PROJECT_STATE.md` current section, `OPEN_LOOPS.md` open table, `DECISIONS.md` index), and duplicated rules are pointers to `MASTER_INSTRUCTIONS.md`.
 - Claude Code sessions delegate bounded work to the project subagents by default, with model tiers and bounded-outcome reports (`MASTER_CLAUDE_CODE.md` → Delegation).
 - Open: whether the architect may also launch external harness workers automatically (OL-036). Until decided, ADR-083 stands.
+
+## Decisions (2026-10-07, ADR-096)
+
+Stated by the owner in the session of 2026-10-07.
+
+- **Bootstrap retrofit:** the template runs under its own bootstrap gate (`config/bootstrap.json`), with `template_mode` kept and every record preserved. Autonomy starts only after the owner runs `python scripts/bootstrap_gate.py activate`.
+- **Scope rule:** autonomous work is limited to the owner's stated requirements; no new features beyond the approved milestones.
+- **Risk and sensitivity:** low and public.
+- **OL-036:** yes. The architect may launch external harness workers automatically once a launcher is scoped and built under `EXECUTION_HARNESS_PROTOCOL.md`, starting from the ADR-077 limits. This supersedes the ADR-083 and ADR-089 refusals for that launcher only.
+- **ADR-094 (branch `claude/auto-closeout`):** finish as directed: push on closeout, auto-merge once machine-checked ready (validator and tests green, an automated review on the exact head per ADR-074, every thread resolved, within the cap of 4), remove the ADR-091 ask rules, and mirror open loops as GitHub issues.
+- **Savings:** fix the cost-as-zero defect (abandoned and failed attempts recorded as $0, `docs/AUDIT_2026-10-03.md` section 2); #12 and #13 stay deferred (decision G).
