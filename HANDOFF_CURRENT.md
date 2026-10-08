@@ -11,12 +11,12 @@
 |---|---|
 | Records current | Done: PR #121 merged (`4ac2d68`); frozen (ADR-098) |
 | Unknown-cost state (ADR-097) | Done: PR #122 merged (`4921427`); frozen (ADR-098) |
-| Auto-closeout (ADR-094) | PR #116, still a **draft**: Codex rounds 1 to 3 answered, every finding fixed with a regression, every thread resolved, CI green; round 4 of 4, the last (ADR-089), requested on the head carrying this note. Frozen once merged |
+| Auto-closeout (ADR-094) | PR #116, still a **draft**: Codex rounds 1 to 3 answered, every finding fixed with a regression, every thread resolved, CI green; round 4 of 4, the last (ADR-089), on `e0a76f3` answered (stdin hang fixed, branch-delete race declined with the owner). Owner marks it ready and merges. Frozen once merged |
 | External worker launcher (OL-036) | Not started; next after #116 merges |
 
 ## Next action
 
-1. PR #116: read Codex round 4 with `gh api` (reviews, review comments, issue comments); do not rely on notifications. If clean, the owner marks #116 ready for review and merges it (`closeout.py merge` cannot merge its own pull request). If round 4 has findings, fix reproduced defects with regressions, decline the rest (ADR-063, ADR-098), and ask the owner how to proceed; no 5th round.
+1. PR #116: the owner marks it ready for review and merges it (`closeout.py merge` cannot merge its own pull request). Marking it ready may start one automatic Codex review; answer any finding before the merge under ADR-063 and ADR-098.
 2. After #116 merges: the launcher milestone on a new branch from `main`, scoped under `EXECUTION_HARNESS_PROTOCOL.md` from the ADR-077 limits and relying on ADR-097. It builds on the frozen harness, feedback and router through their interfaces; a change to them that is not a defect fix goes to the owner first (ADR-098).
 3. Owner: decide OL-040 (PR #118 reuses ADR-095/096 and is outside scope; PR #119 is superseded).
 

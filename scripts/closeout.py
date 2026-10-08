@@ -64,7 +64,7 @@ def run(cmd: list[str], check: bool = True, timeout: int = COMMAND_TIMEOUT) -> s
 
 def passes(cmd: list[str], timeout: int) -> bool:
     try:
-        return subprocess.run(cmd, cwd=ROOT, capture_output=True, timeout=timeout).returncode == 0
+        return subprocess.run(cmd, cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout).returncode == 0
     except subprocess.TimeoutExpired:
         return False
 

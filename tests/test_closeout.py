@@ -58,6 +58,17 @@ class ReadinessTests(unittest.TestCase):
         reasons = closeout.assess(HEAD, closeout.review_signals(reviews, []), 0, rounds=1)
         self.assertIn("no automated review on head", reasons[0])
 
+    def test_the_suite_runs_with_stdin_closed(self):
+        # PR #116 Codex round 4: an inherited stdin let a CLI test wait for input until it timed out.
+        seen = {}
+        original = closeout.subprocess.run
+        closeout.subprocess.run = lambda cmd, **kwargs: seen.update(kwargs) or type("Done", (), {"returncode": 0})()
+        try:
+            self.assertTrue(closeout.passes(["true"], 5))
+        finally:
+            closeout.subprocess.run = original
+        self.assertIs(seen.get("stdin"), closeout.subprocess.DEVNULL)
+
     def test_a_human_comment_is_not_a_review_signal(self):
         human = {"user": {"login": "henslewm"}, "body": f"**Reviewed commit:** `{HEAD[:7]}`"}
         self.assertEqual(closeout.review_signals([], [human]), [])
