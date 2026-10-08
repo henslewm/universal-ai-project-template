@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-08 — Template activated; records current (ADR-096)
+
+- PR #120 merged to `main` at `7f04c75`; the owner activated the bootstrap package (commit `72ff167`, approved_at 2026-10-08T14:29:43Z) and `validate_bootstrap.py config/bootstrap.json --require-active` passes.
+- `PROJECT_STATE.md`: new current section for the activated template; the 2026-10-07 retrofit section is now history with its Status marked as history.
+- `OPEN_LOOPS.md`: OL-038 closed; OL-040 opened for PR #118 (ADR number collision, conflicts, outside the approved milestones) and PR #119 (superseded).
+- `HANDOFF_CURRENT.md` rewritten; next milestone is Unknown-cost state.
+
 ## 2026-10-07 — Bootstrap retrofit of the template (ADR-096)
 
 - `config/bootstrap.json` and `BOOTSTRAP_REVIEW.md` added; `bootstrap_gate.py review` reached `AWAITING_APPROVAL`. Autonomy stays OFF until the owner runs `bootstrap_gate.py activate`.
