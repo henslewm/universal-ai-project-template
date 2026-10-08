@@ -2,7 +2,7 @@
 
 ## 2026-10-08 — Automatic closeout (ADR-094)
 
-- `scripts/closeout.py`: `push`, `ready`, `merge`, `issue`, `sync-loops` (from the 2026-10-07 WIP on PR #116); `ready` now also counts a clean Codex round from its Completed summary row. PR #116 review round 1: the cap is enforced even on a reviewed head and counts every round; more than 100 threads, a changes-requested review of the head, or a cross-repository pull request refuse; git, gh and test calls time out; `sync-loops` creates a missing Closed table; an issue URL is matched rather than assumed.
+- `scripts/closeout.py`: `push`, `ready`, `merge`, `issue`, `sync-loops` (from the 2026-10-07 WIP on PR #116); `ready` now also counts a clean Codex round from its Completed summary row. PR #116 review round 1: the cap is enforced even on a reviewed head and counts every round; more than 100 threads, a changes-requested review of the head, or a cross-repository pull request refuse; git, gh and test calls time out; `sync-loops` creates a missing Closed table; an issue URL is matched rather than assumed. Round 2: `merge` deletes the branch only after GitHub reports the pull request merged, so a queued merge keeps its branch.
 - `MASTER_INSTRUCTIONS.md` gains "Automatic closeout (ADR-094)"; closeout step 9 and the merge rule point at it; `.claude/rules/02`, `.claude/rules/04` and `AGENTS.md` point at it too.
 - `OPEN_LOOPS.md` mirrors issues from OL-041; generated projects from OL-004. `validate_project.py` gains `validate_closeout`; `docs/REFERENCE.md` gains the exit-code row; `tests/test_closeout.py` (12 tests).
 - `.claude/settings.json`: the ADR-091 `ask` block is removed by the owner on `main` (`fcfecf8`; an agent may not edit its own permissions); every deny stays.

@@ -264,7 +264,14 @@ def cmd_merge(args) -> int:
             print(f"- {reason}")
         return 2
     number, branch, base = str(view["number"]), view["headRefName"], view["baseRefName"]
-    run(["gh", "pr", "merge", number, "--merge", "--delete-branch", "--match-head-commit", view["headRefOid"]])
+    # No --delete-branch: with a merge queue or pending required checks, `gh pr merge` can succeed by
+    # queuing the pull request, and deleting its branch then would close it unmerged.
+    run(["gh", "pr", "merge", number, "--merge", "--match-head-commit", view["headRefOid"]])
+    merged = merged_commit(gh_json(["pr", "view", number, "--json", "state,mergeCommit"]))
+    if not merged:
+        print(f"QUEUED: PR #{number} is accepted for merge but not merged yet; {branch} is kept. "
+              "Run `closeout.py merge` again after it merges to clean up.")
+        return 0
     if current_branch() != base:
         run(["git", "switch", base])
     run(["git", "pull", "--ff-only"])
@@ -274,11 +281,16 @@ def cmd_merge(args) -> int:
         run(["git", "push", "origin", "--delete", branch])
     if run(["git", "status", "--porcelain"]):
         raise Refused(f"merged, but the working tree on {base} is not clean")
-    merged = gh_json(["pr", "view", number, "--json", "mergeCommit"])["mergeCommit"]["oid"]
     if not passes(["git", "merge-base", "--is-ancestor", merged, "HEAD"], COMMAND_TIMEOUT):
         raise Refused(f"merged as {merged[:7]}, but local {base} does not contain it")
     print(f"MERGED: PR #{number} as {merged[:7]}; {branch} deleted locally and on origin; {base} clean")
     return 0
+
+
+def merged_commit(view: dict) -> str | None:
+    """The merge commit when GitHub reports the pull request MERGED; None while it is queued or pending."""
+    commit = view.get("mergeCommit") or {}
+    return commit.get("oid") if view.get("state") == "MERGED" and commit.get("oid") else None
 
 
 def cmd_issue(args) -> int:

@@ -85,6 +85,34 @@ class ReadinessTests(unittest.TestCase):
         self.assertIn("2 unresolved review thread", reasons[0])
 
 
+class MergeTests(unittest.TestCase):
+    """PR #116 Codex round 2: a queued merge never deletes the branch."""
+
+    def merge_with(self, state):
+        calls = []
+        args = type("Args", (), {"pr": "116"})()
+        view = {"number": 116, "headRefName": "claude/auto-closeout", "baseRefName": "main", "headRefOid": HEAD}
+        originals = (closeout.readiness, closeout.run, closeout.gh_json)
+        closeout.readiness = lambda pr: (view, [])
+        closeout.run = lambda cmd, check=True, timeout=0: calls.append(cmd) or ""
+        closeout.gh_json = lambda args_: state
+        try:
+            return closeout.cmd_merge(args), calls
+        finally:
+            closeout.readiness, closeout.run, closeout.gh_json = originals
+
+    def test_queued_merge_keeps_the_branch(self):
+        code, calls = self.merge_with({"state": "OPEN", "mergeCommit": None})
+        self.assertEqual(code, 0)
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("--delete-branch", calls[0])
+        self.assertFalse(any("--delete" in part for cmd in calls for part in cmd))
+
+    def test_merged_state_is_required_before_cleanup(self):
+        self.assertIsNone(closeout.merged_commit({"state": "OPEN", "mergeCommit": {"oid": HEAD}}))
+        self.assertEqual(closeout.merged_commit({"state": "MERGED", "mergeCommit": {"oid": HEAD}}), HEAD)
+
+
 LOOPS = """# Open Loops
 
 ## Open
