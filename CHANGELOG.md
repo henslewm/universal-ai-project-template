@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-08 — Launcher keeps its one-launch marker (PR #124 post-merge Codex P1)
+
+- `scripts/worker_launcher.py`: once the harness tree is stopped, `launch` checks that `launch.json` is unchanged; if the worker deleted or edited it, the launcher restores it and refuses the run for `abandon`, so the same reservation cannot be launched twice. Regression `test_a_harness_that_deletes_the_launch_marker_cannot_be_launched_again`, shown failing first.
+- The P2 finding (an `abandon` from another session between the ledger recheck and process start) is declined: it needs two writers on one ledger (ADR-062), and a lock would change frozen `feedback.py` (ADR-098).
+
 ## 2026-10-08 — Worker launcher restored for the architect (ADR-099, OL-036)
 
 - `scripts/worker_launcher.py` and `tests/test_worker_launcher.py` restored from `53de2db^`; only wording changed. The 27 tests pass unchanged against the current harness, and no frozen file (ADR-098) changed.
