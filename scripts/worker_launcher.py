@@ -71,6 +71,12 @@ def verify_prepared(rundir, expected):
             "invocation.json differs from what the current configuration prepares for this attempt")
 
 
+def launch_guard(directory, dispatch_id):
+    """The one-launch guard, beside the ledger: a path the worker is never given, so it lasts the whole run."""
+    directory = Path(directory)
+    return directory.with_name(directory.name + ".launched") / f"{dispatch_id}.json"
+
+
 def require_unreported(rundir):
     require(not os.path.lexists(rundir / "report.json"),
             "The run directory already holds report.json; ingest it instead of launching again")
@@ -134,7 +140,7 @@ def prepared_run(directory, config, rundir, root, timeout=None):
             f"The prepared run needs about {estimate['required_tokens']} tokens, but the current configuration "
             f"serves a {estimate['served_context_window']}-token window; record the attempt with abandon")
     require_unreported(rundir)
-    require(not os.path.lexists(rundir / MARKER),
+    require(not os.path.lexists(rundir / MARKER) and not os.path.lexists(launch_guard(directory, state["pending"])),
             f"The run directory was already launched ({MARKER} exists); record the attempt with ingest or abandon")
     remaining = remaining_seconds(attempt["deadline"])
     return {"dispatch_id": state["pending"], "argv": plan["argv"], "names": plan["required_environment"],
@@ -186,17 +192,25 @@ def launch(directory, config, rundir, root, timeout=None):
     """Run the prepared harness once, owning its whole tree until it is confirmed stopped."""
     run = prepared_run(directory, config, rundir, root, timeout)
     marker = run["rundir"] / MARKER
+    guard = launch_guard(run["ledger"][0], run["dispatch_id"])
     timed_out = interrupted = False
     bound = run["bound"]
     with Interrupts() as interrupts:
         interrupts.holding = True
-        # Exclusive creation is the guard: this run directory launches once. It holds names only.
+        # Exclusive creation of the guard beside the ledger, then of the marker in RUNDIR, makes this
+        # reservation launch once; the worker can remove the marker but is never given the guard.
         record = json.dumps({"dispatch_id": run["dispatch_id"], "launched_at": wp.now(),
                              "deadline": run["deadline"], "bound_seconds": round(run["bound"], 3),
                              "environment_names": run["names"]}, indent=2) + "\n"
+        guard.parent.mkdir(exist_ok=True)
+        try:
+            wp.write_new(guard, record)
+        except FileExistsError as exc:
+            raise ValueError("Another launch of this run directory started first") from exc
         try:
             wp.write_new(marker, record)
         except FileExistsError as exc:
+            guard.unlink()
             raise ValueError("Another launch of this run directory started first") from exc
         try:
             # Checked again once the marker is held, so a change after the precondition check is caught.
@@ -210,12 +224,14 @@ def launch(directory, config, rundir, root, timeout=None):
             remaining_seconds(run["deadline"])
         except (ValueError, OSError):
             marker.unlink()  # Nothing ran, so the run directory is not spent.
+            guard.unlink()
             raise
         try:
             process = acceptance.ProcessTree.launch(run["argv"], None, env=run["environment"],
                                                     stdin=subprocess.DEVNULL, stdout=2, stderr=2)
         except OSError as exc:
             marker.unlink()  # Nothing ran, so the run directory is not spent.
+            guard.unlink()
             raise ValueError(f"The harness could not be started, so nothing ran: {exc}") from exc
         try:
             with acceptance.ProcessTree.own(process) as tree:
