@@ -22,7 +22,7 @@ For a new/empty destination, run from the template root:
 python scripts/bootstrap_project.py --interactive --answers verified-intake.json --profile software-hardware --destination ../my-project --no-git
 ```
 
-Omit `--answers` and its filename when no answers file exists; add `--no-hardware` for a software-only project (selects the `web-ui` track). Use `--destination .` only for an uninitialized template repository. The generator creates `config/bootstrap.json` in `INTAKE` with autonomy off, tailored control files, and an initial `BOOTSTRAP_REVIEW.md` with readiness gaps. Canonical templates include snapshots of existing domain documents.
+Omit `--answers` and its filename when no answers file exists; add `--no-hardware` for a software-only project (selects the `web-ui` track). Use `--destination .` only for an uninitialized repository created from the GitHub template, with `--replace-template-state` to replace the bootstrap state it inherited (ADR-096). The generator creates `config/bootstrap.json` in `INTAKE` with autonomy off, tailored control files, and an initial `BOOTSTRAP_REVIEW.md` with readiness gaps. Canonical templates include snapshots of existing domain documents.
 
 Rebootstrap of initialized projects is refused. Preserve existing records and evidence during a retrofit; add only missing controls. If bootstrap state already exists, revise that package and use review. Do not delete state or reset template mode to bypass preservation checks.
 

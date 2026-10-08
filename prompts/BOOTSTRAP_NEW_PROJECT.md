@@ -38,7 +38,7 @@ For command-line execution, use the matching mode:
 python scripts/bootstrap_project.py --interactive --answers verified-intake.json --profile software-hardware --destination ../my-project --no-git
 
 # Uninitialized GitHub "Use this template" repository: tailor in place
-python scripts/bootstrap_project.py --interactive --profile software-hardware --destination . --no-git
+python scripts/bootstrap_project.py --interactive --profile software-hardware --destination . --replace-template-state --no-git
 ```
 
 Omit `--answers` and its filename if no answers file exists. Add `--no-hardware` for a software-only project (selects the `web-ui` track).

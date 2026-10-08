@@ -1,14 +1,36 @@
 # Project State
 
-## Current (2026-10-07): unfrozen for startup views and delegation (ADR-093)
+## Current (2026-10-08): template activated (ADR-096)
+
+- **Status:** ACTIVE — approved foundation
+- **Activation:** PR #120 (ADR-096 retrofit) merged to `main` at `7f04c75` on 2026-10-08 (owner merge; last head `9967655` was pushed by a separate session on the owner's Mac after Codex round 4 of 4, so no Codex review covers that head; CI green). The owner activated the package on 2026-10-08 in commit `72ff167` on `claude/activate-template`: from a phone he sent identity "henslewm" and the approval line in chat, and this session passed both unchanged to `bootstrap_gate.py activate` (approved_at 2026-10-08T14:29:43Z). `validate_bootstrap.py config/bootstrap.json --require-active` passes.
+- **Approved milestones:** Records current (this one) → Unknown-cost state → External worker launcher OL-036; Records current → Auto-closeout ADR-094. Next: Unknown-cost state. Nothing outside them.
+- **Open PRs (other sessions, not touched):**
+  - #116 draft `claude/auto-closeout`: ADR-094 work in progress, an approved milestone; finished under it.
+  - #118 `claude/workflow-skills`: claims ADR-095 and ADR-096, which `main` already uses; has merge conflicts; its feature is outside the approved milestones (OL-040).
+  - #119 draft `claude/eager-davinci-lhxve0`: handoff update after PR #117; has conflicts and is superseded by PR #120's records (OL-040).
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-040 (PRs #118 and #119), OL-034 (informational).
+
+## 2026-10-07: bootstrap retrofit under its own gate (ADR-096)
+
+- **Status:** AWAITING_APPROVAL — autonomy OFF (history)
+- **Gate:** the template carries its own `config/bootstrap.json` (branch `claude/bootstrap-retrofit`); `template_mode` stays true and every record is preserved. The Status line above is the only live gate state in this view: `bootstrap_gate.py` review and activate rewrite it, and `validate_bootstrap.py config/bootstrap.json --require-active` is authoritative. The review packet is `BOOTSTRAP_REVIEW.md`.
+- **Owner decisions (ADR-096):** risk low, sensitivity public; OL-036 yes (scope a launcher); finish ADR-094 as directed; fix the cost-as-zero defect, #12 and #13 stay deferred; no features beyond the owner's requirements.
+- **Approved milestones once activated:** Records current → Unknown-cost state → External worker launcher OL-036; Records current → Auto-closeout ADR-094.
+- **Corrected:** PR #117 (ADR-095) merged at `ff5f5a4`; the next free ADR after this one is ADR-097 (ADR-094 stays reserved for `claude/auto-closeout`).
+- **Verified:** `validate_project.py` passes; `validate_bootstrap.py` reported VALID after the 2026-10-07 review; unit suite and `sync_skills.py --check` per the changelog entry of 2026-10-07. A fresh clone fails `sync_skills.py --check` and two tests until `sync_skills.py` builds the gitignored payload (OL-037).
+- **Open:** OL-037 (fresh-clone payload), OL-038 (owner activation; the Records current milestone closes it once `--require-active` passes), OL-034 (informational).
+
+## 2026-10-07: unfrozen for startup views and delegation (ADR-093)
 
 - **Main since the freeze:** owner-requested work merged on 2026-10-06 and 2026-10-07: `permissions.ask` rules for merges, issue writes, deletions and `gh api` writes (ADR-091, PR #111); interactive intake by default, `scripts/web_setup.py`, and a layperson README with reference moved to `docs/REFERENCE.md` (ADR-092, PRs #113 and #114). The ask rules are not live-verified.
 
 - **Scope:** the ADR-089 freeze is lifted for two owner objectives. Startup reads are now views checked by `scripts/validate_project.py` (current-section date, open-loop table, decision index), duplicated rule text is replaced by pointers, and full ADR rows 070 to 090 are archived verbatim. Claude Code sessions delegate bounded work to the `.claude/agents/` subagents by default (researcher, operator, record-keeper on sonnet; reviewer at the architect tier) with bounded-outcome reports.
 - **Not changed:** external harness dispatch stays operator-run (ADR-083); the owner decides OL-036. Review cap 4 and worker-attempt default 2 (ADR-089) stand.
-- **Verified:** `validate_project.py` passes with the new record-view checks; `sync_skills.py --check` clean; the unit suite passes (see the changelog entry of 2026-10-06).
+- **Verified:** `validate_project.py` passes with the new record-view checks; `sync_skills.py --check` clean; the unit suite passes (see the changelog entry of 2026-10-07).
 - **Open:** OL-036 (external auto-launch decision), OL-034 (hardware track dependency, informational).
-- **Active branch:** `claude/eager-davinci-lhxve0` (ADR-093, PR #110); `main` merged in on 2026-10-07. Four Codex rounds used, the last clean on `7e3b36f`; the owner decides whether the merged head needs a fifth.
+- **Active branch:** `main`. PR #110 (ADR-093) was merged by the owner on 2026-10-07 as `ed30f33` (head `0fb220d`) after five Codex rounds: rounds 1 to 3 found 3, 2 and 3 P2 findings (all fixed), round 4 on `7e3b36f` was clean, and round 5 on `1fa6e78` went past the ADR-089 cap because a PR comment quoted the trigger phrase; its one P2 was fixed in `0fb220d`, which no Codex round reviewed. PR #115 (`docs/REFERENCE.md` in the validator's REQUIRED list) followed, at `c27c0d6`.
+- **Record-keeper (ADR-095):** the `record-keeper` subagent now has Bash so it can run `validate_project.py` itself; its instructions limit the shell to that check and read-only git commands. Pending merge with PR #117.
 
 ## 2026-10-03: frozen at the software and hardware tracks (ADR-089)
 

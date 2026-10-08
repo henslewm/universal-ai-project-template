@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-10-08 — Template activated; records current (ADR-096)
+
+- PR #120 merged to `main` at `7f04c75`; the owner activated the bootstrap package (commit `72ff167`, approved_at 2026-10-08T14:29:43Z) and `validate_bootstrap.py config/bootstrap.json --require-active` passes.
+- `PROJECT_STATE.md`: new current section for the activated template; the 2026-10-07 retrofit section is now history with its Status marked as history.
+- `OPEN_LOOPS.md`: OL-038 closed; OL-040 opened for PR #118 (ADR number collision, conflicts, outside the approved milestones) and PR #119 (superseded).
+- `HANDOFF_CURRENT.md` rewritten; next milestone is Unknown-cost state.
+
+## 2026-10-07 — Bootstrap retrofit of the template (ADR-096)
+
+- `config/bootstrap.json` and `BOOTSTRAP_REVIEW.md` added; `bootstrap_gate.py review` reached `AWAITING_APPROVAL`. Autonomy stays OFF until the owner runs `bootstrap_gate.py activate`.
+- `scripts/bootstrap_project.py`: a repository created from the GitHub template inherits the template's `config/bootstrap.json`; in-place tailoring of a `template_mode` copy replaces it only with the new `--replace-template-state` opt-in (Codex round 1 P1), and the in-place commands in `docs/GITHUB_PUBLISH.md`, `prompts/BOOTSTRAP_NEW_PROJECT.md`, `prompts/INTERACTIVE_BOOTSTRAP.md`, `BOOTSTRAP_PROTOCOL.md`, `START_HERE.md` and the bootstrapper `SKILL.md` say so (Codex round 2 P2 found `START_HERE.md` missed). Every other existing bootstrap state is still refused. Regressions `test_bootstrap_state_outside_template_root_still_refused` and `test_in_place_without_opt_in_keeps_template_state` (shown failing on the earlier code) added.
+- `config/project.json`: template placeholders replaced with the template's own values; `template_mode` stays true.
+- `PROJECT_CHARTER.md`: risk low, sensitivity public, and the ADR-096 owner decisions (OL-036 yes, finish ADR-094, unknown-cost fix, #12/#13 deferred, no features beyond requirements).
+- `scripts/bootstrap_gate.py`: `update_project_status` now changes only the `## Current` section's Status line (whole file if there is none), so activation updates the startup view and never rewrites history; `PROJECT_STATE.md`'s current section gains the Status line it updates (Codex round 3 P2). Regressions in `tests/test_bootstrap_gate.py`, shown failing on the earlier code.
+- `PROJECT_STATE.md`: the current section's Gate, Verified and Open lines and its heading no longer restate the pre-activation state, so the Status line is the only live gate field and activation leaves no contradiction (Codex round 4 P2). Regression `test_activation_leaves_no_stale_gate_state_in_template_view`, shown failing on the earlier text.
+- Records: ADR-096; OL-036 closed; OL-037 (fresh-clone payload) and OL-038 (activation) opened; R-019 to R-021; stale "PR #117 pending" and "next ADR 095" corrected. The review command's rewrite of the historical `Status` line in `PROJECT_STATE.md` was reverted.
+
+## 2026-10-07 — Records after the PR #110 merge (ADR-093); record-keeper gets Bash (ADR-095)
+
+- `.claude/agents/record-keeper.md`: `Bash` added to its tools, on the owner's instruction, so it runs `validate_project.py` and `git diff --stat` before reporting; its instructions limit the shell to those checks and read-only git commands. ADR-095 records it; ADR-094 is skipped because unmerged branch `claude/auto-closeout` has claimed it.
+- `PROJECT_STATE.md` current section: the active-branch bullet now records PR #110 merged by the owner at `ed30f33` (head `0fb220d`) after five Codex rounds, the fifth unintended and past the ADR-089 cap, with PR #115 following; the verified bullet points at this date's changelog entry.
+- `DECISIONS.md`: the full ADR-093 row's status now states the five rounds and the merge with head `0fb220d` unreviewed. No other row changed.
+- `HANDOFF_CURRENT.md`: merge recorded, no queued work, and two notes: never quote the Codex trigger phrase in a PR comment, and branch `claude/auto-closeout` holds unfinished ADR-094 work, so the next decision takes ADR-095 or later.
+
 ## 2026-10-07 — Require docs/REFERENCE.md in the validator (ADR-092 follow-up)
 
 - PR #114 moved the reference material to `docs/REFERENCE.md`; `scripts/validate_project.py` (with its `.agents`, `.claude` and payload copies, converged by `sync_skills.py`) now lists `docs/REFERENCE.md` in `REQUIRED`, so a checkout or generated project missing the moved reference fails validation. Regression added in `tests/test_validate_project.py`. No new ADR: this enforces the ADR-092 layout.
