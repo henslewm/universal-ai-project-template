@@ -253,9 +253,13 @@
           }
         },
         "api_cost_usd": {
-          "type": "number",
+          "type": [
+            "number",
+            "null"
+          ],
           "minimum": 0,
-          "maximum": 1000000
+          "maximum": 1000000,
+          "description": "Reported API spend in USD. null means unknown (an abandoned attempt with no accounting); it is never read as zero."
         },
         "cost_evidence": {
           "$ref": "#/$defs/bounded_text"

@@ -649,6 +649,11 @@ class HarnessReportTests(HarnessBase):
         state = harness.feedback.replay(self.ledger)[0]
         self.assertIsNone(state["pending"], "an abandoned attempt must not stay pending")
         self.assertIn("attempt-abandoned", state["attempts"][-1]["result"]["evidence"][0])
+        # ADR-097: abandonment settles the cost from the dispatch-time prices. This fixture's routed
+        # resource is unmetered, so the cost is known zero; a metered one records null (test_feedback).
+        self.assertFalse(state["attempts"][-1]["api_metered"])
+        self.assertEqual(state["attempts"][-1]["result"]["api_cost_usd"], 0)
+        self.assertIn("declared no API price", state["attempts"][-1]["result"]["cost_evidence"])
         with self.assertRaisesRegex(ValueError, "No reserved dispatch"):
             harness.abandon(self.ledger, self.config, "Nothing is pending, so there is nothing to abandon here.")
         # Scope is genuinely unknown when nothing was reported, so the architect decides rather than
@@ -658,6 +663,28 @@ class HarnessReportTests(HarnessBase):
         with self.assertRaisesRegex(ValueError, "Controller hold"):
             self.prepare("run-after-abandon")
         self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["scope_status"], "unknown")
+
+    def test_abandoning_a_metered_attempt_records_an_unknown_cost(self):
+        # ADR-097: the routed resource declared an API price at dispatch, so no cost is asserted.
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger("metered-ledger")
+        self.prepare()
+        harness.abandon(self.ledger, self.config, "The metered worker crashed after starting and wrote no report.")
+        attempt = harness.feedback.replay(self.ledger)[0]["attempts"][-1]
+        self.assertTrue(attempt["api_metered"])
+        self.assertIsNone(attempt["result"]["api_cost_usd"])
+        self.assertIn("Unknown", attempt["result"]["cost_evidence"])
+
+    def test_a_worker_report_must_state_a_numeric_cost(self):
+        # Only abandonment records an unknown cost; a worker that reports states a number.
+        prepared = self.prepare()
+        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="FAIL", passed=False)
+        value["api_cost_usd"] = None
+        path = Path(prepared["destination"]) / "report.json"
+        wp.write_new(path, json.dumps(value, indent=2))
+        with self.assertRaisesRegex(ValueError, "api_cost_usd as a number"):
+            harness.ingest(self.ledger, self.config, path)
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
 
     def test_a_refused_malformed_report_can_also_be_abandoned(self):
         prepared = self.prepare()

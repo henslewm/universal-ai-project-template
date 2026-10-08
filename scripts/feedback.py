@@ -154,8 +154,12 @@ def plan(state, config, options):
     # Validate caller filters before combining them with immutable controller limits.
     router.check_shape("request", request)
     config = copy.deepcopy(config)
-    old_spend = sum((router.dec(a["result"]["api_cost_usd"]) for a in state["attempts"]
-                     if a["revision"] != request["binding"]["revision"]), router.dec(0))
+    earlier = [a for a in state["attempts"] if a["revision"] != request["binding"]["revision"]]
+    old_spend = sum((router.dec(a["result"]["api_cost_usd"]) for a in earlier
+                     if a["result"]["api_cost_usd"] is not None), router.dec(0))
+    # An unknown cost on an earlier revision cannot be carried in the router's current-revision
+    # history, so its consequence is applied here: no metered resource while that spend is unknown.
+    unknown_earlier = any(a["result"]["api_cost_usd"] is None for a in earlier)
     remaining = router.dec(config["policy"]["role_api_budget_usd"]) - old_spend
     if remaining < 0 or (remaining == 0 and old_spend > 0):
         result["reason"] = "CUMULATIVE_API_LIMIT"
@@ -163,6 +167,8 @@ def plan(state, config, options):
     config["policy"]["role_api_budget_usd"] = float(remaining)
     counts = tier_counts(state)
     exhausted = [r["id"] for r in config["resources"] if counts[str(int(r["tier"]))] >= state["caps"][str(int(r["tier"]))]]
+    if unknown_earlier:
+        exhausted = sorted(set(exhausted) | {r["id"] for r in config["resources"] if router.metered(r)})
     request["unavailable_resources"] = sorted(set(request["unavailable_resources"] + exhausted))
     routed = router.record(state["packet"], config, request)
     result["routing"] = routed
@@ -201,11 +207,26 @@ def move(state, target, actor, reason, evidence, timestamp):
                                     current_graph(state), timestamp)
 
 
-def apply_result(state, result, timestamp):
+def apply_result(state, result, timestamp, abandoned=False):
     shape("result", result)
     if not state["pending"] or result["dispatch_id"] != state["pending"]:
         raise ValueError("Result does not match the pending dispatch")
     attempt = state["attempts"][-1]
+    # ADR-097: only an abandonment records an unknown cost, and only on a resource that was metered
+    # at dispatch; an unmetered one is known to cost nothing. A reported result states a number.
+    if abandoned:
+        # ABANDON is the only provenance allowed an unknown cost, so it carries exactly the
+        # no-report shape `execution_harness.abandon` writes; it can never record a pass.
+        if (result["outcome"] != "FAIL" or result["scope_status"] != "unknown" or result["validation"]
+                or result["architecture_conflict"] or result["discoveries"]
+                or not all(item.startswith("attempt-abandoned: ") for item in result["evidence"])):
+            raise ValueError("An abandonment records outcome FAIL, scope unknown, no validation, no discoveries "
+                             "and attempt-abandoned evidence only")
+        expected = None if attempt.get("api_metered", True) else 0
+        if result["api_cost_usd"] != expected:
+            raise ValueError("An abandoned attempt records an unknown (null) cost on a metered resource and 0 on an unmetered one")
+    elif result["api_cost_usd"] is None:
+        raise ValueError("An unknown (null) cost is recorded only by abandoning the attempt")
     contract = wp.current(state["packet"])["contract"]
     checks = {check["id"] for check in contract["validation"]}
     ids = [check["check_id"] for check in result["validation"]]
@@ -291,7 +312,9 @@ def apply(state, event, stored=False):
         if expected["status"] != "DISPATCH":
             raise ValueError("Dispatch violates a controller limit")
         decision = expected["routing"]["decision"]
+        routed = next(r for r in data["config"]["resources"] if r["id"] == decision["selected"]["resource_id"])
         attempt = {"id": decision["decision_id"], **decision["selected"], "revision": binding(state["packet"])["revision"],
+                   "api_metered": router.metered(routed),
                    "contract_hash": binding(state["packet"])["contract_hash"], "config_hash": decision["config_hash"],
                    "issued_at": timestamp, "deadline": (instant(timestamp) + timedelta(seconds=int(state["policy"]["attempt_timeout_seconds"]))).isoformat(),
                    "result": None, "routing_outcome": None, "fingerprint": None}
@@ -299,8 +322,8 @@ def apply(state, event, stored=False):
             move(state, "IN_PROGRESS", "worker:" + attempt["resource_id"], "Dispatch reserved", [attempt["id"]], timestamp)
         state["attempts"].append(attempt)
         state.update(status="IN_PROGRESS", reason="DISPATCH_RESERVED", pending=attempt["id"])
-    elif event["kind"] == "RESULT":
-        apply_result(state, data, timestamp)
+    elif event["kind"] in {"RESULT", "ABANDON"}:
+        apply_result(state, data, timestamp, abandoned=event["kind"] == "ABANDON")
         state["attempts"][-1]["result_event_sequence"] = event["sequence"]
     elif event["kind"] == "APPROVAL_HOLD":
         exact(data, {"reason"})
@@ -561,6 +584,11 @@ def reserve(directory, config, options, root, timestamp=None):
 def complete(directory, result, timestamp=None):
     # Recording late/cancelled/failed work remains possible after activation is revoked.
     return append(directory, "RESULT", result, timestamp, replay(directory))
+
+
+def abandon(directory, result, timestamp=None):
+    """Close the pending attempt with no worker report (ADR-097): its cost is unknown if it may have charged."""
+    return append(directory, "ABANDON", result, timestamp, replay(directory))
 
 
 def review(directory, decision, timestamp=None):
