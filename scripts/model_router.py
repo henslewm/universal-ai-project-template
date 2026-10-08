@@ -126,6 +126,21 @@ def dec(value):
     return Decimal(str(value))
 
 
+def unmetered(config, resource_id):
+    """True when the resource declares zero API price, so an unknown cost on it is known to be zero."""
+    resource = next((r for r in config["resources"] if r["id"] == resource_id), None)
+    return bool(resource) and dec(resource["input_million_usd"]) == 0 and dec(resource["output_million_usd"]) == 0
+
+
+def metered(resource):
+    return dec(resource["input_million_usd"]) > 0 or dec(resource["output_million_usd"]) > 0
+
+
+def unknown_costs(attempts, config, cost=lambda a: a["api_cost_usd"], resource_id=lambda a: a["resource_id"]):
+    """Attempts whose API cost is unknown (null) on a resource that may have charged."""
+    return [a for a in attempts if cost(a) is None and not unmetered(config, resource_id(a))]
+
+
 def number(value):
     return float(round(value, 12))
 
@@ -179,7 +194,9 @@ def _route(packet, config, request):
     complexity_floor = int(policy["complexity_floor"][contract["complexity"]])
     tiers = allowed_tiers(contract, role)
     floor = max(min(tiers), risk_floor, complexity_floor)
-    spent = sum((dec(a["api_cost_usd"]) for a in attempts), dec(0))
+    # A null cost is unknown, not zero: only known costs are summed, and an unknown one bars metered resources.
+    spent = sum((dec(a["api_cost_usd"]) for a in attempts if a["api_cost_usd"] is not None), dec(0))
+    unknown = unknown_costs(attempts, config)
     result = {"schema_version": "1.0", "algorithm_version": ALGORITHM, "policy_version": policy["version"],
               "binding": binding, "packet_hash": digest(packet), "config_hash": digest(config),
               "request_hash": digest(request), "status": "STOP", "reason_codes": [], "selected": None,
@@ -189,6 +206,8 @@ def _route(packet, config, request):
               "risk_floor": risk_floor, "complexity_floor": complexity_floor,
               "reasoning_effort": effort, "candidates": [], "execution_authorized": False}
     result["input_hash"] = digest({key: result[key] for key in ("packet_hash", "config_hash", "request_hash")})
+    if unknown:
+        result["unknown_api_cost_attempts"] = [a["decision_id"] for a in unknown]
 
     def finish(reason, selected=None):
         result["reason_codes"] = [reason]
@@ -243,6 +262,8 @@ def _route(packet, config, request):
                 excluded.append("CONTEXT_CAPACITY_EXCEEDED")
             if spent + api > dec(policy["role_api_budget_usd"]):
                 excluded.append("ESTIMATED_API_BUDGET_EXCEEDED")
+            if unknown and metered(resource):
+                excluded.append("PRIOR_API_COST_UNKNOWN")
             if not excluded:
                 # On an observed outage, exhaust eligible equivalent-tier alternatives first.
                 fallback_priority = 0 if not last or last["outcome"] != "PROVIDER_UNAVAILABLE" or resource["tier"] == last["tier"] else 1

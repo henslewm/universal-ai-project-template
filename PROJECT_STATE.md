@@ -4,7 +4,7 @@
 
 - **Status:** ACTIVE — approved foundation
 - **Activation:** PR #120 (ADR-096 retrofit) merged to `main` at `7f04c75` on 2026-10-08 (owner merge; last head `9967655` was pushed by a separate session on the owner's Mac after Codex round 4 of 4, so no Codex review covers that head; CI green). The owner activated the package on 2026-10-08 in commit `72ff167` on `claude/activate-template`: from a phone he sent identity "henslewm" and the approval line in chat, and this session passed both unchanged to `bootstrap_gate.py activate` (approved_at 2026-10-08T14:29:43Z). `validate_bootstrap.py config/bootstrap.json --require-active` passes.
-- **Approved milestones:** Records current (this one) → Unknown-cost state → External worker launcher OL-036; Records current → Auto-closeout ADR-094. Next: Unknown-cost state. Nothing outside them.
+- **Approved milestones:** Records current (done, PR #121) → Unknown-cost state (done, ADR-097, branch `claude/unknown-cost`) → External worker launcher OL-036; Records current → Auto-closeout ADR-094. Next: Auto-closeout ADR-094 or the launcher. Nothing outside them.
 - **Open PRs (other sessions, not touched):**
   - #116 draft `claude/auto-closeout`: ADR-094 work in progress, an approved milestone; finished under it.
   - #118 `claude/workflow-skills`: claims ADR-095 and ADR-096, which `main` already uses; has merge conflicts; its feature is outside the approved milestones (OL-040).

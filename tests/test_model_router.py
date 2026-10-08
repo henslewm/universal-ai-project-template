@@ -244,6 +244,31 @@ class RoutingTests(unittest.TestCase):
         history.append(attempt(3, api=0.7))
         self.assert_stop(router.route(packet, settings, request(packet, attempts=history)), "API_BUDGET_EXHAUSTED")
 
+    def test_unknown_cost_is_never_read_as_zero_and_bars_metered_resources(self):
+        # ADR-096 milestone "Unknown-cost state" (audit 2026-10-03, section 2): an abandoned attempt
+        # used to record api_cost_usd 0, so a metered worker that crashed after spending looked free.
+        packet = make_packet()
+        settings = config(resource(), resource("paid", tier=1, api=0.1, latency=0))
+        settings["policy"]["failures_per_tier"] = 20
+        history = [attempt(1, resource_id="paid", provider="lmstudio", api=None), attempt(2, api=0.25)]
+        result = router.route(packet, settings, request(packet, attempts=history))
+        self.assert_selected(result, "local")
+        self.assertEqual(result["recorded_api_spend_usd"], 0.25, "only known costs are summed")
+        self.assertEqual(result["unknown_api_cost_attempts"], [history[0]["decision_id"]])
+        row = next(item for item in result["candidates"] if item["resource_id"] == "paid")
+        self.assertIn("PRIOR_API_COST_UNKNOWN", row["reason_codes"])
+        # With only metered resources left, an unknown cost stops routing instead of spending more.
+        only_paid = config(resource("paid", tier=1, api=0.1, latency=0))
+        self.assert_stop(router.route(packet, only_paid, request(packet, attempts=history[:1])), "NO_ELIGIBLE_RESOURCE")
+
+    def test_unknown_cost_on_a_zero_priced_resource_is_known_zero(self):
+        packet = make_packet()
+        settings = config(resource(), resource("paid", tier=1, api=0.1, latency=0))
+        result = router.route(packet, settings, request(packet, attempts=[attempt(1, api=None)]))
+        self.assertNotIn("unknown_api_cost_attempts", result)
+        row = next(item for item in result["candidates"] if item["resource_id"] == "paid")
+        self.assertNotIn("PRIOR_API_COST_UNKNOWN", row["reason_codes"])
+
     def test_zero_api_budget_still_allows_zero_api_cost_resource(self):
         packet = make_packet()
         settings = config(resource(), resource("paid", tier=2, api=0.01, latency=0))

@@ -481,6 +481,8 @@ def report_valid(report, contract, dispatch_id, limits, size):
     # The controller's own result schema, before any nested field is read: both `ingest` and
     # `verify-report` must refuse a report whose nested types are wrong (`passed: "false"` is truthy).
     feedback.shape("result", report)
+    # Only an abandoned attempt may record an unknown (null) cost; a worker that reports must state a number.
+    require(report["api_cost_usd"] is not None, "A worker report states api_cost_usd as a number")
     require(report["dispatch_id"] == dispatch_id, "Report does not match the reserved dispatch")
     expected = [check["id"] for check in contract["validation"]]
     reported = [check["check_id"] for check in report["validation"]]
@@ -555,8 +557,9 @@ def abandon(directory, config, reason):
         "dispatch_id": state["pending"], "outcome": "FAIL",
         "summary": "Dispatched worker produced no usable report; the attempt was abandoned with a recorded reason.",
         "scope_status": "unknown", "architecture_conflict": False, "validation": [],
-        "evidence": [f"attempt-abandoned: {text}"], "discoveries": [], "api_cost_usd": 0,
-        "cost_evidence": "The worker reported no accounting, so no cost is asserted."})
+        "evidence": [f"attempt-abandoned: {text}"], "discoveries": [], "api_cost_usd": None,
+        "cost_evidence": ("Unknown: the worker reported no accounting and a metered provider may have charged. "
+                          "Routing treats this cost as unknown, never as zero.")})
     return {"status": recorded["status"], "outcome": "FAIL", "dispatch_id": state["pending"],
             "attempts_used": len(recorded["attempts"]),
             "remaining_task_attempts": recorded["total_cap"] - len(recorded["attempts"]),

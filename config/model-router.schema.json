@@ -372,7 +372,15 @@
           ]
         },
         "api_cost_usd": {
-          "$ref": "#/$defs/money"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/money"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "null means the attempt's cost is unknown; routing never reads it as zero."
         },
         "elapsed_seconds": {
           "$ref": "#/$defs/seconds"

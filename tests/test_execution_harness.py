@@ -649,6 +649,9 @@ class HarnessReportTests(HarnessBase):
         state = harness.feedback.replay(self.ledger)[0]
         self.assertIsNone(state["pending"], "an abandoned attempt must not stay pending")
         self.assertIn("attempt-abandoned", state["attempts"][-1]["result"]["evidence"][0])
+        # ADR-096 milestone "Unknown-cost state": no accounting means unknown cost, never zero.
+        self.assertIsNone(state["attempts"][-1]["result"]["api_cost_usd"])
+        self.assertIn("Unknown", state["attempts"][-1]["result"]["cost_evidence"])
         with self.assertRaisesRegex(ValueError, "No reserved dispatch"):
             harness.abandon(self.ledger, self.config, "Nothing is pending, so there is nothing to abandon here.")
         # Scope is genuinely unknown when nothing was reported, so the architect decides rather than
@@ -658,6 +661,17 @@ class HarnessReportTests(HarnessBase):
         with self.assertRaisesRegex(ValueError, "Controller hold"):
             self.prepare("run-after-abandon")
         self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["scope_status"], "unknown")
+
+    def test_a_worker_report_must_state_a_numeric_cost(self):
+        # Only abandonment records an unknown cost; a worker that reports states a number.
+        prepared = self.prepare()
+        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="FAIL", passed=False)
+        value["api_cost_usd"] = None
+        path = Path(prepared["destination"]) / "report.json"
+        wp.write_new(path, json.dumps(value, indent=2))
+        with self.assertRaisesRegex(ValueError, "api_cost_usd as a number"):
+            harness.ingest(self.ledger, self.config, path)
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
 
     def test_a_refused_malformed_report_can_also_be_abandoned(self):
         prepared = self.prepare()

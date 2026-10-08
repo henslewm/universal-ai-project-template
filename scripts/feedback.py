@@ -154,8 +154,12 @@ def plan(state, config, options):
     # Validate caller filters before combining them with immutable controller limits.
     router.check_shape("request", request)
     config = copy.deepcopy(config)
-    old_spend = sum((router.dec(a["result"]["api_cost_usd"]) for a in state["attempts"]
-                     if a["revision"] != request["binding"]["revision"]), router.dec(0))
+    earlier = [a for a in state["attempts"] if a["revision"] != request["binding"]["revision"]]
+    old_spend = sum((router.dec(a["result"]["api_cost_usd"]) for a in earlier
+                     if a["result"]["api_cost_usd"] is not None), router.dec(0))
+    # An unknown cost on an earlier revision cannot be carried in the router's current-revision
+    # history, so its consequence is applied here: no metered resource while that spend is unknown.
+    unknown_earlier = router.unknown_costs(earlier, config, cost=lambda a: a["result"]["api_cost_usd"])
     remaining = router.dec(config["policy"]["role_api_budget_usd"]) - old_spend
     if remaining < 0 or (remaining == 0 and old_spend > 0):
         result["reason"] = "CUMULATIVE_API_LIMIT"
@@ -163,6 +167,8 @@ def plan(state, config, options):
     config["policy"]["role_api_budget_usd"] = float(remaining)
     counts = tier_counts(state)
     exhausted = [r["id"] for r in config["resources"] if counts[str(int(r["tier"]))] >= state["caps"][str(int(r["tier"]))]]
+    if unknown_earlier:
+        exhausted = sorted(set(exhausted) | {r["id"] for r in config["resources"] if router.metered(r)})
     request["unavailable_resources"] = sorted(set(request["unavailable_resources"] + exhausted))
     routed = router.record(state["packet"], config, request)
     result["routing"] = routed
