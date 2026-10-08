@@ -215,6 +215,13 @@ def apply_result(state, result, timestamp, abandoned=False):
     # ADR-097: only an abandonment records an unknown cost, and only on a resource that was metered
     # at dispatch; an unmetered one is known to cost nothing. A reported result states a number.
     if abandoned:
+        # ABANDON is the only provenance allowed an unknown cost, so it carries exactly the
+        # no-report shape `execution_harness.abandon` writes; it can never record a pass.
+        if (result["outcome"] != "FAIL" or result["scope_status"] != "unknown" or result["validation"]
+                or result["architecture_conflict"] or result["discoveries"]
+                or not all(item.startswith("attempt-abandoned: ") for item in result["evidence"])):
+            raise ValueError("An abandonment records outcome FAIL, scope unknown, no validation, no discoveries "
+                             "and attempt-abandoned evidence only")
         expected = None if attempt.get("api_metered", True) else 0
         if result["api_cost_usd"] != expected:
             raise ValueError("An abandoned attempt records an unknown (null) cost on a metered resource and 0 on an unmetered one")

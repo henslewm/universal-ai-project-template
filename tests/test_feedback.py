@@ -644,9 +644,14 @@ class FeedbackTests(unittest.TestCase):
         # PR #122 Codex P2: only an abandonment may record an unknown cost, and not as zero when metered.
         with self.assertRaisesRegex(ValueError, "only by abandoning"):
             feedback.complete(directory, reported, self.tick())
+        abandoned = {**reported, "validation": [], "evidence": ["attempt-abandoned: worker wrote no report (synthetic)."]}
         with self.assertRaisesRegex(ValueError, "unknown \\(null\\) cost on a metered resource"):
-            feedback.abandon(directory, {**reported, "api_cost_usd": 0}, self.tick())
-        feedback.abandon(directory, reported, self.tick())
+            feedback.abandon(directory, {**abandoned, "api_cost_usd": 0}, self.tick())
+        # PR #122 Codex round 2: an ABANDON event has the fixed no-report shape and cannot pass.
+        with self.assertRaisesRegex(ValueError, "An abandonment records outcome FAIL"):
+            feedback.abandon(directory, result(dispatch, feedback.replay(directory)[0]["packet"], outcome="PASS", passed=True)
+                             | {"api_cost_usd": None}, self.tick())
+        feedback.abandon(directory, abandoned, self.tick())
         self.repair(directory)
         self.reserve(directory, settings)
         state = feedback.replay(directory)[0]
