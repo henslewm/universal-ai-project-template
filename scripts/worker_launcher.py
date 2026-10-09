@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -27,6 +28,7 @@ import work_packet as wp
 
 ROOT = Path(__file__).resolve().parent.parent
 MARKER = "launch.json"
+GUARD_STORE_SENTINEL = "LAUNCH_GUARD_STORE"
 # Short waits keep Ctrl+C prompt on Windows, where a long process wait is not interruptible.
 WAIT_SLICE_SECONDS = 0.2
 EXIT_CODES = {"REPORT_WRITTEN": 0, "NO_REPORT": 2, "TIMED_OUT": 2, "INTERRUPTED": 130}
@@ -72,9 +74,47 @@ def verify_prepared(rundir, expected):
 
 
 def launch_guard(directory, dispatch_id):
-    """The one-launch guard, beside the ledger: a path the worker is never given, so it lasts the whole run."""
-    directory = Path(directory)
-    return directory.with_name(directory.name + ".launched") / f"{dispatch_id}.json"
+    """The one-launch guard, beside the ledger: a path the worker is never given, so it lasts the whole run.
+
+    The ledger is resolved first, so every alias of one ledger names the same guard."""
+    directory = Path(directory).resolve()
+    return directory.with_name(f".{directory.name}.launch-guards") / f"{dispatch_id}.json"
+
+
+def guard_store(guard):
+    """Create or accept the guard's directory only when it is this launcher's own store, never another ledger."""
+    store = guard.parent
+    try:
+        store.mkdir()
+    except FileExistsError:
+        pass
+    else:
+        create_exclusive(store / GUARD_STORE_SENTINEL, "Launch guards written by scripts/worker_launcher.py.\n")
+    sentinel = store / GUARD_STORE_SENTINEL
+    require(store.is_dir() and not store.is_symlink() and sentinel.is_file() and not sentinel.is_symlink(),
+            f"{store} exists but is not a launch guard store; move it aside before launching")
+
+
+def create_exclusive(path, text):
+    """Create path exclusively with text; a failed write removes the partial file this call created."""
+    path = Path(path)
+    stream = path.open("xb")
+    try:
+        with stream:
+            stream.write(text.encode("utf-8"))
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+def marker_intact(marker, record):
+    """The marker is still the regular file holding record; a FIFO or other special file is never opened."""
+    expected = record.encode("utf-8")
+    try:
+        info = os.lstat(marker)
+        return stat.S_ISREG(info.st_mode) and info.st_size == len(expected) and marker.read_bytes() == expected
+    except OSError:
+        return False
 
 
 def require_unreported(rundir):
@@ -202,16 +242,19 @@ def launch(directory, config, rundir, root, timeout=None):
         record = json.dumps({"dispatch_id": run["dispatch_id"], "launched_at": wp.now(),
                              "deadline": run["deadline"], "bound_seconds": round(run["bound"], 3),
                              "environment_names": run["names"]}, indent=2) + "\n"
-        guard.parent.mkdir(exist_ok=True)
+        guard_store(guard)
         try:
-            wp.write_new(guard, record)
+            create_exclusive(guard, record)
         except FileExistsError as exc:
             raise ValueError("Another launch of this run directory started first") from exc
         try:
-            wp.write_new(marker, record)
+            create_exclusive(marker, record)
         except FileExistsError as exc:
             guard.unlink()
             raise ValueError("Another launch of this run directory started first") from exc
+        except OSError:
+            guard.unlink()  # Nothing ran, so the reservation is not spent.
+            raise
         try:
             # Checked again once the marker is held, so a change after the precondition check is caught.
             # Everything that can change is checked again here: the ledger (so the reservation is
@@ -251,14 +294,13 @@ def launch(directory, config, rundir, root, timeout=None):
                               "stop it before recording the attempt")
         # The worker can write in its run directory, so the one-launch guard is checked and, once the
         # tree is stopped, restored: a deleted marker must never let this reservation run twice.
-        try:
-            intact = marker.read_bytes().decode("utf-8") == record
-        except (OSError, UnicodeDecodeError):
-            intact = False
-        if not intact:
-            # A link or directory in its place still blocks a launch, and is never written through.
-            if not os.path.lexists(marker) or (marker.is_file() and not marker.is_symlink()):
-                marker.write_text(record, encoding="utf-8")
+        if not marker_intact(marker, record):
+            # Replaced, never written through: a hard link's other file keeps its content. A symlink,
+            # directory or special file in its place is left as it is; the guard still holds.
+            if os.path.lexists(marker) and stat.S_ISREG(os.lstat(marker).st_mode):
+                marker.unlink()
+            if not os.path.lexists(marker):
+                create_exclusive(marker, record)
             raise ValueError(f"The harness changed {MARKER} while it ran; the one-launch guard is kept so this run "
                              "directory is not launched again; do not ingest its report; record the attempt with abandon")
         try:
