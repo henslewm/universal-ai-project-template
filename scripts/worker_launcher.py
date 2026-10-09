@@ -295,9 +295,12 @@ def launch(directory, config, rundir, root, timeout=None):
         # The worker can write in its run directory, so the one-launch guard is checked and, once the
         # tree is stopped, restored: a deleted marker must never let this reservation run twice.
         if not marker_intact(marker, record):
-            # A link, directory or special file in its place is never written through; the guard still holds.
-            if not os.path.lexists(marker) or stat.S_ISREG(os.lstat(marker).st_mode):
-                marker.write_text(record, encoding="utf-8")
+            # Replaced, never written through: a hard link's other file keeps its content. A symlink,
+            # directory or special file in its place is left as it is; the guard still holds.
+            if os.path.lexists(marker) and stat.S_ISREG(os.lstat(marker).st_mode):
+                marker.unlink()
+            if not os.path.lexists(marker):
+                create_exclusive(marker, record)
             raise ValueError(f"The harness changed {MARKER} while it ran; the one-launch guard is kept so this run "
                              "directory is not launched again; do not ingest its report; record the attempt with abandon")
         try:

@@ -60,6 +60,11 @@ if mode in ("report", "orphan", "tamper"):
 if mode in ("unmark", "unmark-wait"):
     # Delete the launcher's one-launch marker and exit without a report.
     os.remove(os.path.join(os.path.dirname(brief_path), "launch.json"))
+if mode == "hardlink":
+    # Replace the marker with a hard link to a file outside the run directory, then exit.
+    marker = os.path.join(os.path.dirname(brief_path), "launch.json")
+    os.remove(marker)
+    os.link(os.path.join(here, "victim.txt"), marker)
 if mode == "fifo":
     # Leave a FIFO where the marker was, then exit without a report.
     marker = os.path.join(os.path.dirname(brief_path), "launch.json")
@@ -569,6 +574,21 @@ class LauncherRunTests(LauncherBase):
         self.assertEqual(sorted(path.name for path in store.iterdir()), ["00000001.json"])
         self.assertIsNone(self.observed(), "nothing may start when the guard cannot be held")
         self.assertFalse((rundir / "launch.json").exists())
+
+    def test_a_hard_linked_marker_is_replaced_without_writing_through_it(self):
+        # PR #126 Codex: restoring the marker must never truncate the file a hard link points at.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        victim = self.tool / "victim.txt"
+        victim.write_text("unrelated content\n", encoding="utf-8")
+        self.mode("hardlink")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1, err)
+        self.assertIn("launch.json", err)
+        self.assertEqual(victim.read_text(encoding="utf-8"), "unrelated content\n")
+        self.assertEqual(json.loads((rundir / "launch.json").read_text(encoding="utf-8"))["dispatch_id"],
+                         prepared["dispatch_id"], "the marker is restored as its own file")
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs are POSIX-only")
     def test_a_fifo_left_in_place_of_the_marker_is_refused_without_reading_it(self):
