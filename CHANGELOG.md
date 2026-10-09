@@ -3,7 +3,13 @@
 ## 2026-10-08 — Stale PRs #118 and #119 closed (OL-040)
 
 - The owner left OL-040 to Claude's judgement. PR #118 (`claude/workflow-skills`: claims ADR-096, outside the ADR-096 milestones, conflicts with `main`) and PR #119 (handoff draft superseded by PR #120's records) were closed unmerged with a comment each; both branches are kept.
-- `OPEN_LOOPS.md` moves OL-040 to Closed; `PROJECT_STATE.md` and `HANDOFF_CURRENT.md` drop it from the open items.
+- `OPEN_LOOPS.md` moves OL-040 to Closed; `PROJECT_STATE.md` drops it from the open items.
+
+## 2026-10-08 — Launcher keeps its one-launch marker (PR #124 post-merge Codex P1)
+
+- `scripts/worker_launcher.py`: once the harness tree is stopped, `launch` checks that `launch.json` is unchanged; if the worker deleted or edited it, the launcher restores it and refuses the run for `abandon`, so the same reservation cannot be launched twice. Regression `test_a_harness_that_deletes_the_launch_marker_cannot_be_launched_again`, shown failing first.
+- PR #126 Codex round 1: a worker that deleted `launch.json` and kept running still let a concurrent second `launch` start. The exclusive guard is now `<ledger>.launched/<dispatch_id>.json`, beside the ledger where the worker is never directed; `launch.json` stays as evidence. Regression `test_a_marker_deleted_by_a_running_harness_does_not_admit_a_second_launch`, shown failing first (the second launch started the harness). `EXECUTION_HARNESS_PROTOCOL.md` updated.
+- The P2 finding (an `abandon` from another session between the ledger recheck and process start) is declined: it needs two writers on one ledger (ADR-062), and a lock would change frozen `feedback.py` (ADR-098).
 
 ## 2026-10-08 — Worker launcher restored for the architect (ADR-099, OL-036)
 
