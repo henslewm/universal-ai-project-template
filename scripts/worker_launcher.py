@@ -89,7 +89,11 @@ def guard_store(guard):
     except FileExistsError:
         pass
     else:
-        create_exclusive(store / GUARD_STORE_SENTINEL, "Launch guards written by scripts/worker_launcher.py.\n")
+        try:
+            create_exclusive(store / GUARD_STORE_SENTINEL, "Launch guards written by scripts/worker_launcher.py.\n")
+        except BaseException:
+            store.rmdir()  # Created by this call and still empty, so a retry can set it up again.
+            raise
     sentinel = store / GUARD_STORE_SENTINEL
     require(store.is_dir() and not store.is_symlink() and sentinel.is_file() and not sentinel.is_symlink(),
             f"{store} exists but is not a launch guard store; move it aside before launching")

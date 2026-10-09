@@ -638,6 +638,28 @@ class LauncherRunTests(LauncherBase):
         self.assertEqual(code, 0, err)
         self.assertEqual(json.loads(out)["status"], "REPORT_WRITTEN")
 
+    def test_a_guard_store_that_cannot_be_set_up_does_not_block_a_retry(self):
+        # PR #128 Codex: a failed sentinel write must not leave an unmarked store that refuses every retry.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("report")
+        real_open = Path.open
+
+        def failing_open(path, mode="r", *args, **kwargs):
+            if path.name == launcher.GUARD_STORE_SENTINEL and mode.startswith("x"):
+                raise OSError(28, "synthetic: no space left on device")
+            return real_open(path, mode, *args, **kwargs)
+
+        with self.environment(), mock.patch.object(Path, "open", failing_open):
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1, err)
+        self.assertIsNone(self.observed(), "nothing may start without the guard")
+        self.assertFalse(launcher.launch_guard(self.ledger, prepared["dispatch_id"]).parent.exists())
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(out)["status"], "REPORT_WRITTEN")
+
     def test_a_harness_that_cannot_be_started_refuses_and_frees_the_run_directory(self):
         missing = self.base / "missing-harness-executable"
         self.config = synthetic_configuration(self.script, command=str(missing))
