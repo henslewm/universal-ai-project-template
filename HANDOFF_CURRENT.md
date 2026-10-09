@@ -1,6 +1,6 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-09 (cloud session; after PRs #125 and #126 merged, with #127 and #128 open)
+- **Prepared:** 2026-10-09 (cloud session; after PRs #127, #128 and #130 merged, no PRs open)
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Gate:** ACTIVE since 2026-10-08 (`validate_bootstrap.py config/bootstrap.json --require-active` passes).
 - **Scope:** the four ADR-096 milestones only; nothing outside them. Shipped milestones take defect fixes only (ADR-098).
@@ -12,24 +12,18 @@
 | Records current | Done: PR #121 merged (`4ac2d68`); frozen (ADR-098) |
 | Unknown-cost state (ADR-097) | Done: PR #122 merged (`4921427`); frozen (ADR-098) |
 | Auto-closeout (ADR-094) | Done: PR #116 merged (`066a37c`) after 4 Codex rounds; frozen (ADR-098) |
-| External worker launcher (OL-036) | Merged: PR #124 (`41e3a68`, ADR-099) and the post-merge marker fix PR #126 (`11e9822`). Codex round-2 fixes for #126 were pushed after the merge and are not on `main` (below). Not done until the owner's first real launch succeeds |
+| External worker launcher (OL-036) | Merged: PR #124 (`41e3a68`, ADR-099), marker fix #126 (`11e9822`), its round-2 fixes #128 (`9004eff`) and the hard-link fix #130 (`cd07187`). Not done until the owner's first real launch succeeds |
 
-## Launcher fixes not on `main` (verified 2026-10-09)
+## Launcher review state (verified 2026-10-09)
 
-PR #126 merged at head `3fd94c7`, before its Codex round-2 fixes were pushed. PR #128 (`claude/project-thread-fwoq5w`, head `70fca7f`) carries them and is in Codex review:
-
-- P1: guard directory can collide with a sibling ledger named `<ledger>.launched`.
-- P1: a ledger reached through a symlink derives a second guard, admitting a duplicate paid launch.
-- P2: a FIFO left in place of `launch.json` blocks the post-run read.
-- P2: a failed marker write leaves the guard, refusing every retry.
-
-Codex reviewed merge commit `11e9822` and raised one more P2 that #128 does not cover: a hard-linked `launch.json` lets the marker repair overwrite the linked file (`scripts/worker_launcher.py:260-261`).
+- PR #128 has one unanswered Codex P2: if creating the guard-store sentinel fails after `store.mkdir()`, the empty store is left behind and every retry is refused as "not a launch guard store" until it is moved by hand (`scripts/worker_launcher.py`, `guard_store`). Its P1 on the legacy `<ledger>.launched/` layout was declined with a reason.
+- PR #130's head `063b640` had a clean Codex review (no findings).
 
 ## Next action
 
-1. PR #128: answer each Codex round under ADR-063 (at most 4, ADR-089) and fix the hard-link P2 there or in a follow-up, regression shown failing first; the owner merges.
+1. Answer the #128 sentinel-store P2 under ADR-063; a fix goes in a new PR with its regression shown failing first.
 2. Owner: edit `MASTER_CLAUDE_CODE.md` → Delegation, the sentence "Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036)", to say the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Agents are refused edits to that file.
-3. Owner, first real launch, only after #128 and the hard-link fix merge, on the Mac or Windows 11:
+3. Owner, first real launch, on the Mac or Windows 11 (the sentinel-store P2 only blocks a retry after a failed first write, so it need not wait):
    - On Windows, first run `python -m unittest discover -s tests -p "test_worker_launcher.py"`; the Windows path has never run.
    - Use a zero-priced (local) binding first: `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097).
    - A Node-based harness such as Cline needs an absolute-path wrapper that sets `PATH` (and `SystemRoot` on Windows); the child environment holds only the binding's credential variable.
