@@ -60,6 +60,11 @@ if mode in ("report", "orphan", "tamper"):
 if mode in ("unmark", "unmark-wait"):
     # Delete the launcher's one-launch marker and exit without a report.
     os.remove(os.path.join(os.path.dirname(brief_path), "launch.json"))
+if mode == "fifo":
+    # Leave a FIFO where the marker was, then exit without a report.
+    marker = os.path.join(os.path.dirname(brief_path), "launch.json")
+    os.remove(marker)
+    os.mkfifo(marker)
 if mode == "unmark-wait":
     # Say the marker is gone, then keep running until the test releases this run.
     open(os.path.join(here, "unmarked.txt"), "w").close()
@@ -514,6 +519,104 @@ class LauncherRunTests(LauncherBase):
                 thread.join(30)
         self.assertIn("launch.json", first.get("error", ""))
         self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+
+    def start_unmarked_run(self, rundir, ledger=None):
+        """Start a launch whose harness deletes its marker and waits; returns the thread and its outcome."""
+        first = {}
+
+        def run_first():
+            try:
+                first["result"] = launcher.launch(ledger or self.ledger, self.config, rundir, self.project)
+            except ValueError as exc:
+                first["error"] = str(exc)
+
+        thread = threading.Thread(target=run_first)
+        thread.start()
+        deadline = time.monotonic() + 20
+        while not (self.tool / "unmarked.txt").exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        return thread, first
+
+    def test_a_ledger_alias_names_the_same_launch_guard(self):
+        # PR #126 Codex round 2: a symlinked path to the same ledger must not get a guard of its own.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        alias = self.base / "ledger-alias"
+        alias.symlink_to(self.ledger, target_is_directory=True)
+        self.mode("unmark-wait")
+        with self.environment():
+            thread, first = self.start_unmarked_run(rundir)
+            try:
+                self.assertTrue((self.tool / "unmarked.txt").exists(), "the harness should have deleted its marker")
+                with self.assertRaisesRegex(ValueError, "already launched"):
+                    launcher.launch(alias, self.config, rundir, self.project)
+            finally:
+                (self.tool / "release.txt").touch()
+                thread.join(30)
+        self.assertIn("launch.json", first.get("error", ""))
+
+    def test_a_directory_in_the_guard_location_that_is_not_a_guard_store_is_refused(self):
+        # PR #126 Codex round 2: a sibling ledger that happens to sit at the guard path is never written.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        store = launcher.launch_guard(self.ledger, prepared["dispatch_id"]).parent
+        store.mkdir()
+        (store / "00000001.json").write_text("{}", encoding="utf-8")
+        self.mode("report")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1, err)
+        self.assertEqual(sorted(path.name for path in store.iterdir()), ["00000001.json"])
+        self.assertIsNone(self.observed(), "nothing may start when the guard cannot be held")
+        self.assertFalse((rundir / "launch.json").exists())
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs are POSIX-only")
+    def test_a_fifo_left_in_place_of_the_marker_is_refused_without_reading_it(self):
+        # PR #126 Codex round 2: opening a FIFO would block forever after the tree stopped.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("fifo")
+        outcome = {}
+
+        def run():
+            try:
+                outcome["result"] = launcher.launch(self.ledger, self.config, rundir, self.project)
+            except ValueError as exc:
+                outcome["error"] = str(exc)
+
+        with self.environment():
+            thread = threading.Thread(target=run)
+            thread.start()
+            thread.join(15)
+            blocked = thread.is_alive()
+            if blocked:  # Release the blocked read so the suite can continue.
+                os.close(os.open(rundir / "launch.json", os.O_WRONLY | os.O_NONBLOCK))
+                thread.join(15)
+        self.assertFalse(blocked, "the launcher blocked reading a FIFO left in place of its marker")
+        self.assertIn("launch.json", outcome.get("error", ""))
+
+    def test_a_marker_that_cannot_be_written_frees_the_reservation(self):
+        # PR #126 Codex round 2: any marker failure before the start removes the guard this launch made.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        self.mode("report")
+        real_open = Path.open
+
+        def failing_open(path, mode="r", *args, **kwargs):
+            if path.name == "launch.json" and mode.startswith("x"):
+                raise PermissionError("synthetic: marker cannot be created")
+            return real_open(path, mode, *args, **kwargs)
+
+        with self.environment(), mock.patch.object(Path, "open", failing_open):
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1, err)
+        self.assertIsNone(self.observed(), "nothing may start without the marker")
+        self.assertFalse(launcher.launch_guard(self.ledger, prepared["dispatch_id"]).exists(),
+                         "the guard of a launch that never started must not block a retry")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(out)["status"], "REPORT_WRITTEN")
 
     def test_a_harness_that_cannot_be_started_refuses_and_frees_the_run_directory(self):
         missing = self.base / "missing-harness-executable"
