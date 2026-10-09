@@ -28,9 +28,8 @@ Codex reviewed merge commit `11e9822` and raised one more P2 that #128 does not 
 ## Next action
 
 1. PR #128: answer each Codex round under ADR-063 (at most 4, ADR-089) and fix the hard-link P2 there or in a follow-up, regression shown failing first; the owner merges.
-2. Owner: merge #127 (OL-040 closed; #118 and #119 closed unmerged, branches kept). It may need `main` merged in after this handoff lands.
-3. Owner: edit `MASTER_CLAUDE_CODE.md` → Delegation, the sentence "Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036)", to say the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Agents are refused edits to that file.
-4. Owner, first real launch, only after #128 and the hard-link fix merge, on the Mac or Windows 11:
+2. Owner: edit `MASTER_CLAUDE_CODE.md` → Delegation, the sentence "Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036)", to say the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Agents are refused edits to that file.
+3. Owner, first real launch, only after #128 and the hard-link fix merge, on the Mac or Windows 11:
    - On Windows, first run `python -m unittest discover -s tests -p "test_worker_launcher.py"`; the Windows path has never run.
    - Use a zero-priced (local) binding first: `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097).
    - A Node-based harness such as Cline needs an absolute-path wrapper that sets `PATH` (and `SystemRoot` on Windows); the child environment holds only the binding's credential variable.

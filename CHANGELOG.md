@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-08 — Stale PRs #118 and #119 closed (OL-040)
+
+- The owner left OL-040 to Claude's judgement. PR #118 (`claude/workflow-skills`: claims ADR-096, outside the ADR-096 milestones, conflicts with `main`) and PR #119 (handoff draft superseded by PR #120's records) were closed unmerged with a comment each; both branches are kept.
+- `OPEN_LOOPS.md` moves OL-040 to Closed; `PROJECT_STATE.md` drops it from the open items, and `HANDOFF_CURRENT.md` drops the "merge #127" next action.
+
 ## 2026-10-08 — Launcher keeps its one-launch marker (PR #124 post-merge Codex P1)
 
 - `scripts/worker_launcher.py`: once the harness tree is stopped, `launch` checks that `launch.json` is unchanged; if the worker deleted or edited it, the launcher restores it and refuses the run for `abandon`, so the same reservation cannot be launched twice. Regression `test_a_harness_that_deletes_the_launch_marker_cannot_be_launched_again`, shown failing first.
