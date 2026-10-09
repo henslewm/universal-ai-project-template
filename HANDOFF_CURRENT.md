@@ -1,6 +1,6 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-09 (cloud session; after PRs #125 and #126 merged, with #127 open)
+- **Prepared:** 2026-10-09 (cloud session; after PRs #125 and #126 merged, with #127 and #128 open)
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Gate:** ACTIVE since 2026-10-08 (`validate_bootstrap.py config/bootstrap.json --require-active` passes).
 - **Scope:** the four ADR-096 milestones only; nothing outside them. Shipped milestones take defect fixes only (ADR-098).
@@ -16,21 +16,21 @@
 
 ## Launcher fixes not on `main` (verified 2026-10-09)
 
-PR #126 merged at head `3fd94c7`. Commits `4294a19`, `3c9bebe` and `70fca7f` on `claude/project-thread-fwoq5w` answer Codex round 2 but never reached `main`; the PR threads say "Fixed in 4294a19" for them:
+PR #126 merged at head `3fd94c7`, before its Codex round-2 fixes were pushed. PR #128 (`claude/project-thread-fwoq5w`, head `70fca7f`) carries them and is in Codex review:
 
 - P1: guard directory can collide with a sibling ledger named `<ledger>.launched`.
 - P1: a ledger reached through a symlink derives a second guard, admitting a duplicate paid launch.
 - P2: a FIFO left in place of `launch.json` blocks the post-run read.
 - P2: a failed marker write leaves the guard, refusing every retry.
 
-Codex reviewed merge commit `11e9822` and raised one more P2, still unanswered: a hard-linked `launch.json` lets the marker repair overwrite the linked file (`scripts/worker_launcher.py:260-261`).
+Codex reviewed merge commit `11e9822` and raised one more P2 that #128 does not cover: a hard-linked `launch.json` lets the marker repair overwrite the linked file (`scripts/worker_launcher.py:260-261`).
 
 ## Next action
 
-1. Open a new PR from `main` carrying `4294a19`/`3c9bebe` plus a fix for the hard-link P2, with each regression shown failing first; answer under ADR-063, at most 4 Codex rounds (ADR-089).
+1. PR #128: answer each Codex round under ADR-063 (at most 4, ADR-089) and fix the hard-link P2 there or in a follow-up, regression shown failing first; the owner merges.
 2. Owner: merge #127 (OL-040 closed; #118 and #119 closed unmerged, branches kept). It may need `main` merged in after this handoff lands.
 3. Owner: edit `MASTER_CLAUDE_CODE.md` → Delegation, the sentence "Dispatch to an external harness (Cline, local models) stays operator-run until a separate decision (OL-036)", to say the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Agents are refused edits to that file.
-4. Owner, first real launch, only after step 1 merges, on the Mac or Windows 11:
+4. Owner, first real launch, only after #128 and the hard-link fix merge, on the Mac or Windows 11:
    - On Windows, first run `python -m unittest discover -s tests -p "test_worker_launcher.py"`; the Windows path has never run.
    - Use a zero-priced (local) binding first: `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097).
    - A Node-based harness such as Cline needs an absolute-path wrapper that sets `PATH` (and `SystemRoot` on Windows); the child environment holds only the binding's credential variable.
