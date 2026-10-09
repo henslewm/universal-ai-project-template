@@ -1,6 +1,14 @@
 # Project State
 
-## Current (2026-10-08): template activated (ADR-096)
+## Current (2026-10-09): launcher fixes merged; architect may launch (ADR-099)
+
+- **Status:** ACTIVE — approved foundation; `validate_bootstrap.py config/bootstrap.json --require-active` passes.
+- **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) merged with its post-merge fixes: #126 (`11e9822`), #128 (`9004eff`), #130 (`cd07187`) and #132 (`4b4f0ea`); no Codex finding on them is open. Not done until the first real launch succeeds.
+- **Delegation:** `MASTER_CLAUDE_CODE.md` now says the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not (owner-directed, 2026-10-09).
+- **First launch blocked on setup:** on 2026-10-09 the owner's Mac had no local model server and no Cline CLI, so no zero-priced binding exists yet. The 35 launcher tests pass there only with a `TMPDIR` whose path has no symlink.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-08: template activated (ADR-096)
 
 - **Status:** ACTIVE — approved foundation
 - **Activation:** PR #120 (ADR-096 retrofit) merged to `main` at `7f04c75` on 2026-10-08 (owner merge; last head `9967655` was pushed by a separate session on the owner's Mac after Codex round 4 of 4, so no Codex review covers that head; CI green). The owner activated the package on 2026-10-08 in commit `72ff167` on `claude/activate-template`: from a phone he sent identity "henslewm" and the approval line in chat, and this session passed both unchanged to `bootstrap_gate.py activate` (approved_at 2026-10-08T14:29:43Z). `validate_bootstrap.py config/bootstrap.json --require-active` passes.

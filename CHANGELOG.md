@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-09 — Architect runs the worker launcher (ADR-099, OL-036)
+
+- `MASTER_CLAUDE_CODE.md` → Delegation: the sentence keeping external-harness dispatch operator-run "until a separate decision (OL-036)" now says the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Owner-directed edit.
+- `HANDOFF_CURRENT.md`: the #128 sentinel-store P2 is recorded as fixed by #132; the next action is the first real launch, after a local model server and harness are installed on the Mac; notes on the macOS `TMPDIR` symlink failure in the launcher tests and the missing `jsonschema`.
+
 ## 2026-10-08 — Stale PRs #118 and #119 closed (OL-040)
 
 - The owner left OL-040 to Claude's judgement. PR #118 (`claude/workflow-skills`: claims ADR-096, outside the ADR-096 milestones, conflicts with `main`) and PR #119 (handoff draft superseded by PR #120's records) were closed unmerged with a comment each; both branches are kept.
