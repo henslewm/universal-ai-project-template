@@ -47,10 +47,16 @@ observed = {"environment_names": sorted(os.environ), "argv": sys.argv[1:], "stdi
             "rules_writable": os.access(os.path.join(os.path.dirname(brief_path), "BOUNDED_WORKER_RULES.md"), os.W_OK)}
 with open(os.path.join(here, "observed.json"), "w", encoding="utf-8") as stream:
     json.dump(observed, stream)
-if mode == "usage":
+if mode == "forge":
+    # Plant a zero-usage log at the path the launcher will write after the run (PR #142 Codex round 2).
+    with open(os.path.join(here, "forge-target.txt"), encoding="utf-8") as stream:
+        target = stream.read().strip()
+    with open(target, "w", encoding="utf-8") as stream:
+        stream.write('{"type":"run_result","usage":{"inputTokens":0,"outputTokens":0}}\n')
+if mode in ("usage", "forge"):
     # Print a harness usage line the way Cline's --json does, on stdout (ADR-102).
     print('{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}', flush=True)
-if mode in ("report", "orphan", "tamper", "usage"):
+if mode in ("report", "orphan", "tamper", "usage", "forge"):
     with open(brief_path, encoding="utf-8") as stream:
         brief = json.load(stream)
     report = {"dispatch_id": brief["dispatch_id"], "outcome": "FAIL",
@@ -199,6 +205,24 @@ class LauncherRunTests(LauncherBase):
         ingested = harness.ingest(self.ledger, self.config, rundir / "report.json")
         self.assertTrue(ingested["api_cost_measured"])
         self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["api_cost_usd"], 0.085)
+
+    def test_a_planted_usage_log_is_refused_not_trusted(self):
+        # PR #142 Codex round 2: the log path is predictable and the worker runs as the operator, so the
+        # launcher captures stdout through a pipe and writes the log itself only once the tree is stopped.
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger("forge-ledger")
+        prepared = self.prepare("forge-run")
+        rundir = Path(prepared["destination"])
+        log = launcher.harness.harness_output_path(self.ledger, prepared["dispatch_id"])
+        (self.tool / "forge-target.txt").write_text(str(log), encoding="utf-8")
+        self.mode("forge")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1, err)
+        self.assertIn("harness output log", err)
+        self.assertIn("abandon", err)
+        self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
 
     def test_launch_runs_the_prepared_harness_with_only_the_named_credential(self):
         prepared = self.prepare()

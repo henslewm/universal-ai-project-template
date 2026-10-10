@@ -16,6 +16,7 @@ import signal
 import stat
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,9 @@ import work_packet as wp
 ROOT = Path(__file__).resolve().parent.parent
 MARKER = "launch.json"
 GUARD_STORE_SENTINEL = "LAUNCH_GUARD_STORE"
+# A usage-reporting harness's stdout is kept in memory up to this many trailing bytes (ADR-102); the
+# usage line Cline prints is last, so a long transcript loses only its start.
+OUTPUT_TAIL_BYTES = 8 * 1024 * 1024
 # Short waits keep Ctrl+C prompt on Windows, where a long process wait is not interruptible.
 WAIT_SLICE_SECONDS = 0.2
 EXIT_CODES = {"REPORT_WRITTEN": 0, "NO_REPORT": 2, "TIMED_OUT": 2, "INTERRUPTED": 130}
@@ -86,6 +90,14 @@ def protect_brief(rundir):
         os.chmod(path, stat.S_IMODE(mode) & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
 
 
+def drain(stream, buffer):
+    """Read a harness's stdout pipe to EOF, keeping only the trailing OUTPUT_TAIL_BYTES (ADR-102)."""
+    for chunk in iter(lambda: stream.read(65536), b""):
+        buffer.extend(chunk)
+        if len(buffer) > OUTPUT_TAIL_BYTES:
+            del buffer[:len(buffer) - OUTPUT_TAIL_BYTES]
+
+
 def launch_guard(directory, dispatch_id):
     """The one-launch guard, beside the ledger: a path the worker is never given, so it lasts the whole run.
 
@@ -110,6 +122,18 @@ def guard_store(guard):
     sentinel = store / GUARD_STORE_SENTINEL
     require(store.is_dir() and not store.is_symlink() and sentinel.is_file() and not sentinel.is_symlink(),
             f"{store} exists but is not a launch guard store; move it aside before launching")
+
+
+def create_exclusive_bytes(path, data):
+    """Create path exclusively with data; a failed write removes the partial file this call created."""
+    path = Path(path)
+    stream = path.open("xb")
+    try:
+        with stream:
+            stream.write(data)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
 
 
 def create_exclusive(path, text):
@@ -253,10 +277,11 @@ def launch(directory, config, rundir, root, timeout=None):
     guard = launch_guard(run["ledger"][0], run["dispatch_id"])
     timed_out = interrupted = False
     bound = run["bound"]
-    # ADR-102: a harness that reports its usage on stdout has it saved beside the guard, where the worker
-    # is never directed, so ingest can price it; every other harness's output still goes to stderr.
+    # ADR-102: a harness that reports its usage on stdout has it captured through a pipe only this launcher
+    # reads, and written beside the guard only once the tree is stopped, so the worker can neither replace
+    # nor edit what ingest prices (PR #142 Codex round 2). Every other harness's output still goes to stderr.
     output_path = harness.harness_output_path(run["ledger"][0], run["dispatch_id"]) if run["usage_format"] else None
-    output = None
+    captured, reader = bytearray(), None
     with Interrupts() as interrupts:
         interrupts.holding = True
         # Exclusive creation of the guard beside the ledger, then of the marker in RUNDIR, makes this
@@ -288,22 +313,23 @@ def launch(directory, config, rundir, root, timeout=None):
             require_unreported(run["rundir"])
             remaining_seconds(run["deadline"])
             protect_brief(run["rundir"])
-            if output_path:
-                output = output_path.open("xb")
+            require(not output_path or not os.path.lexists(output_path),
+                    f"{output_path} already exists; this reservation's harness output log must be new")
         except (ValueError, OSError):
             marker.unlink()  # Nothing ran, so the run directory is not spent.
             guard.unlink()
             raise
         try:
             process = acceptance.ProcessTree.launch(run["argv"], None, env=run["environment"],
-                                                    stdin=subprocess.DEVNULL, stdout=output or 2, stderr=2)
+                                                    stdin=subprocess.DEVNULL,
+                                                    stdout=subprocess.PIPE if output_path else 2, stderr=2)
         except OSError as exc:
             marker.unlink()  # Nothing ran, so the run directory is not spent.
             guard.unlink()
-            if output:
-                output.close()
-                output_path.unlink(missing_ok=True)
             raise ValueError(f"The harness could not be started, so nothing ran: {exc}") from exc
+        if output_path:
+            reader = threading.Thread(target=drain, args=(process.stdout, captured), daemon=True)
+            reader.start()
         try:
             with acceptance.ProcessTree.own(process) as tree:
                 try:
@@ -318,11 +344,17 @@ def launch(directory, config, rundir, root, timeout=None):
                     interrupts.holding = True  # The teardown in own() completes before any interrupt acts.
         except KeyboardInterrupt:
             interrupted = True
-        finally:
-            if output:
-                output.close()
         require(tree.stopped, f"The harness process tree (pid {process.pid}) could not be confirmed stopped; "
                               "stop it before recording the attempt")
+        if reader:
+            # Every writer is stopped, so the pipe reaches EOF; only now is the log written, exclusively.
+            reader.join(30)
+            process.stdout.close()
+            try:
+                create_exclusive_bytes(output_path, bytes(captured))
+            except FileExistsError as exc:
+                raise ValueError(f"Something created the harness output log {output_path} while the harness ran; "
+                                 "do not ingest its report; record the attempt with abandon") from exc
         # The worker can write in its run directory, so the one-launch guard is checked and, once the
         # tree is stopped, restored: a deleted marker must never let this reservation run twice.
         if not marker_intact(marker, record):
