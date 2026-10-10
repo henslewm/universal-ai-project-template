@@ -83,7 +83,7 @@
             "type": ["integer", "null"],
             "minimum": 1,
             "maximum": 1000000000,
-            "description": "Context window this resource is actually served in, when it differs from the window the router configuration declares. A locally hosted model is served in the window it was loaded with. Null uses the routed declaration; a value above it is refused."
+            "description": "Context window this resource is actually served in, when it differs from the window the router configuration declares. A provider may serve a model in a smaller window than its family declares. Null uses the routed declaration; a value above it is refused."
           }
         }
       }
