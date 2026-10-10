@@ -692,6 +692,26 @@ class HarnessReportTests(HarnessBase):
         self.assertIsNone(harness.measured_usage(genuine + "\n" + appended))
         self.assertIsNone(harness.measured_usage('{"type":"run_result","usage":{"inputTokens":7}}'))
 
+    def test_usage_survives_a_flood_and_keeps_no_transcript(self):
+        # PR #142 Codex round 4: markers are counted over the whole stream, so a flood cannot push the genuine
+        # record out and leave a forged one alone; and only counts are kept, never the transcript.
+        genuine = '{"type":"run_result","usage":{"inputTokens":900,"outputTokens":90}}'
+        forged = '{"type":"run_result","usage":{"inputTokens":0,"outputTokens":0}}'
+        tally = harness.UsageTally()
+        tally.feed((genuine + "\n").encode())
+        for _ in range(10):
+            tally.feed(b"x" * (1024 * 1024))
+        tally.feed(("\n" + forged + "\n").encode())
+        tally.close()
+        self.assertIsNone(tally.record()["usage"])
+        self.assertEqual(tally.record()["run_result_markers"], 2)
+        # A genuine record glued to other bytes is not parsed, so it cannot be replaced by a lone forgery.
+        self.assertIsNone(harness.measured_usage("SECRET=abc" + genuine + "\n"))
+        record = harness.usage_record("MISTRAL_API_KEY=not-a-real-key\n" + genuine + "\n")
+        self.assertEqual(record, {"run_result_markers": 1, "usage": {"input_tokens": 900, "output_tokens": 90,
+                                                                      "cache_read_tokens": 0, "cache_write_tokens": 0}})
+        self.assertNotIn("not-a-real-key", json.dumps(record))
+
     def test_a_metered_report_is_charged_the_measured_usage_cost(self):
         # ADR-102: the launcher saved the harness's own usage, so ingest records tokens x the price the
         # dispatch recorded, as a known cost, whatever the worker claimed.
@@ -699,9 +719,9 @@ class HarnessReportTests(HarnessBase):
         self.router = router_config(resource(api=0.1))  # 50 USD per million input and output tokens
         self.ledger = self.fresh_ledger("measured-ledger")
         prepared = self.prepare()
-        output = harness.harness_output_path(self.ledger, prepared["dispatch_id"])
+        output = harness.usage_record_path(self.ledger, prepared["dispatch_id"])
         output.parent.mkdir()
-        output.write_text("noise\n" + '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}' + "\n", encoding="utf-8")
+        output.write_text(json.dumps(harness.usage_record("noise\n" + '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}' + "\n")), encoding="utf-8")
         value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="PASS", passed=True)
         value.update(api_cost_usd=0, cost_evidence="No external API calls made.")
         path = Path(prepared["destination"]) / "report.json"
@@ -724,10 +744,11 @@ class HarnessReportTests(HarnessBase):
         self.router = router_config(cheap_in)
         self.ledger = self.fresh_ledger("cache-write-ledger")
         prepared = self.prepare()
-        output = harness.harness_output_path(self.ledger, prepared["dispatch_id"])
+        output = harness.usage_record_path(self.ledger, prepared["dispatch_id"])
         output.parent.mkdir()
-        output.write_text(json.dumps({"type": "run_result", "usage": {"inputTokens": 1000, "outputTokens": 500,
-                                      "cacheReadTokens": 0, "cacheWriteTokens": 300}}) + "\n", encoding="utf-8")
+        line = json.dumps({"type": "run_result", "usage": {"inputTokens": 1000, "outputTokens": 500,
+                                                           "cacheReadTokens": 0, "cacheWriteTokens": 300}})
+        output.write_text(json.dumps(harness.usage_record(line + "\n")), encoding="utf-8")
         value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="FAIL", passed=False)
         path = Path(prepared["destination"]) / "report.json"
         wp.write_new(path, json.dumps(value, indent=2))

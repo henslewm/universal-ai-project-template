@@ -30,9 +30,6 @@ import work_packet as wp
 ROOT = Path(__file__).resolve().parent.parent
 MARKER = "launch.json"
 GUARD_STORE_SENTINEL = "LAUNCH_GUARD_STORE"
-# A usage-reporting harness's stdout is kept in memory up to this many trailing bytes (ADR-102); the
-# usage line Cline prints is last, so a long transcript loses only its start.
-OUTPUT_TAIL_BYTES = 8 * 1024 * 1024
 # Once the tree is stopped its stdout pipe reaches EOF at once; waiting longer means an outside holder.
 OUTPUT_EOF_SECONDS = 5
 # Short waits keep Ctrl+C prompt on Windows, where a long process wait is not interruptible.
@@ -92,12 +89,19 @@ def protect_brief(rundir):
         os.chmod(path, stat.S_IMODE(mode) & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
 
 
-def drain(stream, buffer):
-    """Read a harness's stdout pipe to EOF, keeping only the trailing OUTPUT_TAIL_BYTES (ADR-102)."""
+def drain(stream, tally):
+    """Forward a usage-reporting harness's stdout to stderr while counting its usage (ADR-102).
+
+    Only the token counts are kept; the transcript is never stored."""
+    sink = getattr(sys.stderr, "buffer", None)
     for chunk in iter(lambda: stream.read(65536), b""):
-        buffer.extend(chunk)
-        if len(buffer) > OUTPUT_TAIL_BYTES:
-            del buffer[:len(buffer) - OUTPUT_TAIL_BYTES]
+        tally.feed(chunk)
+        if sink is not None:
+            sink.write(chunk)
+            sink.flush()
+        else:
+            sys.stderr.write(chunk.decode("utf-8", errors="replace"))
+    tally.close()
 
 
 def launch_guard(directory, dispatch_id):
@@ -279,11 +283,11 @@ def launch(directory, config, rundir, root, timeout=None):
     guard = launch_guard(run["ledger"][0], run["dispatch_id"])
     timed_out = interrupted = False
     bound = run["bound"]
-    # ADR-102: a harness that reports its usage on stdout has it captured through a pipe only this launcher
-    # reads, and written beside the guard only once the tree is stopped, so the worker can neither replace
-    # nor edit what ingest prices (PR #142 Codex round 2). Every other harness's output still goes to stderr.
-    output_path = harness.harness_output_path(run["ledger"][0], run["dispatch_id"]) if run["usage_format"] else None
-    captured, reader = bytearray(), None
+    # ADR-102: a harness that reports its usage on stdout is read through a pipe only this launcher holds; its
+    # transcript is forwarded to stderr and only its token counts are recorded, beside the guard, once the tree
+    # is stopped, so the worker can neither replace nor edit what ingest prices (PR #142 Codex rounds 2 to 4).
+    output_path = harness.usage_record_path(run["ledger"][0], run["dispatch_id"]) if run["usage_format"] else None
+    tally, reader = harness.UsageTally(), None
     with Interrupts() as interrupts:
         interrupts.holding = True
         # Exclusive creation of the guard beside the ledger, then of the marker in RUNDIR, makes this
@@ -316,7 +320,7 @@ def launch(directory, config, rundir, root, timeout=None):
             remaining_seconds(run["deadline"])
             protect_brief(run["rundir"])
             require(not output_path or not os.path.lexists(output_path),
-                    f"{output_path} already exists; this reservation's harness output log must be new")
+                    f"{output_path} already exists; this reservation's usage record must be new")
         except (ValueError, OSError):
             marker.unlink()  # Nothing ran, so the run directory is not spent.
             guard.unlink()
@@ -330,7 +334,7 @@ def launch(directory, config, rundir, root, timeout=None):
             guard.unlink()
             raise ValueError(f"The harness could not be started, so nothing ran: {exc}") from exc
         if output_path:
-            reader = threading.Thread(target=drain, args=(process.stdout, captured), daemon=True)
+            reader = threading.Thread(target=drain, args=(process.stdout, tally), daemon=True)
             reader.start()
         try:
             with acceptance.ProcessTree.own(process) as tree:
@@ -357,13 +361,13 @@ def launch(directory, config, rundir, root, timeout=None):
             process.stdout.close()
             if process.returncode == 0:  # Usage is trusted only from a harness that exited cleanly.
                 try:
-                    create_exclusive_bytes(output_path, bytes(captured))
+                    create_exclusive_bytes(output_path, (json.dumps(tally.record(), indent=2) + "\n").encode("utf-8"))
                 except FileExistsError as exc:
-                    raise ValueError(f"Something created the harness output log {output_path} while the harness ran; "
+                    raise ValueError(f"Something created the usage record {output_path} while the harness ran; "
                                      "do not ingest its report; record the attempt with abandon") from exc
             else:
                 require(not os.path.lexists(output_path),
-                        f"Something created the harness output log {output_path} while the harness ran; "
+                        f"Something created the usage record {output_path} while the harness ran; "
                         "do not ingest its report; record the attempt with abandon")
                 output_path = None
         # The worker can write in its run directory, so the one-launch guard is checked and, once the
@@ -390,7 +394,7 @@ def launch(directory, config, rundir, root, timeout=None):
     return {"status": status, "dispatch_id": run["dispatch_id"], "started": True,
             "harness_exit_code": process.returncode, "tree_stopped": True, "report_present": present,
             "next_action": "ingest" if present else "abandon", "bound_seconds": round(bound, 3),
-            "environment_names": run["names"], "harness_output": str(output_path) if output_path else None,
+            "environment_names": run["names"], "usage_record": str(output_path) if output_path else None,
             "recorded_in_ledger": False, "independent_acceptance": False}
 
 

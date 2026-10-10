@@ -271,29 +271,22 @@ def binding_for(config, routing):
     return binding, harness
 
 
-def harness_output_path(ledger, dispatch_id):
-    """Where the launcher saves a usage-reporting harness's stdout (ADR-102).
+# A raw run_result marker in the harness's stdout. JSON inside an event string is escaped (\\"type\\"), so only
+# top-level records, or a forger's, match (ADR-102).
+RUN_RESULT_MARKER = re.compile(rb'"type"[ \t]{0,8}:[ \t]{0,8}"run_result"')
+USAGE_LINE_MAX_BYTES = 1024 * 1024
+
+
+def usage_record_path(ledger, dispatch_id):
+    """Where the launcher records a usage-reporting harness's token counts (ADR-102).
 
     It sits in the launch-guard store beside the resolved ledger, a path the worker is never given."""
     directory = Path(ledger).resolve()
-    return directory.with_name(f".{directory.name}.launch-guards") / f"{dispatch_id}.harness-output.log"
+    return directory.with_name(f".{directory.name}.launch-guards") / f"{dispatch_id}.usage.json"
 
 
-def measured_usage(text):
-    """Token usage from the one top-level `run_result` line of Cline's --json output, or None (ADR-102).
-
-    Only a whole line that parses as an object with type run_result counts, so text nested inside an event,
-    such as a worker's command output, is never read as usage. Cline prints exactly one; none, more than one
-    (an appended record, PR #142 Codex round 3) or a malformed one is not usage."""
-    found = []
-    for line in text.splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(event, dict) and event.get("type") == "run_result":
-            found.append(event)
-    usage = found[0].get("usage") if len(found) == 1 else None
+def usage_fields(usage):
+    """Normalized non-negative integer token counts from a run_result usage object, or None."""
     if not isinstance(usage, dict):
         return None
     values = {}
@@ -307,6 +300,78 @@ def measured_usage(text):
     return values
 
 
+class UsageTally:
+    """Count every run_result marker in a harness's whole stdout and keep only token counts (ADR-102).
+
+    No transcript is kept, so nothing the worker printed (an environment dump, say) reaches disk. Markers
+    are counted across the entire stream, not a tail, and usage is parsed only from a complete line of at
+    most USAGE_LINE_MAX_BYTES; Cline prints exactly one. Anything else — no record, a second (appended)
+    one, or a genuine record glued to other bytes — yields no usage, so the cost is unknown, never smaller.
+    """
+
+    def __init__(self):
+        self.markers = 0
+        self.parsed = 0
+        self.usage = None
+        self._tail = b""
+        self._line = bytearray()
+        self._oversize = False
+
+    def feed(self, chunk):
+        window = self._tail + chunk
+        self.markers += sum(1 for match in RUN_RESULT_MARKER.finditer(window) if match.end() > len(self._tail))
+        self._tail = window[-64:]
+        start = 0
+        while True:
+            end = chunk.find(b"\n", start)
+            if end < 0:
+                break
+            self._take(chunk[start:end])
+            self._finish()
+            start = end + 1
+        self._take(chunk[start:])
+
+    def _take(self, piece):
+        if self._oversize:
+            return
+        self._line += piece
+        if len(self._line) > USAGE_LINE_MAX_BYTES:
+            self._line.clear()
+            self._oversize = True
+
+    def _finish(self):
+        if not self._oversize and RUN_RESULT_MARKER.search(self._line):
+            try:
+                event = json.loads(bytes(self._line))
+            except ValueError:
+                event = None
+            if isinstance(event, dict) and event.get("type") == "run_result":
+                self.parsed += 1
+                self.usage = usage_fields(event.get("usage"))
+        self._line.clear()
+        self._oversize = False
+
+    def close(self):
+        self._finish()
+
+    def record(self):
+        single = self.markers == 1 and self.parsed == 1 and self.usage is not None
+        return {"run_result_markers": self.markers, "usage": self.usage if single else None}
+
+
+def usage_record(text):
+    """The usage record the launcher would write for this stdout text."""
+    tally = UsageTally()
+    tally.feed(text.encode("utf-8"))
+    tally.close()
+    return tally.record()
+
+
+def measured_usage(text):
+    """Token usage from the one run_result record in Cline's --json output, or None (ADR-102)."""
+    return usage_record(text)["usage"]
+
+
 def measured_cost(directory, config, state):
     """Price the harness's own usage for the pending attempt at the dispatch's recorded rates, or None."""
     attempt = state["attempts"][-1]
@@ -316,10 +381,16 @@ def measured_cost(directory, config, state):
     selected = next(item for item in config["harnesses"] if item["id"] == bindings[0]["harness_id"])
     if selected.get("usage_format") != "cline-json":
         return None
-    path = harness_output_path(directory, state["pending"])
+    path = usage_record_path(directory, state["pending"])
     if path.is_symlink() or not path.is_file():
         return None
-    usage = measured_usage(path.read_text(encoding="utf-8", errors="replace"))
+    record = wp.read_json(path)
+    if not isinstance(record, dict) or record.get("run_result_markers") != 1:
+        return None
+    usage = usage_fields({"inputTokens": (record.get("usage") or {}).get("input_tokens"),
+                          "outputTokens": (record.get("usage") or {}).get("output_tokens"),
+                          "cacheReadTokens": (record.get("usage") or {}).get("cache_read_tokens"),
+                          "cacheWriteTokens": (record.get("usage") or {}).get("cache_write_tokens")})
     if usage is None:
         return None
     dispatch = None

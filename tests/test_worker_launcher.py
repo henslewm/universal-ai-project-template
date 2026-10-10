@@ -189,7 +189,7 @@ class LauncherBase(HarnessBase):
 
 
 class LauncherRunTests(LauncherBase):
-    def test_a_declared_usage_format_saves_the_harness_output_and_ingest_measures_it(self):
+    def test_a_declared_usage_format_records_usage_and_ingest_measures_it(self):
         # ADR-102: stdout goes to a log beside the launch guard, outside the run directory, and
         # ingest prices its usage line instead of trusting the worker's own figure.
         self.config["harnesses"][0]["usage_format"] = "cline-json"
@@ -202,10 +202,11 @@ class LauncherRunTests(LauncherBase):
             code, out, err = self.run_cli(rundir)
         self.assertEqual(code, 0, err)
         outcome = json.loads(out)
-        log = launcher.harness.harness_output_path(self.ledger, prepared["dispatch_id"])
-        self.assertEqual(outcome["harness_output"], str(log))
-        self.assertIn('"run_result"', log.read_text(encoding="utf-8"))
-        self.assertNotIn('"run_result"', err, "a captured stdout is not also echoed")
+        log = launcher.harness.usage_record_path(self.ledger, prepared["dispatch_id"])
+        self.assertEqual(outcome["usage_record"], str(log))
+        self.assertEqual(json.loads(log.read_text(encoding="utf-8"))["run_result_markers"], 1)
+        self.assertNotIn('"ts"', log.read_text(encoding="utf-8"), "only counts are kept, never the transcript")
+        self.assertIn('"run_result"', err, "the transcript still reaches the launcher's stderr")
         ingested = harness.ingest(self.ledger, self.config, rundir / "report.json")
         self.assertTrue(ingested["api_cost_measured"])
         self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["api_cost_usd"], 0.085)
@@ -228,8 +229,8 @@ class LauncherRunTests(LauncherBase):
         self.assertEqual(code, 0, err)
         outcome = json.loads(out)
         self.assertEqual(outcome["harness_exit_code"], 3)
-        self.assertIsNone(outcome["harness_output"])
-        self.assertFalse(launcher.harness.harness_output_path(self.ledger, prepared["dispatch_id"]).exists())
+        self.assertIsNone(outcome["usage_record"])
+        self.assertFalse(launcher.harness.usage_record_path(self.ledger, prepared["dispatch_id"]).exists())
         path = Path(prepared["destination"]) / "report.json"
         self.assertTrue(harness.ingest(self.ledger, self.config, path)["api_cost_unknown"])
 
@@ -248,13 +249,13 @@ class LauncherRunTests(LauncherBase):
         self.ledger = self.fresh_ledger("forge-ledger")
         prepared = self.prepare("forge-run")
         rundir = Path(prepared["destination"])
-        log = launcher.harness.harness_output_path(self.ledger, prepared["dispatch_id"])
+        log = launcher.harness.usage_record_path(self.ledger, prepared["dispatch_id"])
         (self.tool / "forge-target.txt").write_text(str(log), encoding="utf-8")
         self.mode("forge")
         with self.environment():
             code, out, err = self.run_cli(rundir)
         self.assertEqual(code, 1, err)
-        self.assertIn("harness output log", err)
+        self.assertIn("usage record", err)
         self.assertIn("abandon", err)
         self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
 
