@@ -16,17 +16,17 @@ All AI models hallucinate, drift and deviate from requests, goals, requirements 
 
 ## Desired outcome
 
-A reusable, repo-backed control plane that makes complex, high-stakes AI-assisted work efficient: the owner is "spending money now to save money later." An architect model (Fable, Opus 5.5/6) must delegate intelligently to cheaper or local models under an explicit contract and monitor them effectively.
+A reusable, repo-backed control plane that makes complex, high-stakes AI-assisted work efficient: the owner is "spending money now to save money later." An architect model (Fable, Opus 5.5/6) must delegate intelligently to cheaper cloud models under an explicit contract and monitor them effectively.
 
 ## Definition of done (inferred)
 
-- Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers.
+- Cheaper cloud models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers.
 - The software and hardware tracks bootstrap, plan, execute and verify end to end. The ADR-089 freeze was lifted on 2026-10-06 (ADR-093) for two objectives: less drift and token cost at session start, and delegation by default.
 
 ## Required deliverables
 
 - **Continuity:** GitHub as durable memory for ChatGPT, Codex, Claude, Claude Code and Mistral.
-- **Packets:** the strong model writes bounded, machine-checkable packets; cheaper cloud or local models execute them.
+- **Packets:** the strong model writes bounded, machine-checkable packets; cheaper cloud models execute them.
 - **Ledgers:** the existing acceptance and feedback ledgers and the Markdown control files. A combined ledger is not pursued (ADR-089).
 - **Domain templates:** the `software-hardware` profile with a `hardware` or `web-ui` track (`instructions/tracks/`). ESP32/PlatformIO is only one example of serial hardware and hardware/software human interfaces.
 
@@ -84,3 +84,10 @@ Stated by the owner in the session of 2026-10-07.
 - **OL-036:** yes. The architect may launch external harness workers automatically once a launcher is scoped and built under `EXECUTION_HARNESS_PROTOCOL.md`, starting from the ADR-077 limits. This supersedes the ADR-083 and ADR-089 refusals for that launcher only.
 - **ADR-094 (branch `claude/auto-closeout`):** finish as directed: push on closeout, auto-merge once machine-checked ready (validator and tests green, an automated review on the exact head per ADR-074, every thread resolved, within the cap of 4), remove the ADR-091 ask rules, and mirror open loops as GitHub issues.
 - **Savings:** fix the cost-as-zero defect (abandoned and failed attempts recorded as $0, `docs/AUDIT_2026-10-03.md` section 2); #12 and #13 stay deferred (decision G).
+
+## Decisions (2026-10-09, ADR-100)
+
+Stated by the owner after the first real launch on Windows timed out with no report on a local model.
+
+- **Local models dropped:** local models (LM Studio, Ollama, llama.cpp and the like) are removed from the template's goals and instructions. Workers are cheaper cloud models only.
+- The launcher milestone (OL-036) now completes on a first real launch against a metered cloud binding, within the per-packet budget and attempt limits (ADR-099).

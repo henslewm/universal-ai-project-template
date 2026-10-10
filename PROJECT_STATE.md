@@ -1,8 +1,17 @@
 # Project State
 
-## Current (2026-10-09): launcher fixes merged; architect may launch (ADR-099)
+## Current (2026-10-09): local models dropped (ADR-100); foundation re-approved
 
-- **Status:** ACTIVE — approved foundation; `validate_bootstrap.py config/bootstrap.json --require-active` passes.
+- **Status:** ACTIVE — approved foundation
+- **Gate:** the charter is bound, so the package was re-reviewed with `bootstrap_gate.py review`; the owner re-activated it on 2026-10-10T02:49Z (approval receipt in `config/bootstrap.json`, commit `e055c50`).
+- **Local models dropped (ADR-100):** workers are cheaper cloud models only. The charter, `config/project.json`, `config/bootstrap.json`, the tier table, `MODEL_ROUTING.md` and `EXECUTION_HARNESS_PROTOCOL.md` say so; `prompts/PROVISION_LOCAL_MODEL.md` is deleted; OL-011 and OL-015 closed. Code, tests and the disabled example configurations keep their LM Studio fixtures.
+- **First launch (Windows, 2026-10-09, another session):** the 35 launcher tests pass on Windows. Both attempts on a local 27B failed: attempt 1 was killed by the host for low memory; attempt 2 hit its 3,400 s bound with no report (`TIMED_OUT`, tree stopped and confirmed). The launcher milestone now needs a first real launch on a metered cloud binding.
+- **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) merged; not done until a cloud launch succeeds.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-09: launcher fixes merged; architect may launch (ADR-099)
+
+- **Status:** ACTIVE — approved foundation (history)
 - **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) merged with its post-merge fixes: #126 (`11e9822`), #128 (`9004eff`), #130 (`cd07187`) and #132 (`4b4f0ea`); no Codex finding on them is open. Not done until the first real launch succeeds.
 - **Delegation:** `MASTER_CLAUDE_CODE.md` now says the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not (owner-directed, 2026-10-09).
 - **First launch blocked on setup:** on 2026-10-09 the owner's Mac had no local model server and no Cline CLI, so no zero-priced binding exists yet. The 35 launcher tests pass there only with a `TMPDIR` whose path has no symlink.

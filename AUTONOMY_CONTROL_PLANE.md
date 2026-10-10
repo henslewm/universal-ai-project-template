@@ -101,15 +101,15 @@ Track, where practical:
 - whether escalation was required;
 - defects discovered after merge.
 
-Local inference has zero marginal API charge but not zero cost: repeated failure, human delay, context churn, and regression risk count against it.
+Workers are cloud models only; local models are out of scope (ADR-100). A cheap model's low token price is not zero cost: repeated failure, human delay, context churn, and regression risk count against it.
 
 ## Default capability tiers
 
 | Tier | Capability | Current mapping |
 |---|---|---|
-| T0 Utility | deterministic cleanup, indexing, formatting, narrow extraction | small LM Studio model |
-| T1 Local Coder/Analyst | bounded implementation or analysis with objective tests | strongest suitable LM Studio model |
-| T2 Economical Cloud | moderate reasoning where local models stall | Mistral API |
+| T0 Utility | deterministic cleanup, indexing, formatting, narrow extraction | cheapest suitable cloud model |
+| T1 Economical Coder/Analyst | bounded implementation or analysis with objective tests | economical cloud coder model |
+| T2 Economical Cloud | moderate reasoning where T1 stalls | Mistral API |
 | T3 Strong Specialist | difficult implementation, debugging, adversarial review | Claude or Codex/OpenAI |
 | T4 Architect | architecture, decomposition, integration diagnosis, high-impact review | strongest available Claude/OpenAI reasoning model |
 
