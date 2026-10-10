@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — First cloud worker launch (OL-036)
+
+- Ran the worker launcher end to end on Windows against Mistral Devstral Medium through Cline: one attempt refused for brief tampering and abandoned, a fresh-task retry `REPORT_WRITTEN` and ingested; independent checks found the work not acceptable. OL-041 opened; SRC-040 and SRC-041 added; state and handoff updated.
+
 ## 2026-10-09 — Local models dropped (ADR-100)
 
 - Owner direction after the first real Windows launch failed on a local 27B (attempt 1 killed for low memory; attempt 2 `TIMED_OUT` with no report): workers are cheaper cloud models only.
