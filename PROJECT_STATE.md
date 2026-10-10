@@ -1,6 +1,18 @@
 # Project State
 
-## Current (2026-10-09): launcher fixes merged; architect may launch (ADR-099)
+## Current (2026-10-09): first real launch on Windows ran; no worker report (ADR-099)
+
+- **Status:** ACTIVE — approved foundation; `validate_bootstrap.py config/bootstrap.json --require-active` passes.
+- **Milestones:** unchanged from the section below. External worker launcher (OL-036): the launch path worked on Windows, but the worker produced no report, so the milestone criterion "not done until the owner's first real launch succeeds" is not met. The owner decides whether launcher-path success suffices (OL-043).
+- **Windows verification:** `python -m unittest discover -s tests -p "test_worker_launcher.py"` ran 35, OK, 1 skipped (FIFO test, POSIX-only); first run of the Windows path. Cline CLI 3.0.70 (`npm install -g cline@3.0.70`; 3.0.69 lacked its win32-x64 binary) with an absolute-path Python wrapper `C:\Users\hensl\worker-runs\cline_wrapper.py` (sets `PATH`, `SystemRoot`, empty `HOME`/`USERPROFILE`/`TEMP`); LM Studio `lmstudio` provider needs no key. A smoke run wrote `hello.txt`.
+- **Launch LAUNCH-WIN-001 (local zero-priced LM Studio resource, ledger outside git in `C:\Users\hensl\worker-runs\2026-10-09-first-launch\`):**
+  - Attempt 1 (qwen3.8-27b, partly offloaded to RAM on a 12 GB RTX 3060): Claude Code's host killed the background launcher after about 27 min for low system memory; no files, no report, no surviving process (job object). Abandoned, $0.
+  - Attempt 2 (huihui-qwen3.8-27b-abliterated, fully on GPU): ran to the 3400 s bound (TIMED_OUT, tree stopped, `report_present` false). The worker spent about 55 min in one reasoning turn rebuilding the JSON nesting of the 16 KB `brief.json` and never called another tool. Abandoned, $0. Ledger: 2/2 attempts used, NEEDS_ARCHITECT.
+  - Verified launcher behaviour: scoped environment, job-object tree stop at the bound, TIMED_OUT with next action abandon, the guard bars relaunch of a reservation.
+- **Defect candidates:** the worker could not use the brief (OL-041); an abandon with unknown scope consumed the task's one contract repair (OL-042).
+- **Open:** OL-041, OL-042, OL-043, OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-09: launcher fixes merged; architect may launch (ADR-099)
 
 - **Status:** ACTIVE — approved foundation; `validate_bootstrap.py config/bootstrap.json --require-active` passes.
 - **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) merged with its post-merge fixes: #126 (`11e9822`), #128 (`9004eff`), #130 (`cd07187`) and #132 (`4b4f0ea`); no Codex finding on them is open. Not done until the first real launch succeeds.

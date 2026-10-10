@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-09 — First real worker launch on Windows (ADR-099, OL-036)
+
+- Records only; no code or decision change. `python -m unittest discover -s tests -p "test_worker_launcher.py"` on Windows: 35 ran, OK, 1 skipped (FIFO, POSIX-only).
+- Cline CLI 3.0.70 installed with an absolute-path wrapper; ledger LAUNCH-WIN-001 on a zero-priced LM Studio resource, kept outside git in `C:\Users\hensl\worker-runs\2026-10-09-first-launch\`. Attempt 1 (qwen3.8-27b) was killed by Claude Code's host for low system memory; attempt 2 (huihui-qwen3.8-27b-abliterated) ran to the 3400 s bound with TIMED_OUT and no report. Both abandoned at $0; 2/2 attempts used.
+- The launcher behaved as designed (scoped environment, job-object tree stop, relaunch guard). The worker produced no report, so the OL-036 first-launch criterion is not met.
+- `OPEN_LOOPS.md` adds OL-041 (brief unusable by the local model), OL-042 (unknown-scope abandon spends the contract repair) and OL-043 (first successful launch outstanding). `PROJECT_STATE.md` and `HANDOFF_CURRENT.md` updated. No `RISK_REGISTER.md` change.
+
 ## 2026-10-09 — Architect runs the worker launcher (ADR-099, OL-036)
 
 - `MASTER_CLAUDE_CODE.md` → Delegation: the sentence keeping external-harness dispatch operator-run "until a separate decision (OL-036)" now says the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Owner-directed edit.
