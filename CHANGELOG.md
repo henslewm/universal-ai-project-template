@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-09 — Local models dropped (ADR-100)
+
+- Owner direction after the first real Windows launch failed on a local 27B (attempt 1 killed for low memory; attempt 2 `TIMED_OUT` with no report): workers are cheaper cloud models only.
+- `PROJECT_CHARTER.md`, `config/project.json` and `config/bootstrap.json` drop "or local models" from the goals; `AUTONOMY_CONTROL_PLANE.md` maps T0/T1 to cloud models; `MODEL_ROUTING.md` and `EXECUTION_HARNESS_PROTOCOL.md` say to bind cloud resources only; `prompts/PROVISION_LOCAL_MODEL.md` deleted; OL-011 and OL-015 closed.
+- Code, tests and the disabled example configurations keep their LM Studio fixtures. The bootstrap package was re-reviewed and awaits the owner's `activate`.
+
 ## 2026-10-09 — Architect runs the worker launcher (ADR-099, OL-036)
 
 - `MASTER_CLAUDE_CODE.md` → Delegation: the sentence keeping external-harness dispatch operator-run "until a separate decision (OL-036)" now says the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not. Owner-directed edit.
