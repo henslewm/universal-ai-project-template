@@ -1,6 +1,14 @@
 # Project State
 
-## Current (2026-10-10): worker cost measured from harness usage (ADR-102)
+## Current (2026-10-10): first cloud worker output that meets its contract, at a measured cost
+
+- **Status:** ACTIVE — approved foundation
+- **Fourth cloud run (`SHB-CLOUD-004`, `contract-v2.json`, main `5a26dcc`):** `REPORT_WRITTEN`, exit 0, child environment `MISTRAL_API_KEY` only, exactly the two named files. Independently rechecked: the worker's tests pass, the contract's fixed `VAL-CONTRACT` checker prints ALL CHECKS PASSED, and `bytearray`, wrong-length and empty input return results without raising. Ingested as `REVIEW_PENDING`; independent acceptance (`scripts/acceptance.py`) not yet run.
+- **Measured cost (ADR-102), first live use:** the usage record held one run_result (795,537 input, 68,480 cache-read, 7,751 output tokens); the ledger recorded USD 0.361109 as a known cost while the worker reported 0.0.
+- **Budget:** `role_api_budget_usd` 10 in the cloud-launch router configuration.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-10: worker cost measured from harness usage (ADR-102)
 
 - **Status:** ACTIVE — approved foundation
 - **Measured cost (ADR-102):** the launcher records a Cline run's token counts (never its transcript) beside the launch guard, and `ingest` prices them at the dispatch's recorded rates as a known cost, so paid retries stay possible within `role_api_budget_usd` (10 for the cloud-launch configuration).
