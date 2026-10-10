@@ -2,7 +2,7 @@
 
 - **Prepared:** 2026-10-09 (owner's Windows machine; ADR-100, local models dropped)
 - **Repository:** `henslewm/universal-ai-project-template`
-- **Gate:** AWAITING_APPROVAL after the ADR-100 charter change; autonomy OFF until the owner runs `bootstrap_gate.py activate`.
+- **Gate:** the owner re-approved the foundation after the ADR-100 charter change (2026-10-10T02:49Z, commit `e055c50`).
 - **Scope:** the four ADR-096 milestones only; nothing outside them. Shipped milestones take defect fixes only (ADR-098).
 
 ## Milestones
@@ -21,8 +21,7 @@
 
 ## Next action
 
-1. Owner: re-approve the foundation. ADR-100 (local models dropped) changed the bound charter, so the package is AWAITING_APPROVAL and autonomy is OFF: run `python scripts/bootstrap_gate.py activate`.
-2. First real launch on a metered **cloud** binding (local models are out of scope, ADR-100). The architect session may run it (ADR-099):
+1. First real launch on a metered **cloud** binding (local models are out of scope, ADR-100). The architect session may run it (ADR-099):
    - The launcher tests pass on Windows (35 run, 1 skipped, 2026-10-09).
    - An `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097), so a failed attempt needs a fresh task.
    - A Node-based harness such as Cline needs an absolute-path wrapper that sets `PATH` (and `SystemRoot` on Windows); the child environment holds only the binding's credential variable. A working wrapper is `~/worker-runs/cline_wrapper.py` on the owner's Windows machine.
