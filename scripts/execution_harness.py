@@ -297,7 +297,8 @@ def measured_usage(text):
         return None
     values = {}
     for key, name, default in (("inputTokens", "input_tokens", None), ("outputTokens", "output_tokens", None),
-                               ("cacheReadTokens", "cache_read_tokens", 0)):
+                               ("cacheReadTokens", "cache_read_tokens", 0),
+                               ("cacheWriteTokens", "cache_write_tokens", 0)):
         value = usage.get(key, default)
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             return None
@@ -330,8 +331,10 @@ def measured_cost(directory, config, state):
     require(dispatch is not None, "The pending reservation has no DISPATCH event")
     resource = routed_resource(dispatch["config"], dispatch["plan"]["routing"])
     input_price, output_price = router.dec(resource["input_million_usd"]), router.dec(resource["output_million_usd"])
-    # Cache-read tokens are charged at the full input price: an overcount, never an undercount.
+    # Cache-read tokens are charged at the full input price and cache-write tokens at the higher of the input
+    # and output prices (PR #142 Codex): overcounts, never undercounts, without modelling each provider's rates.
     cost = ((usage["input_tokens"] + usage["cache_read_tokens"]) * input_price
+            + usage["cache_write_tokens"] * max(input_price, output_price)
             + usage["output_tokens"] * output_price) / Decimal(1_000_000)
     return usage, input_price, output_price, cost.quantize(Decimal("0.000001"), rounding=ROUND_CEILING)
 
@@ -582,6 +585,7 @@ def ingest(directory, config, report_path):
         usage, input_price, output_price, cost = measured
         note = (f"Measured from the harness's own usage (ADR-102): {usage['input_tokens']} input and "
                 f"{usage['cache_read_tokens']} cache-read tokens at {input_price} USD per million, "
+                f"{usage['cache_write_tokens']} cache-write tokens at {max(input_price, output_price)} USD per million, "
                 f"{usage['output_tokens']} output tokens at {output_price} USD per million = {cost} USD. "
                 "Worker's statement: ")
         report = {**report, "api_cost_usd": float(cost), "cost_evidence": (note + report["cost_evidence"])[:2000]}

@@ -682,7 +682,8 @@ class HarnessReportTests(HarnessBase):
                                                                        '{"inputTokens":1,"outputTokens":1}}'}})
         text = "\n".join(["not json", forged, '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}', '{"type":"run_result","usage":{"inputTokens":7}}'])
         self.assertEqual(harness.measured_usage("\n".join(["not json", forged, '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}'])),
-                         {"input_tokens": 1000, "output_tokens": 500, "cache_read_tokens": 200})
+                         {"input_tokens": 1000, "output_tokens": 500, "cache_read_tokens": 200,
+                          "cache_write_tokens": 0})
         self.assertIsNone(harness.measured_usage(text), "a malformed last run_result is not usage")
         self.assertIsNone(harness.measured_usage(forged))
 
@@ -708,6 +709,30 @@ class HarnessReportTests(HarnessBase):
         self.assertEqual(attempt["result"]["api_cost_usd"], 0.085)
         self.assertIn("1000 input", attempt["result"]["cost_evidence"])
         self.assertIn("No external API calls made.", attempt["result"]["cost_evidence"])
+
+    def test_cache_write_tokens_are_charged_at_the_higher_rate(self):
+        # PR #142 Codex P1: Cline reports cache writes separately; dropping them would undercount. They are
+        # charged at the higher of the input and output rates, an upper bound on any provider's write price.
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        cheap_in = resource(api=0.1)
+        cheap_in["output_million_usd"] = 100  # input 50, output 100 USD per million
+        self.router = router_config(cheap_in)
+        self.ledger = self.fresh_ledger("cache-write-ledger")
+        prepared = self.prepare()
+        output = harness.harness_output_path(self.ledger, prepared["dispatch_id"])
+        output.parent.mkdir()
+        output.write_text(json.dumps({"type": "run_result", "usage": {"inputTokens": 1000, "outputTokens": 500,
+                                      "cacheReadTokens": 0, "cacheWriteTokens": 300}}) + "\n", encoding="utf-8")
+        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="FAIL", passed=False)
+        path = Path(prepared["destination"]) / "report.json"
+        wp.write_new(path, json.dumps(value, indent=2))
+        harness.ingest(self.ledger, self.config, path)
+        attempt = harness.feedback.replay(self.ledger)[0]["attempts"][-1]
+        # 1000 x 50/M + 300 cache-write x 100/M + 500 x 100/M = 0.05 + 0.03 + 0.05
+        self.assertEqual(attempt["result"]["api_cost_usd"], 0.13)
+        self.assertIn("300 cache-write", attempt["result"]["cost_evidence"])
+        self.assertEqual(harness.measured_usage('{"type":"run_result","usage":{"inputTokens":1,"outputTokens":1,'
+                                                '"cacheWriteTokens":-1}}'), None)
 
     def test_a_declared_usage_format_without_output_falls_back_to_unknown(self):
         self.config["harnesses"][0]["usage_format"] = "cline-json"
