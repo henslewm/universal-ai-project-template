@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-10 — Worker cost measured from harness usage (ADR-102)
+
+- `config/execution-harness.schema.json` gains `usage_format` (`cline-json`). `scripts/worker_launcher.py` forwards a declaring harness's stdout to stderr, keeps no transcript, and records only its token counts in `<dispatch_id>.usage.json` beside the launch guard (`usage_record`); `scripts/execution_harness.py` (`usage_record_path`, `UsageTally`, `measured_usage`, `measured_cost`) prices the last `run_result` token counts at the dispatch's rates in `ingest` and returns `api_cost_measured`.
+- Regressions in `tests/test_execution_harness.py` and `tests/test_worker_launcher.py`; `EXECUTION_HARNESS_PROTOCOL.md`, ADR-102, R-020, state and handoff updated; OL-016 closed by `closeout.py sync-loops` (issue #49 closed).
+
 ## 2026-10-10 — OL-041 fixed in the launcher (ADR-101)
 
 - `scripts/worker_launcher.py` makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before the harness starts.

@@ -19,6 +19,8 @@ from unittest import mock
 
 from test_execution_harness import HarnessBase, configuration
 from test_feedback import options, result
+from test_model_router import config as router_config
+from test_model_router import resource
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,7 +47,20 @@ observed = {"environment_names": sorted(os.environ), "argv": sys.argv[1:], "stdi
             "rules_writable": os.access(os.path.join(os.path.dirname(brief_path), "BOUNDED_WORKER_RULES.md"), os.W_OK)}
 with open(os.path.join(here, "observed.json"), "w", encoding="utf-8") as stream:
     json.dump(observed, stream)
-if mode in ("report", "orphan", "tamper"):
+if mode == "usage-escape":
+    # A detached helper keeps stdout open past the tree's end (PR #142 Codex round 3; POSIX only).
+    subprocess.Popen([sys.executable, "-c", "import time; time.sleep(8)"], start_new_session=True,
+                     stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+if mode == "forge":
+    # Plant a zero-usage log at the path the launcher will write after the run (PR #142 Codex round 2).
+    with open(os.path.join(here, "forge-target.txt"), encoding="utf-8") as stream:
+        target = stream.read().strip()
+    with open(target, "w", encoding="utf-8") as stream:
+        stream.write('{"type":"run_result","usage":{"inputTokens":0,"outputTokens":0}}\n')
+if mode in ("usage", "forge", "usage-fail", "usage-escape"):
+    # Print a harness usage line the way Cline's --json does, on stdout (ADR-102).
+    print('{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}', flush=True)
+if mode in ("report", "orphan", "tamper", "usage", "forge", "usage-fail", "usage-escape"):
     with open(brief_path, encoding="utf-8") as stream:
         brief = json.load(stream)
     report = {"dispatch_id": brief["dispatch_id"], "outcome": "FAIL",
@@ -174,6 +189,76 @@ class LauncherBase(HarnessBase):
 
 
 class LauncherRunTests(LauncherBase):
+    def test_a_declared_usage_format_records_usage_and_ingest_measures_it(self):
+        # ADR-102: stdout goes to a log beside the launch guard, outside the run directory, and
+        # ingest prices its usage line instead of trusting the worker's own figure.
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger("usage-ledger")
+        prepared = self.prepare("usage-run")
+        rundir = Path(prepared["destination"])
+        self.mode("usage")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 0, err)
+        outcome = json.loads(out)
+        log = launcher.harness.usage_record_path(self.ledger, prepared["dispatch_id"])
+        self.assertEqual(outcome["usage_record"], str(log))
+        self.assertEqual(json.loads(log.read_text(encoding="utf-8"))["run_result_markers"], 1)
+        self.assertNotIn('"ts"', log.read_text(encoding="utf-8"), "only counts are kept, never the transcript")
+        self.assertIn('"run_result"', err, "the transcript still reaches the launcher's stderr")
+        ingested = harness.ingest(self.ledger, self.config, rundir / "report.json")
+        self.assertTrue(ingested["api_cost_measured"])
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["api_cost_usd"], 0.085)
+
+    def usage_run(self, mode, name):
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger(name + "-ledger")
+        prepared = self.prepare(name + "-run")
+        self.mode(mode)
+        with self.environment():
+            return prepared, self.run_cli(Path(prepared["destination"]))
+
+    def test_a_failed_harness_gets_no_usage_log(self):
+        # PR #142 Codex round 3: usage is trusted only from a harness that exited 0, so a worker that kills
+        # Cline and writes its own record gets no measured cost.
+        with open(self.script, "a", encoding="utf-8") as stream:
+            stream.write('\nif mode == "usage-fail":\n    sys.exit(3)\n')
+        prepared, (code, out, err) = self.usage_run("usage-fail", "usage-fail")
+        self.assertEqual(code, 0, err)
+        outcome = json.loads(out)
+        self.assertEqual(outcome["harness_exit_code"], 3)
+        self.assertIsNone(outcome["usage_record"])
+        self.assertFalse(launcher.harness.usage_record_path(self.ledger, prepared["dispatch_id"]).exists())
+        path = Path(prepared["destination"]) / "report.json"
+        self.assertTrue(harness.ingest(self.ledger, self.config, path)["api_cost_unknown"])
+
+    @unittest.skipIf(sys.platform == "win32", "the Windows job object ends every descendant, so none can escape")
+    def test_an_escaped_holder_of_the_output_pipe_is_refused(self):
+        prepared, (code, out, err) = self.usage_run("usage-escape", "usage-escape")
+        self.assertEqual(code, 1, err)
+        self.assertIn("still holds the harness's stdout", err)
+        self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+
+    def test_a_planted_usage_log_is_refused_not_trusted(self):
+        # PR #142 Codex round 2: the log path is predictable and the worker runs as the operator, so the
+        # launcher captures stdout through a pipe and writes the log itself only once the tree is stopped.
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger("forge-ledger")
+        prepared = self.prepare("forge-run")
+        rundir = Path(prepared["destination"])
+        log = launcher.harness.usage_record_path(self.ledger, prepared["dispatch_id"])
+        (self.tool / "forge-target.txt").write_text(str(log), encoding="utf-8")
+        self.mode("forge")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 1, err)
+        self.assertIn("usage record", err)
+        self.assertIn("abandon", err)
+        self.assertEqual(feedback.replay(self.ledger)[0]["pending"], prepared["dispatch_id"])
+
     def test_launch_runs_the_prepared_harness_with_only_the_named_credential(self):
         prepared = self.prepare()
         rundir = Path(prepared["destination"])

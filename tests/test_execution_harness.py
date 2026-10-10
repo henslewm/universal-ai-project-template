@@ -675,6 +675,104 @@ class HarnessReportTests(HarnessBase):
         self.assertIsNone(attempt["result"]["api_cost_usd"])
         self.assertIn("Unknown", attempt["result"]["cost_evidence"])
 
+    def test_usage_is_read_only_from_a_top_level_run_result_line(self):
+        # ADR-102: the last top-level run_result wins; text nested inside an event (a worker's
+        # command output, say) is never read as usage.
+        forged = json.dumps({"type": "agent_event", "event": {"text": '{"type":"run_result","usage":'
+                                                                       '{"inputTokens":1,"outputTokens":1}}'}})
+        text = "\n".join(["not json", forged, '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}', '{"type":"run_result","usage":{"inputTokens":7}}'])
+        self.assertEqual(harness.measured_usage("\n".join(["not json", forged, '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}'])),
+                         {"input_tokens": 1000, "output_tokens": 500, "cache_read_tokens": 200,
+                          "cache_write_tokens": 0})
+        self.assertIsNone(harness.measured_usage(text), "a second run_result makes the usage ambiguous")
+        self.assertIsNone(harness.measured_usage(forged))
+        # PR #142 Codex round 3: an appended zero-token record must not replace the genuine one.
+        genuine = '{"type":"run_result","usage":{"inputTokens":900,"outputTokens":90}}'
+        appended = '{"type":"run_result","usage":{"inputTokens":0,"outputTokens":0}}'
+        self.assertIsNone(harness.measured_usage(genuine + "\n" + appended))
+        self.assertIsNone(harness.measured_usage('{"type":"run_result","usage":{"inputTokens":7}}'))
+
+    def test_usage_survives_a_flood_and_keeps_no_transcript(self):
+        # PR #142 Codex round 4: markers are counted over the whole stream, so a flood cannot push the genuine
+        # record out and leave a forged one alone; and only counts are kept, never the transcript.
+        genuine = '{"type":"run_result","usage":{"inputTokens":900,"outputTokens":90}}'
+        forged = '{"type":"run_result","usage":{"inputTokens":0,"outputTokens":0}}'
+        tally = harness.UsageTally()
+        tally.feed((genuine + "\n").encode())
+        for _ in range(10):
+            tally.feed(b"x" * (1024 * 1024))
+        tally.feed(("\n" + forged + "\n").encode())
+        tally.close()
+        self.assertIsNone(tally.record()["usage"])
+        self.assertEqual(tally.record()["run_result_markers"], 2)
+        # A genuine record glued to other bytes is not parsed, so it cannot be replaced by a lone forgery.
+        self.assertIsNone(harness.measured_usage("SECRET=abc" + genuine + "\n"))
+        record = harness.usage_record("MISTRAL_API_KEY=not-a-real-key\n" + genuine + "\n")
+        self.assertEqual(record, {"run_result_markers": 1, "usage": {"input_tokens": 900, "output_tokens": 90,
+                                                                      "cache_read_tokens": 0, "cache_write_tokens": 0}})
+        self.assertNotIn("not-a-real-key", json.dumps(record))
+
+    def test_a_metered_report_is_charged_the_measured_usage_cost(self):
+        # ADR-102: the launcher saved the harness's own usage, so ingest records tokens x the price the
+        # dispatch recorded, as a known cost, whatever the worker claimed.
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        self.router = router_config(resource(api=0.1))  # 50 USD per million input and output tokens
+        self.ledger = self.fresh_ledger("measured-ledger")
+        prepared = self.prepare()
+        output = harness.usage_record_path(self.ledger, prepared["dispatch_id"])
+        output.parent.mkdir()
+        output.write_text(json.dumps(harness.usage_record("noise\n" + '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}' + "\n")), encoding="utf-8")
+        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="PASS", passed=True)
+        value.update(api_cost_usd=0, cost_evidence="No external API calls made.")
+        path = Path(prepared["destination"]) / "report.json"
+        wp.write_new(path, json.dumps(value, indent=2))
+        ingested = harness.ingest(self.ledger, self.config, path)
+        self.assertTrue(ingested["api_cost_measured"])
+        self.assertFalse(ingested["api_cost_unknown"])
+        attempt = harness.feedback.replay(self.ledger)[0]["attempts"][-1]
+        # (1000 input + 200 cache-read, priced as input) x 50/M + 500 output x 50/M = 0.085
+        self.assertEqual(attempt["result"]["api_cost_usd"], 0.085)
+        self.assertIn("1000 input", attempt["result"]["cost_evidence"])
+        self.assertIn("No external API calls made.", attempt["result"]["cost_evidence"])
+
+    def test_cache_write_tokens_are_charged_at_the_higher_rate(self):
+        # PR #142 Codex P1: Cline reports cache writes separately; dropping them would undercount. They are
+        # charged at the higher of the input and output rates, an upper bound on any provider's write price.
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        cheap_in = resource(api=0.1)
+        cheap_in["output_million_usd"] = 100  # input 50, output 100 USD per million
+        self.router = router_config(cheap_in)
+        self.ledger = self.fresh_ledger("cache-write-ledger")
+        prepared = self.prepare()
+        output = harness.usage_record_path(self.ledger, prepared["dispatch_id"])
+        output.parent.mkdir()
+        line = json.dumps({"type": "run_result", "usage": {"inputTokens": 1000, "outputTokens": 500,
+                                                           "cacheReadTokens": 0, "cacheWriteTokens": 300}})
+        output.write_text(json.dumps(harness.usage_record(line + "\n")), encoding="utf-8")
+        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="FAIL", passed=False)
+        path = Path(prepared["destination"]) / "report.json"
+        wp.write_new(path, json.dumps(value, indent=2))
+        harness.ingest(self.ledger, self.config, path)
+        attempt = harness.feedback.replay(self.ledger)[0]["attempts"][-1]
+        # 1000 x 50/M + 300 cache-write x 100/M + 500 x 100/M = 0.05 + 0.03 + 0.05
+        self.assertEqual(attempt["result"]["api_cost_usd"], 0.13)
+        self.assertIn("300 cache-write", attempt["result"]["cost_evidence"])
+        self.assertEqual(harness.measured_usage('{"type":"run_result","usage":{"inputTokens":1,"outputTokens":1,'
+                                                '"cacheWriteTokens":-1}}'), None)
+
+    def test_a_declared_usage_format_without_output_falls_back_to_unknown(self):
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger("unmeasured-ledger")
+        prepared = self.prepare()
+        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="PASS", passed=True)
+        value.update(api_cost_usd=0)
+        path = Path(prepared["destination"]) / "report.json"
+        wp.write_new(path, json.dumps(value, indent=2))
+        ingested = harness.ingest(self.ledger, self.config, path)
+        self.assertFalse(ingested["api_cost_measured"])
+        self.assertTrue(ingested["api_cost_unknown"])
+
     def test_a_zero_cost_report_on_a_metered_attempt_is_recorded_as_unknown(self):
         # OL-041 / ADR-101: a worker cannot measure its own spend (Cline reports 0 for every provider), so
         # a reported zero on a resource that declared an API price is recorded as unknown, never as free.

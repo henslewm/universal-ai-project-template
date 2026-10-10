@@ -60,6 +60,11 @@
             "maximum": 1000000,
             "description": "Tokens this harness consumes before the brief: its own system prompt, tool definitions and scaffolding. Measure it against the installed harness version."
           },
+          "usage_format": {
+            "type": "string",
+            "enum": ["cline-json"],
+            "description": "How this harness reports token usage on stdout (ADR-102). When set, the launcher saves the harness's stdout beside the launch guard and ingest prices the last top-level run_result line instead of the worker's own figure."
+          },
           "description": {"type": "string", "minLength": 1, "maxLength": 2000}
         }
       }
