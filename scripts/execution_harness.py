@@ -280,19 +280,20 @@ def harness_output_path(ledger, dispatch_id):
 
 
 def measured_usage(text):
-    """Token usage from the last top-level `run_result` line of Cline's --json output, or None (ADR-102).
+    """Token usage from the one top-level `run_result` line of Cline's --json output, or None (ADR-102).
 
     Only a whole line that parses as an object with type run_result counts, so text nested inside an event,
-    such as a worker's command output, is never read as usage. A malformed last run_result is not usage."""
-    found = None
+    such as a worker's command output, is never read as usage. Cline prints exactly one; none, more than one
+    (an appended record, PR #142 Codex round 3) or a malformed one is not usage."""
+    found = []
     for line in text.splitlines():
         try:
             event = json.loads(line)
         except ValueError:
             continue
         if isinstance(event, dict) and event.get("type") == "run_result":
-            found = event
-    usage = found.get("usage") if found else None
+            found.append(event)
+    usage = found[0].get("usage") if len(found) == 1 else None
     if not isinstance(usage, dict):
         return None
     values = {}

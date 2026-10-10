@@ -33,6 +33,8 @@ GUARD_STORE_SENTINEL = "LAUNCH_GUARD_STORE"
 # A usage-reporting harness's stdout is kept in memory up to this many trailing bytes (ADR-102); the
 # usage line Cline prints is last, so a long transcript loses only its start.
 OUTPUT_TAIL_BYTES = 8 * 1024 * 1024
+# Once the tree is stopped its stdout pipe reaches EOF at once; waiting longer means an outside holder.
+OUTPUT_EOF_SECONDS = 5
 # Short waits keep Ctrl+C prompt on Windows, where a long process wait is not interruptible.
 WAIT_SLICE_SECONDS = 0.2
 EXIT_CODES = {"REPORT_WRITTEN": 0, "NO_REPORT": 2, "TIMED_OUT": 2, "INTERRUPTED": 130}
@@ -347,14 +349,23 @@ def launch(directory, config, rundir, root, timeout=None):
         require(tree.stopped, f"The harness process tree (pid {process.pid}) could not be confirmed stopped; "
                               "stop it before recording the attempt")
         if reader:
-            # Every writer is stopped, so the pipe reaches EOF; only now is the log written, exclusively.
-            reader.join(30)
+            # Every writer in the tree is stopped, so the pipe reaches EOF at once. If it does not, a process
+            # outside the confirmed-stopped tree still holds it and could append a record (PR #142 Codex round 3).
+            reader.join(OUTPUT_EOF_SECONDS)
+            require(not reader.is_alive(), "A process outside the stopped tree still holds the harness's stdout; "
+                                           "do not ingest its report; record the attempt with abandon")
             process.stdout.close()
-            try:
-                create_exclusive_bytes(output_path, bytes(captured))
-            except FileExistsError as exc:
-                raise ValueError(f"Something created the harness output log {output_path} while the harness ran; "
-                                 "do not ingest its report; record the attempt with abandon") from exc
+            if process.returncode == 0:  # Usage is trusted only from a harness that exited cleanly.
+                try:
+                    create_exclusive_bytes(output_path, bytes(captured))
+                except FileExistsError as exc:
+                    raise ValueError(f"Something created the harness output log {output_path} while the harness ran; "
+                                     "do not ingest its report; record the attempt with abandon") from exc
+            else:
+                require(not os.path.lexists(output_path),
+                        f"Something created the harness output log {output_path} while the harness ran; "
+                        "do not ingest its report; record the attempt with abandon")
+                output_path = None
         # The worker can write in its run directory, so the one-launch guard is checked and, once the
         # tree is stopped, restored: a deleted marker must never let this reservation run twice.
         if not marker_intact(marker, record):

@@ -684,8 +684,13 @@ class HarnessReportTests(HarnessBase):
         self.assertEqual(harness.measured_usage("\n".join(["not json", forged, '{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}'])),
                          {"input_tokens": 1000, "output_tokens": 500, "cache_read_tokens": 200,
                           "cache_write_tokens": 0})
-        self.assertIsNone(harness.measured_usage(text), "a malformed last run_result is not usage")
+        self.assertIsNone(harness.measured_usage(text), "a second run_result makes the usage ambiguous")
         self.assertIsNone(harness.measured_usage(forged))
+        # PR #142 Codex round 3: an appended zero-token record must not replace the genuine one.
+        genuine = '{"type":"run_result","usage":{"inputTokens":900,"outputTokens":90}}'
+        appended = '{"type":"run_result","usage":{"inputTokens":0,"outputTokens":0}}'
+        self.assertIsNone(harness.measured_usage(genuine + "\n" + appended))
+        self.assertIsNone(harness.measured_usage('{"type":"run_result","usage":{"inputTokens":7}}'))
 
     def test_a_metered_report_is_charged_the_measured_usage_cost(self):
         # ADR-102: the launcher saved the harness's own usage, so ingest records tokens x the price the
