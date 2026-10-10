@@ -2,7 +2,7 @@
 
 State: AWAITING_APPROVAL — autonomy is OFF until explicit activation.
 Profile: software-hardware
-Architecture fingerprint: `a14797640d639ac831fbd112312a1f3f94eccc6b8e3eda0a4e9e63ba20c399d3`
+Architecture fingerprint: `00f2a204fb76b5c8dfdde6a0e5ad3df6648713256690b3ab14aedbeb572e494b`
 
 ## Charter
 
@@ -85,7 +85,7 @@ Architecture fingerprint: `a14797640d639ac831fbd112312a1f3f94eccc6b8e3eda0a4e9e6
 
 ```json
 {
-  "policy": "The architect session decomposes and integrates; bounded research, edits and records go to the .claude/agents subagents on sonnet; independent review stays at the architect tier (ADR-093). Once the launcher lands, packets may go to the cheapest external or local tier expected to pass acceptance, within per-packet budget and attempt limits (MODEL_ROUTING.md). Automated PR review by Codex or CodeRabbit."
+  "policy": "The architect session decomposes and integrates; bounded research, edits and records go to the .claude/agents subagents on sonnet; independent review stays at the architect tier (ADR-093). Once the launcher lands, packets may go to the cheapest cloud tier expected to pass acceptance, within per-packet budget and attempt limits (MODEL_ROUTING.md). Automated PR review by Codex or CodeRabbit."
 }
 ```
 
@@ -204,7 +204,7 @@ Architecture fingerprint: `a14797640d639ac831fbd112312a1f3f94eccc6b8e3eda0a4e9e6
   "PROJECT_CHARTER.md": "4a116815d04e04393df0f091cf02db253976ecdb8a43bb017e0c4195b3c1f60d",
   "CONNECTOR_PLAN.md": "f1871dc620ceeaa8bda289e04723a96c0ffbb53b2b9434403c4bc289c94167d4",
   "SKILL_PLAN.md": "6d1b8c44b088d462ae588ae81d191bc523878ee66e08eb5c38802df851585e1d",
-  "DOMAIN_PROFILE.md": "91d42727ef1a1b26894f5c3e9f6938c01ac8e372544079da97b7140665875e65"
+  "DOMAIN_PROFILE.md": "0f0058c8fcd6ce944c6cfe5829136a39167478efe2048927a597f078864209db"
 }
 ```
 
@@ -375,7 +375,7 @@ Do not create a skill for a single ordinary answer, general subject knowledge, o
 # Domain Profile — Software + Hardware Interfaces
 
 This is the default `main` specialization of the universal autonomous project template: software
-that interacts with physical hardware, built so that most bounded work can go to cheap or local
+that interacts with physical hardware, built so that most bounded work can go to cheap cloud
 models while no claim of hardware success is ever made on the strength of compilation or
 simulation. `AUTONOMY_CONTROL_PLANE.md` is the controlling workflow policy; the controllers named
 below are the mechanism.
@@ -460,7 +460,7 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` generated 
 ## Cost posture
 
 Pure functions, codecs, parsers, fixtures, fakes, tests, log analysis and repetitive adapters route
-to the local tiers first; objective failures and risk, never preference, drive escalation. The
+to the cheapest tiers first; objective failures and risk, never preference, drive escalation. The
 hardware adapter and the integration/field packets carry `high` risk so the acceptance floor adds
 independent model review and the cross-family gate. Hardware runs are operator actions and are
 never dispatched to a worker.
