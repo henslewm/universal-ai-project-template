@@ -515,7 +515,7 @@ def ingest(directory, config, report_path):
         note = ("Unknown: the routed resource declared an API price and the worker reported 0, which it "
                 "cannot measure (ADR-101). Worker's statement: ")
         report = {**report, "api_cost_usd": None, "cost_evidence": (note + report["cost_evidence"])[:2000]}
-    recorded = feedback.complete(directory, report)
+    recorded = (feedback.complete_cost_unknown if unknown else feedback.complete)(directory, report)
     return {"status": recorded["status"], "outcome": report["outcome"], "reason": recorded["reason"],
             "api_cost_unknown": unknown,
             "dispatch_id": report["dispatch_id"],

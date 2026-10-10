@@ -207,14 +207,15 @@ def move(state, target, actor, reason, evidence, timestamp):
                                     current_graph(state), timestamp)
 
 
-def apply_result(state, result, timestamp, abandoned=False):
+def apply_result(state, result, timestamp, abandoned=False, cost_unknown=False):
     shape("result", result)
     if not state["pending"] or result["dispatch_id"] != state["pending"]:
         raise ValueError("Result does not match the pending dispatch")
     attempt = state["attempts"][-1]
     # ADR-097: an unknown cost is recorded only on a resource that was metered at dispatch; an unmetered
     # one is known to cost nothing. ADR-101 (OL-041): besides an abandonment, `execution_harness.ingest`
-    # records a metered worker's reported zero as unknown, because a worker cannot measure its own spend.
+    # records a metered worker's reported zero as unknown through its own RESULT_COST_UNKNOWN event,
+    # because a worker cannot measure its own spend. A plain RESULT always states a number.
     if abandoned:
         # ABANDON is the only provenance allowed an unknown cost, so it carries exactly the
         # no-report shape `execution_harness.abandon` writes; it can never record a pass.
@@ -226,8 +227,13 @@ def apply_result(state, result, timestamp, abandoned=False):
         expected = None if attempt.get("api_metered", True) else 0
         if result["api_cost_usd"] != expected:
             raise ValueError("An abandoned attempt records an unknown (null) cost on a metered resource and 0 on an unmetered one")
-    elif result["api_cost_usd"] is None and not attempt.get("api_metered", True):
-        raise ValueError("An unknown (null) cost is recorded only on a metered resource; an unmetered one costs nothing")
+    elif cost_unknown:
+        if result["api_cost_usd"] is not None:
+            raise ValueError("A cost-unknown result records null")
+        if not attempt.get("api_metered", True):
+            raise ValueError("An unknown (null) cost is recorded only on a metered resource; an unmetered one costs nothing")
+    elif result["api_cost_usd"] is None:
+        raise ValueError("An unknown (null) cost is recorded only by abandoning the attempt or by ingesting a metered zero")
     contract = wp.current(state["packet"])["contract"]
     checks = {check["id"] for check in contract["validation"]}
     ids = [check["check_id"] for check in result["validation"]]
@@ -323,8 +329,9 @@ def apply(state, event, stored=False):
             move(state, "IN_PROGRESS", "worker:" + attempt["resource_id"], "Dispatch reserved", [attempt["id"]], timestamp)
         state["attempts"].append(attempt)
         state.update(status="IN_PROGRESS", reason="DISPATCH_RESERVED", pending=attempt["id"])
-    elif event["kind"] in {"RESULT", "ABANDON"}:
-        apply_result(state, data, timestamp, abandoned=event["kind"] == "ABANDON")
+    elif event["kind"] in {"RESULT", "RESULT_COST_UNKNOWN", "ABANDON"}:
+        apply_result(state, data, timestamp, abandoned=event["kind"] == "ABANDON",
+                     cost_unknown=event["kind"] == "RESULT_COST_UNKNOWN")
         state["attempts"][-1]["result_event_sequence"] = event["sequence"]
     elif event["kind"] == "APPROVAL_HOLD":
         exact(data, {"reason"})
@@ -585,6 +592,14 @@ def reserve(directory, config, options, root, timestamp=None):
 def complete(directory, result, timestamp=None):
     # Recording late/cancelled/failed work remains possible after activation is revoked.
     return append(directory, "RESULT", result, timestamp, replay(directory))
+
+
+def complete_cost_unknown(directory, result, timestamp=None):
+    """Record a metered worker's report whose stated zero cost cannot be measured (ADR-101).
+
+    Written only by `execution_harness.ingest`; the CLI's `complete` keeps refusing an unknown cost.
+    """
+    return append(directory, "RESULT_COST_UNKNOWN", result, timestamp, replay(directory))
 
 
 def abandon(directory, result, timestamp=None):
