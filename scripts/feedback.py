@@ -212,8 +212,9 @@ def apply_result(state, result, timestamp, abandoned=False):
     if not state["pending"] or result["dispatch_id"] != state["pending"]:
         raise ValueError("Result does not match the pending dispatch")
     attempt = state["attempts"][-1]
-    # ADR-097: only an abandonment records an unknown cost, and only on a resource that was metered
-    # at dispatch; an unmetered one is known to cost nothing. A reported result states a number.
+    # ADR-097: an unknown cost is recorded only on a resource that was metered at dispatch; an unmetered
+    # one is known to cost nothing. ADR-101 (OL-041): besides an abandonment, `execution_harness.ingest`
+    # records a metered worker's reported zero as unknown, because a worker cannot measure its own spend.
     if abandoned:
         # ABANDON is the only provenance allowed an unknown cost, so it carries exactly the
         # no-report shape `execution_harness.abandon` writes; it can never record a pass.
@@ -225,8 +226,8 @@ def apply_result(state, result, timestamp, abandoned=False):
         expected = None if attempt.get("api_metered", True) else 0
         if result["api_cost_usd"] != expected:
             raise ValueError("An abandoned attempt records an unknown (null) cost on a metered resource and 0 on an unmetered one")
-    elif result["api_cost_usd"] is None:
-        raise ValueError("An unknown (null) cost is recorded only by abandoning the attempt")
+    elif result["api_cost_usd"] is None and not attempt.get("api_metered", True):
+        raise ValueError("An unknown (null) cost is recorded only on a metered resource; an unmetered one costs nothing")
     contract = wp.current(state["packet"])["contract"]
     checks = {check["id"] for check in contract["validation"]}
     ids = [check["check_id"] for check in result["validation"]]

@@ -641,9 +641,8 @@ class FeedbackTests(unittest.TestCase):
         reported = result(dispatch, feedback.replay(directory)[0]["packet"])
         reported.update(scope_status="unknown", api_cost_usd=None,
                         cost_evidence="Unknown: abandoned with no accounting (synthetic).")
-        # PR #122 Codex P2: only an abandonment may record an unknown cost, and not as zero when metered.
-        with self.assertRaisesRegex(ValueError, "only by abandoning"):
-            feedback.complete(directory, reported, self.tick())
+        # PR #122 Codex P2: an abandonment on a metered resource does not record zero. (A reported
+        # unknown cost on a metered attempt is allowed since ADR-101; see the test below.)
         abandoned = {**reported, "validation": [], "evidence": ["attempt-abandoned: worker wrote no report (synthetic)."]}
         with self.assertRaisesRegex(ValueError, "unknown \\(null\\) cost on a metered resource"):
             feedback.abandon(directory, {**abandoned, "api_cost_usd": 0}, self.tick())
@@ -658,6 +657,24 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(len(state["attempts"]), 2)
         self.assertNotEqual(state["attempts"][-1]["resource_id"], "paid")
         self.assertIsNone(state["attempts"][0]["result"]["api_cost_usd"], "the unknown cost stays recorded as unknown")
+
+    def test_a_reported_unknown_cost_is_accepted_only_on_a_metered_attempt(self):
+        # ADR-101 (OL-041) supersedes ADR-097 (2) for a metered attempt: a worker cannot measure its own
+        # spend, so ingest records its zero as unknown. An unmetered resource is known to cost nothing.
+        directory = self.start()
+        dispatch = self.reserve(directory)
+        self.assertFalse(feedback.replay(directory)[0]["attempts"][-1]["api_metered"])
+        reported = result(dispatch, feedback.replay(directory)[0]["packet"]) | {"api_cost_usd": None}
+        with self.assertRaisesRegex(ValueError, "only on a metered resource"):
+            feedback.complete(directory, reported, self.tick())
+        settings = router_config(resource("paid", tier=1, api=0.1, latency=0),
+                                 *(resource(f"tier-{tier}", tier=tier, latency=50) for tier in (2, 3, 4)))
+        directory = self.start(settings=settings)
+        dispatch = self.reserve(directory, settings)
+        self.assertTrue(feedback.replay(directory)[0]["attempts"][-1]["api_metered"])
+        reported = result(dispatch, feedback.replay(directory)[0]["packet"], outcome="PASS", passed=True)
+        feedback.complete(directory, reported | {"api_cost_usd": None}, self.tick())
+        self.assertIsNone(feedback.replay(directory)[0]["attempts"][-1]["result"]["api_cost_usd"])
 
     def test_repair_cannot_reset_an_exhausted_global_attempt_budget(self):
         directory = self.start(make_packet(retries=1))

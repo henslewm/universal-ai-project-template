@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-10 — OL-041 fixed in the launcher (ADR-101)
+
+- `scripts/worker_launcher.py` makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before the harness starts.
+- `scripts/execution_harness.py` `ingest` records a metered worker's reported 0 cost as unknown and returns `api_cost_unknown`; `scripts/feedback.py` accepts that `null` only on a metered attempt; the brief's report rules say so.
+- Regressions in `tests/test_feedback.py`, `tests/test_execution_harness.py` and `tests/test_worker_launcher.py`; the replace-the-brief tamper test is skipped on Windows. `EXECUTION_HARNESS_PROTOCOL.md`, `FEEDBACK_PROTOCOL.md`, ADR-101, OL-041 closed, state and handoff updated; cloud-launch budget 10.
+
 ## 2026-10-10 — First cloud worker launch (OL-036)
 
 - Ran the worker launcher end to end on Windows against Mistral Devstral Medium through Cline: one attempt refused for brief tampering and abandoned, a fresh-task retry `REPORT_WRITTEN` and ingested; independent checks found the work not acceptable. OL-041 opened; SRC-040 and SRC-041 added; state and handoff updated.
