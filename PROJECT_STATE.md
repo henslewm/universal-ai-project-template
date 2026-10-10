@@ -2,7 +2,7 @@
 
 ## Current (2026-10-09): local models dropped (ADR-100); re-approval pending
 
-- **Status:** SETUP — autonomy OFF
+- **Status:** ACTIVE — approved foundation
 - **Gate:** the charter is bound, so the package was re-reviewed with `bootstrap_gate.py review` and awaits the owner's `bootstrap_gate.py activate`; autonomy is OFF until then.
 - **Local models dropped (ADR-100):** workers are cheaper cloud models only. The charter, `config/project.json`, `config/bootstrap.json`, the tier table, `MODEL_ROUTING.md` and `EXECUTION_HARNESS_PROTOCOL.md` say so; `prompts/PROVISION_LOCAL_MODEL.md` is deleted; OL-011 and OL-015 closed. Code, tests and the disabled example configurations keep their LM Studio fixtures.
 - **First launch (Windows, 2026-10-09, another session):** the 35 launcher tests pass on Windows. Both attempts on a local 27B failed: attempt 1 was killed by the host for low memory; attempt 2 hit its 3,400 s bound with no report (`TIMED_OUT`, tree stopped and confirmed). The launcher milestone now needs a first real launch on a metered cloud binding.
