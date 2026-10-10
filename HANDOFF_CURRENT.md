@@ -1,6 +1,6 @@
 # Current Handoff
 
-- **Prepared:** 2026-10-09 (owner's Windows machine; ADR-100, local models dropped)
+- **Prepared:** 2026-10-10 (owner's Windows machine; first cloud launch)
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Gate:** the owner re-approved the foundation after the ADR-100 charter change (2026-10-10T02:49Z, commit `e055c50`).
 - **Scope:** the four ADR-096 milestones only; nothing outside them. Shipped milestones take defect fixes only (ADR-098).
@@ -12,7 +12,7 @@
 | Records current | Done: PR #121 merged (`4ac2d68`); frozen (ADR-098) |
 | Unknown-cost state (ADR-097) | Done: PR #122 merged (`4921427`); frozen (ADR-098) |
 | Auto-closeout (ADR-094) | Done: PR #116 merged (`066a37c`) after 4 Codex rounds; frozen (ADR-098) |
-| External worker launcher (OL-036) | Merged: PR #124 (`41e3a68`, ADR-099), marker fix #126 (`11e9822`), its round-2 fixes #128 (`9004eff`) and the hard-link fix #130 (`cd07187`). Not done until a first real launch on a cloud binding succeeds (ADR-100) |
+| External worker launcher (OL-036) | Merged: PR #124 (`41e3a68`, ADR-099), marker fix #126 (`11e9822`), its round-2 fixes #128 (`9004eff`) and the hard-link fix #130 (`cd07187`). Done 2026-10-10: the first real metered-cloud launch ran end to end on Windows within the packet limits (Mistral Devstral Medium, `SHB-CLOUD-002`, `REPORT_WRITTEN`, ingested; ADR-100's condition). Its work was not accepted; OL-041 tracks the launcher defects |
 
 ## Launcher review state (verified 2026-10-09)
 
@@ -21,12 +21,12 @@
 
 ## Next action
 
-1. First real launch on a metered **cloud** binding (local models are out of scope, ADR-100). The architect session may run it (ADR-099):
-   - The launcher tests pass on Windows (35 run, 1 skipped, 2026-10-09).
-   - An `abandon` on a metered resource records an unknown cost and bars paid routing for that task (ADR-097), so a failed attempt needs a fresh task.
-   - A Node-based harness such as Cline needs an absolute-path wrapper that sets `PATH` (and `SystemRoot` on Windows); the child environment holds only the binding's credential variable. A working wrapper is `~/worker-runs/cline_wrapper.py` on the owner's Windows machine.
-   - Set `role_api_budget_usd` in the router configuration; the architect never raises it.
-   - The 2026-10-09 local attempts are in `~/worker-runs/2026-10-09-first-launch`; another session owned that ledger and its attempt 2 still needs `abandon` if that session did not record it.
+1. Fix OL-041 (issue #139): the launcher, not a wrapper, should stop a worker editing its brief, and a worker's $0 on a metered resource should not be recorded as a known cost.
+2. Run setup that works on Windows (`~/worker-runs/2026-10-10-cloud-launch`):
+   - The wrapper `cline_wrapper.py` sets `PATH` with Python and Windows PowerShell (Cline runs commands through `powershell`; without it every command fails), `PATHEXT`, `SystemRoot` and an empty `HOME`, and makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before Cline starts.
+   - Binding: provider `mistral`, model `devstral-medium-latest`, `credential_env` `MISTRAL_API_KEY`; router `role_api_budget_usd` 2. `ANTHROPIC_API_KEY` on this machine is rejected by Anthropic ("invalid x-api-key").
+   - An `abandon` on a metered resource bars paid routing for that task (ADR-097), so a failed attempt needs a fresh task.
+   - Verify a worker's claims yourself: in a smoke test the model invented a command's output when the command failed.
 
 ## Notes
 

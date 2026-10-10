@@ -1,13 +1,21 @@
 # Project State
 
-## Current (2026-10-09): local models dropped (ADR-100); foundation re-approved
+## Current (2026-10-10): launcher milestone done on the first cloud launch; its work is not accepted
 
 - **Status:** ACTIVE — approved foundation
+- **First cloud launch (OL-036):** Mistral `devstral-medium-latest` through Cline CLI 3.0.70 on Windows (`~/worker-runs/2026-10-10-cloud-launch` on the owner's Windows machine). Attempt `SHB-CLOUD-001` ran but the launcher refused it: the worker edited its own `brief.json` (inserted `"documents": []`), so it was abandoned. Retry `SHB-CLOUD-002` (brief and rules made read-only by the wrapper): launcher `REPORT_WRITTEN`, exit 0, tree stopped, child environment `MISTRAL_API_KEY` only; ingested as the worker's PASS claim, `REVIEW_PENDING`.
+- **Independent check of `SHB-CLOUD-002`:** the 8 worker tests pass and the contract's six samples give the specified results when passed as lists; but it rejects `bytes`/`bytearray` (interface says "a byte sequence"), it created `tests/__init__.py` against "create only the files the contract names", and it reported `api_cost_usd: 0.0` while the transcript shows about 1.14M input and 7K output tokens (about USD 0.47). Not accepted; OL-041 tracks the launcher gaps.
+- **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) done: the first real metered-cloud launch within the packet limits ran end to end (ADR-100's completion condition; about USD 0.47 against the USD 2 budget). OL-041 tracks the separate tampering and cost-reporting defects.
+- **Open:** OL-041 (worker tampering and cost misreport), OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-09: local models dropped (ADR-100); foundation re-approved
+
+- **Status:** ACTIVE — approved foundation (history)
 - **Gate:** the charter is bound, so the package was re-reviewed with `bootstrap_gate.py review`; the owner re-activated it on 2026-10-10T02:49Z (approval receipt in `config/bootstrap.json`, commit `e055c50`).
 - **Local models dropped (ADR-100):** workers are cheaper cloud models only. The charter, `config/project.json`, `config/bootstrap.json`, the tier table, `MODEL_ROUTING.md` and `EXECUTION_HARNESS_PROTOCOL.md` say so; `prompts/PROVISION_LOCAL_MODEL.md` is deleted; OL-011 and OL-015 closed. Code, tests and the disabled example configurations keep their LM Studio fixtures.
 - **First launch (Windows, 2026-10-09, another session):** the 35 launcher tests pass on Windows. Both attempts on a local 27B failed: attempt 1 was killed by the host for low memory; attempt 2 hit its 3,400 s bound with no report (`TIMED_OUT`, tree stopped and confirmed). The launcher milestone now needs a first real launch on a metered cloud binding.
 - **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) merged; not done until a cloud launch succeeds.
-- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+- **Open (then):** OL-037, OL-039, OL-034.
 
 ## 2026-10-09: launcher fixes merged; architect may launch (ADR-099)
 
