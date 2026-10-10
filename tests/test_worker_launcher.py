@@ -19,6 +19,8 @@ from unittest import mock
 
 from test_execution_harness import HarnessBase, configuration
 from test_feedback import options, result
+from test_model_router import config as router_config
+from test_model_router import resource
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,7 +47,10 @@ observed = {"environment_names": sorted(os.environ), "argv": sys.argv[1:], "stdi
             "rules_writable": os.access(os.path.join(os.path.dirname(brief_path), "BOUNDED_WORKER_RULES.md"), os.W_OK)}
 with open(os.path.join(here, "observed.json"), "w", encoding="utf-8") as stream:
     json.dump(observed, stream)
-if mode in ("report", "orphan", "tamper"):
+if mode == "usage":
+    # Print a harness usage line the way Cline's --json does, on stdout (ADR-102).
+    print('{"ts":"2026-10-10T00:00:00Z","type":"run_result","finishReason":"completed","iterations":3,"usage":{"inputTokens":1000,"outputTokens":500,"cacheReadTokens":200,"cacheWriteTokens":0,"totalCost":0}}', flush=True)
+if mode in ("report", "orphan", "tamper", "usage"):
     with open(brief_path, encoding="utf-8") as stream:
         brief = json.load(stream)
     report = {"dispatch_id": brief["dispatch_id"], "outcome": "FAIL",
@@ -174,6 +179,27 @@ class LauncherBase(HarnessBase):
 
 
 class LauncherRunTests(LauncherBase):
+    def test_a_declared_usage_format_saves_the_harness_output_and_ingest_measures_it(self):
+        # ADR-102: stdout goes to a log beside the launch guard, outside the run directory, and
+        # ingest prices its usage line instead of trusting the worker's own figure.
+        self.config["harnesses"][0]["usage_format"] = "cline-json"
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger("usage-ledger")
+        prepared = self.prepare("usage-run")
+        rundir = Path(prepared["destination"])
+        self.mode("usage")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 0, err)
+        outcome = json.loads(out)
+        log = launcher.harness.harness_output_path(self.ledger, prepared["dispatch_id"])
+        self.assertEqual(outcome["harness_output"], str(log))
+        self.assertIn('"run_result"', log.read_text(encoding="utf-8"))
+        self.assertNotIn('"run_result"', err, "a captured stdout is not also echoed")
+        ingested = harness.ingest(self.ledger, self.config, rundir / "report.json")
+        self.assertTrue(ingested["api_cost_measured"])
+        self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["api_cost_usd"], 0.085)
+
     def test_launch_runs_the_prepared_harness_with_only_the_named_credential(self):
         prepared = self.prepare()
         rundir = Path(prepared["destination"])

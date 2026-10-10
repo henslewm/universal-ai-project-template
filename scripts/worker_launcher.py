@@ -203,7 +203,8 @@ def prepared_run(directory, config, rundir, root, timeout=None):
     return {"dispatch_id": state["pending"], "argv": plan["argv"], "names": plan["required_environment"],
             "environment": child_environment(plan["required_environment"]), "deadline": attempt["deadline"],
             "bound": remaining if timeout is None else min(float(timeout), remaining), "rundir": rundir,
-            "expected": expected, "ledger": (Path(directory), sequence, head)}
+            "expected": expected, "ledger": (Path(directory), sequence, head),
+            "usage_format": selected.get("usage_format")}
 
 
 class Interrupts:
@@ -252,6 +253,10 @@ def launch(directory, config, rundir, root, timeout=None):
     guard = launch_guard(run["ledger"][0], run["dispatch_id"])
     timed_out = interrupted = False
     bound = run["bound"]
+    # ADR-102: a harness that reports its usage on stdout has it saved beside the guard, where the worker
+    # is never directed, so ingest can price it; every other harness's output still goes to stderr.
+    output_path = harness.harness_output_path(run["ledger"][0], run["dispatch_id"]) if run["usage_format"] else None
+    output = None
     with Interrupts() as interrupts:
         interrupts.holding = True
         # Exclusive creation of the guard beside the ledger, then of the marker in RUNDIR, makes this
@@ -283,16 +288,21 @@ def launch(directory, config, rundir, root, timeout=None):
             require_unreported(run["rundir"])
             remaining_seconds(run["deadline"])
             protect_brief(run["rundir"])
+            if output_path:
+                output = output_path.open("xb")
         except (ValueError, OSError):
             marker.unlink()  # Nothing ran, so the run directory is not spent.
             guard.unlink()
             raise
         try:
             process = acceptance.ProcessTree.launch(run["argv"], None, env=run["environment"],
-                                                    stdin=subprocess.DEVNULL, stdout=2, stderr=2)
+                                                    stdin=subprocess.DEVNULL, stdout=output or 2, stderr=2)
         except OSError as exc:
             marker.unlink()  # Nothing ran, so the run directory is not spent.
             guard.unlink()
+            if output:
+                output.close()
+                output_path.unlink(missing_ok=True)
             raise ValueError(f"The harness could not be started, so nothing ran: {exc}") from exc
         try:
             with acceptance.ProcessTree.own(process) as tree:
@@ -308,6 +318,9 @@ def launch(directory, config, rundir, root, timeout=None):
                     interrupts.holding = True  # The teardown in own() completes before any interrupt acts.
         except KeyboardInterrupt:
             interrupted = True
+        finally:
+            if output:
+                output.close()
         require(tree.stopped, f"The harness process tree (pid {process.pid}) could not be confirmed stopped; "
                               "stop it before recording the attempt")
         # The worker can write in its run directory, so the one-launch guard is checked and, once the
@@ -334,7 +347,8 @@ def launch(directory, config, rundir, root, timeout=None):
     return {"status": status, "dispatch_id": run["dispatch_id"], "started": True,
             "harness_exit_code": process.returncode, "tree_stopped": True, "report_present": present,
             "next_action": "ingest" if present else "abandon", "bound_seconds": round(bound, 3),
-            "environment_names": run["names"], "recorded_in_ledger": False, "independent_acceptance": False}
+            "environment_names": run["names"], "harness_output": str(output_path) if output_path else None,
+            "recorded_in_ledger": False, "independent_acceptance": False}
 
 
 def main(argv=None):

@@ -12,7 +12,7 @@ import json
 import re
 import stat
 import sys
-from decimal import ROUND_CEILING
+from decimal import ROUND_CEILING, Decimal
 from pathlib import Path, PureWindowsPath
 
 import cli_colors
@@ -271,6 +271,71 @@ def binding_for(config, routing):
     return binding, harness
 
 
+def harness_output_path(ledger, dispatch_id):
+    """Where the launcher saves a usage-reporting harness's stdout (ADR-102).
+
+    It sits in the launch-guard store beside the resolved ledger, a path the worker is never given."""
+    directory = Path(ledger).resolve()
+    return directory.with_name(f".{directory.name}.launch-guards") / f"{dispatch_id}.harness-output.log"
+
+
+def measured_usage(text):
+    """Token usage from the last top-level `run_result` line of Cline's --json output, or None (ADR-102).
+
+    Only a whole line that parses as an object with type run_result counts, so text nested inside an event,
+    such as a worker's command output, is never read as usage. A malformed last run_result is not usage."""
+    found = None
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "run_result":
+            found = event
+    usage = found.get("usage") if found else None
+    if not isinstance(usage, dict):
+        return None
+    values = {}
+    for key, name, default in (("inputTokens", "input_tokens", None), ("outputTokens", "output_tokens", None),
+                               ("cacheReadTokens", "cache_read_tokens", 0)):
+        value = usage.get(key, default)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return None
+        values[name] = value
+    return values
+
+
+def measured_cost(directory, config, state):
+    """Price the harness's own usage for the pending attempt at the dispatch's recorded rates, or None."""
+    attempt = state["attempts"][-1]
+    bindings = [item for item in config["bindings"] if item["resource_id"] == attempt["resource_id"]]
+    if len(bindings) != 1:
+        return None
+    selected = next(item for item in config["harnesses"] if item["id"] == bindings[0]["harness_id"])
+    if selected.get("usage_format") != "cline-json":
+        return None
+    path = harness_output_path(directory, state["pending"])
+    if path.is_symlink() or not path.is_file():
+        return None
+    usage = measured_usage(path.read_text(encoding="utf-8", errors="replace"))
+    if usage is None:
+        return None
+    dispatch = None
+    for event_path in sorted(Path(directory).glob("*.json"), reverse=True):
+        event = wp.read_json(event_path)
+        if (event.get("kind") == "DISPATCH"
+                and event["data"]["plan"]["routing"]["decision"]["decision_id"] == state["pending"]):
+            dispatch = event["data"]
+            break
+    require(dispatch is not None, "The pending reservation has no DISPATCH event")
+    resource = routed_resource(dispatch["config"], dispatch["plan"]["routing"])
+    input_price, output_price = router.dec(resource["input_million_usd"]), router.dec(resource["output_million_usd"])
+    # Cache-read tokens are charged at the full input price: an overcount, never an undercount.
+    cost = ((usage["input_tokens"] + usage["cache_read_tokens"]) * input_price
+            + usage["output_tokens"] * output_price) / Decimal(1_000_000)
+    return usage, input_price, output_price, cost.quantize(Decimal("0.000001"), rounding=ROUND_CEILING)
+
+
 def routed_resource(router_config, routing):
     identifier = routing["decision"]["selected"]["resource_id"]
     matches = [item for item in router_config["resources"] if item["id"] == identifier]
@@ -507,17 +572,26 @@ def ingest(directory, config, report_path):
     report = wp.read_json(path)
     report_valid(report, wp.current(state["packet"])["contract"], state["pending"],
                  config["limits"], path.stat().st_size)
-    # ADR-101 (OL-041): a worker cannot measure its own spend (Cline reports 0 for every provider), so a
-    # reported zero on a resource that declared an API price at dispatch is recorded as unknown, never as
-    # free (ADR-097). A stated nonzero cost is still the worker's own figure.
-    unknown = bool(state["attempts"][-1].get("api_metered", True)) and report["api_cost_usd"] == 0
+    # ADR-102: when the launcher saved the harness's own usage, its tokens at the dispatch's recorded prices
+    # are the cost, whatever the worker claimed. ADR-101 (OL-041): otherwise a reported zero on a resource
+    # that declared an API price is recorded as unknown, never as free (ADR-097); a stated nonzero cost is
+    # still the worker's own figure.
+    measured = measured_cost(directory, config, state)
+    unknown = not measured and bool(state["attempts"][-1].get("api_metered", True)) and report["api_cost_usd"] == 0
+    if measured:
+        usage, input_price, output_price, cost = measured
+        note = (f"Measured from the harness's own usage (ADR-102): {usage['input_tokens']} input and "
+                f"{usage['cache_read_tokens']} cache-read tokens at {input_price} USD per million, "
+                f"{usage['output_tokens']} output tokens at {output_price} USD per million = {cost} USD. "
+                "Worker's statement: ")
+        report = {**report, "api_cost_usd": float(cost), "cost_evidence": (note + report["cost_evidence"])[:2000]}
     if unknown:
         note = ("Unknown: the routed resource declared an API price and the worker reported 0, which it "
                 "cannot measure (ADR-101). Worker's statement: ")
         report = {**report, "api_cost_usd": None, "cost_evidence": (note + report["cost_evidence"])[:2000]}
     recorded = (feedback.complete_cost_unknown if unknown else feedback.complete)(directory, report)
     return {"status": recorded["status"], "outcome": report["outcome"], "reason": recorded["reason"],
-            "api_cost_unknown": unknown,
+            "api_cost_unknown": unknown, "api_cost_measured": bool(measured),
             "dispatch_id": report["dispatch_id"],
             "attempts_used": len(recorded["attempts"]), "remaining_task_attempts": recorded["total_cap"] - len(recorded["attempts"]),
             "evidence_preserved": bool(recorded["attempts"][-1].get("fingerprint")) or report["outcome"] == "PASS",

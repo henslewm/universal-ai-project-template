@@ -21,7 +21,7 @@
 
 ## Next action
 
-1. OL-041 is fixed by ADR-101. The launcher now makes the brief and rules read-only, so the wrapper's own read-only step is redundant but harmless. A metered worker's $0 is recorded as unknown, so a task gets one cloud attempt before the architect must repair or decide.
+1. Launch on the cloud binding with `contract-v2.json` (in `~/worker-runs/2026-10-10-cloud-launch`), which names `bytes` input and a returned invalid result and adds the fixed `VAL-CONTRACT` checker. The harness configuration there declares `usage_format: "cline-json"`, so ingest measures the cost (ADR-102) and paid retries stay possible within the budget. The launcher makes the brief and rules read-only (ADR-101); the wrapper's own read-only step is redundant but harmless.
 2. Run setup that works on Windows (`~/worker-runs/2026-10-10-cloud-launch`):
    - The wrapper `cline_wrapper.py` sets `PATH` with Python and Windows PowerShell (Cline runs commands through `powershell`; without it every command fails), `PATHEXT`, `SystemRoot` and an empty `HOME`, and makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before Cline starts.
    - Binding: provider `mistral`, model `devstral-medium-latest`, `credential_env` `MISTRAL_API_KEY`; router `role_api_budget_usd` 10 (owner, 2026-10-10). `ANTHROPIC_API_KEY` on this machine is rejected by Anthropic ("invalid x-api-key").
@@ -37,5 +37,5 @@
 - On macOS the launcher tests fail (32 of 34 errors: "Startup document path contains a symlink") under the default `TMPDIR`, because `/var` links to `/private/var`. Run them with `TMPDIR` set to a directory whose path has no link. The tests and `closeout.py ready` also need `jsonschema` (`requirements-work-packets.txt`), which the Mac's system Python lacks.
 - After switching branches, run `python3 scripts/sync_skills.py` before the suite. The gitignored payload keeps the previous branch's files (OL-037), and a stale one fails `test_bootstrap_integration`.
 - `test_cli_exit_codes` times out when stdin is an open pipe (OL-039); run the suite with `< /dev/null`.
-- Next free ADR: ADR-102. ADR-062: one writer per tree. A session on the owner's Mac also works this repository; check for its pushes before multi-file work.
+- Next free ADR: ADR-103. ADR-062: one writer per tree. A session on the owner's Mac also works this repository; check for its pushes before multi-file work.
 - Never write the Codex trigger phrase in a PR comment unless requesting a review.

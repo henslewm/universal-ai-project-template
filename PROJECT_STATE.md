@@ -1,6 +1,14 @@
 # Project State
 
-## Current (2026-10-10): OL-041 fixed in the launcher (ADR-101)
+## Current (2026-10-10): worker cost measured from harness usage (ADR-102)
+
+- **Status:** ACTIVE — approved foundation
+- **Measured cost (ADR-102):** the launcher saves a Cline run's stdout beside the launch guard, and `ingest` prices its token counts at the dispatch's recorded rates as a known cost, so paid retries stay possible within `role_api_budget_usd` (10 for the cloud-launch configuration).
+- **Third cloud run (`SHB-CLOUD-003`, before ADR-102):** `REPORT_WRITTEN`, brief untouched, only the two named files created; cost recorded as unknown under ADR-101 (about USD 0.25 by its token counts). Not accepted: invalid frames raise instead of returning a result, and `bytes` input is rejected. The run contract (`contract-v2.json` in the run folder) now names `bytes` input and a returned invalid result, and adds a fixed checker (`VAL-CONTRACT`).
+- **Milestones:** all four ADR-096 milestones done.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-10: OL-041 fixed in the launcher (ADR-101)
 
 - **Status:** ACTIVE — approved foundation
 - **OL-041 fixed (ADR-101):** the launcher makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before the harness starts, and `ingest` records a metered worker's reported 0 cost as unknown (`null`). Consequence: a task gets one cloud attempt before the architect must repair or decide. 538 tests pass on Windows (7 skipped).
