@@ -12,7 +12,7 @@
 | Records current | Done: PR #121 merged (`4ac2d68`); frozen (ADR-098) |
 | Unknown-cost state (ADR-097) | Done: PR #122 merged (`4921427`); frozen (ADR-098) |
 | Auto-closeout (ADR-094) | Done: PR #116 merged (`066a37c`) after 4 Codex rounds; frozen (ADR-098) |
-| External worker launcher (OL-036) | Merged: PR #124 (`41e3a68`, ADR-099), marker fix #126 (`11e9822`), its round-2 fixes #128 (`9004eff`) and the hard-link fix #130 (`cd07187`). A real cloud launch ran end to end on Windows on 2026-10-10 (Mistral Devstral Medium, `SHB-CLOUD-002`, `REPORT_WRITTEN`, ingested); its work was not accepted. Completion is the owner's call (OL-041) |
+| External worker launcher (OL-036) | Merged: PR #124 (`41e3a68`, ADR-099), marker fix #126 (`11e9822`), its round-2 fixes #128 (`9004eff`) and the hard-link fix #130 (`cd07187`). Done 2026-10-10: the first real metered-cloud launch ran end to end on Windows within the packet limits (Mistral Devstral Medium, `SHB-CLOUD-002`, `REPORT_WRITTEN`, ingested; ADR-100's condition). Its work was not accepted; OL-041 tracks the launcher defects |
 
 ## Launcher review state (verified 2026-10-09)
 
@@ -21,7 +21,7 @@
 
 ## Next action
 
-1. Owner: decide whether the 2026-10-10 cloud launch completes the launcher milestone, and whether to fix OL-041 (the launcher, not a wrapper, should stop a worker editing its brief; worker-reported cost is trusted).
+1. Fix OL-041 (issue #139): the launcher, not a wrapper, should stop a worker editing its brief, and a worker's $0 on a metered resource should not be recorded as a known cost.
 2. Run setup that works on Windows (`~/worker-runs/2026-10-10-cloud-launch`):
    - The wrapper `cline_wrapper.py` sets `PATH` with Python and Windows PowerShell (Cline runs commands through `powershell`; without it every command fails), `PATHEXT`, `SystemRoot` and an empty `HOME`, and makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before Cline starts.
    - Binding: provider `mistral`, model `devstral-medium-latest`, `credential_env` `MISTRAL_API_KEY`; router `role_api_budget_usd` 2. `ANTHROPIC_API_KEY` on this machine is rejected by Anthropic ("invalid x-api-key").
