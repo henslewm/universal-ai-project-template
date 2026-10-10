@@ -21,7 +21,8 @@
 
 ## Next action
 
-1. Launch on the cloud binding with `contract-v2.json` (in `~/worker-runs/2026-10-10-cloud-launch`), which names `bytes` input and a returned invalid result and adds the fixed `VAL-CONTRACT` checker. The harness configuration there declares `usage_format: "cline-json"`, so ingest measures the cost (ADR-102) and paid retries stay possible within the budget. The launcher makes the brief and rules read-only (ADR-101); the wrapper's own read-only step is redundant but harmless.
+1. `SHB-CLOUD-004` (2026-10-10) met contract v2 at a measured USD 0.36; its report is ingested and `REVIEW_PENDING`. Next: run independent acceptance on it with `scripts/acceptance.py` (`ACCEPTANCE_PROTOCOL.md`), then launch further tasks the same way.
+2. Launch on the cloud binding with `contract-v2.json` (in `~/worker-runs/2026-10-10-cloud-launch`), which names `bytes` input and a returned invalid result and adds the fixed `VAL-CONTRACT` checker. The harness configuration there declares `usage_format: "cline-json"`, so ingest measures the cost (ADR-102) and paid retries stay possible within the budget. The launcher makes the brief and rules read-only (ADR-101); the wrapper's own read-only step is redundant but harmless.
 2. Run setup that works on Windows (`~/worker-runs/2026-10-10-cloud-launch`):
    - The wrapper `cline_wrapper.py` sets `PATH` with Python and Windows PowerShell (Cline runs commands through `powershell`; without it every command fails), `PATHEXT`, `SystemRoot` and an empty `HOME`, and makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before Cline starts.
    - Binding: provider `mistral`, model `devstral-medium-latest`, `credential_env` `MISTRAL_API_KEY`; router `role_api_budget_usd` 10 (owner, 2026-10-10). `ANTHROPIC_API_KEY` on this machine is rejected by Anthropic ("invalid x-api-key").

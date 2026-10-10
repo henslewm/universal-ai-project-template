@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-10 — Fourth cloud run meets its contract at a measured cost
+
+- `SHB-CLOUD-004` on `contract-v2.json` passed every independent check; the ledger recorded its cost as a measured USD 0.361109 (ADR-102) against the worker's reported 0.0. State, handoff and SRC-042 updated.
+
 ## 2026-10-10 — Worker cost measured from harness usage (ADR-102)
 
 - `config/execution-harness.schema.json` gains `usage_format` (`cline-json`). `scripts/worker_launcher.py` forwards a declaring harness's stdout to stderr, keeps no transcript, and records only its token counts in `<dispatch_id>.usage.json` beside the launch guard (`usage_record`); `scripts/execution_harness.py` (`usage_record_path`, `UsageTally`, `measured_usage`, `measured_cost`) prices the last `run_result` token counts at the dispatch's rates in `ingest` and returns `api_cost_measured`.
