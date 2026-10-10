@@ -1,6 +1,14 @@
 # Project State
 
-## Current (2026-10-10): launcher milestone done on the first cloud launch; its work is not accepted
+## Current (2026-10-10): OL-041 fixed in the launcher (ADR-101)
+
+- **Status:** ACTIVE — approved foundation
+- **OL-041 fixed (ADR-101):** the launcher makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before the harness starts, and `ingest` records a metered worker's reported 0 cost as unknown (`null`). Consequence: a task gets one cloud attempt before the architect must repair or decide. 538 tests pass on Windows (7 skipped).
+- **Budget:** the cloud-launch router configuration's `role_api_budget_usd` is 10 (owner, 2026-10-10).
+- **Milestones:** all four ADR-096 milestones done; the launcher milestone completed on the first cloud launch.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-10: launcher milestone done on the first cloud launch; its work is not accepted
 
 - **Status:** ACTIVE — approved foundation
 - **First cloud launch (OL-036):** Mistral `devstral-medium-latest` through Cline CLI 3.0.70 on Windows (`~/worker-runs/2026-10-10-cloud-launch` on the owner's Windows machine). Attempt `SHB-CLOUD-001` ran but the launcher refused it: the worker edited its own `brief.json` (inserted `"documents": []`), so it was abandoned. Retry `SHB-CLOUD-002` (brief and rules made read-only by the wrapper): launcher `REPORT_WRITTEN`, exit 0, tree stopped, child environment `MISTRAL_API_KEY` only; ingested as the worker's PASS claim, `REVIEW_PENDING`.

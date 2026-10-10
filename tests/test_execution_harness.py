@@ -675,6 +675,38 @@ class HarnessReportTests(HarnessBase):
         self.assertIsNone(attempt["result"]["api_cost_usd"])
         self.assertIn("Unknown", attempt["result"]["cost_evidence"])
 
+    def test_a_zero_cost_report_on_a_metered_attempt_is_recorded_as_unknown(self):
+        # OL-041 / ADR-101: a worker cannot measure its own spend (Cline reports 0 for every provider), so
+        # a reported zero on a resource that declared an API price is recorded as unknown, never as free.
+        self.router = router_config(resource(api=0.1))
+        self.ledger = self.fresh_ledger("metered-zero-ledger")
+        prepared = self.prepare()
+        value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="PASS", passed=True)
+        value.update(api_cost_usd=0, cost_evidence="No external API calls made.")
+        path = Path(prepared["destination"]) / "report.json"
+        wp.write_new(path, json.dumps(value, indent=2))
+        ingested = harness.ingest(self.ledger, self.config, path)
+        self.assertEqual(ingested["outcome"], "PASS")
+        self.assertTrue(ingested["api_cost_unknown"])
+        attempt = harness.feedback.replay(self.ledger)[0]["attempts"][-1]
+        self.assertTrue(attempt["api_metered"])
+        self.assertIsNone(attempt["result"]["api_cost_usd"])
+        self.assertIn("Unknown", attempt["result"]["cost_evidence"])
+        self.assertIn("No external API calls made.", attempt["result"]["cost_evidence"])
+
+    def test_a_stated_metered_cost_and_an_unmetered_zero_are_recorded_as_reported(self):
+        for name, api, cost in (("metered-stated", 0.1, 0.25), ("unmetered-zero", 0, 0)):
+            with self.subTest(name=name):
+                self.router = router_config(resource(api=api))
+                self.ledger = self.fresh_ledger(name)
+                prepared = self.prepare(name + "-run")
+                value = result({"dispatch_id": prepared["dispatch_id"]}, self.packet, outcome="FAIL", passed=False)
+                value["api_cost_usd"] = cost
+                path = Path(prepared["destination"]) / "report.json"
+                wp.write_new(path, json.dumps(value, indent=2))
+                self.assertFalse(harness.ingest(self.ledger, self.config, path)["api_cost_unknown"])
+                self.assertEqual(harness.feedback.replay(self.ledger)[0]["attempts"][-1]["result"]["api_cost_usd"], cost)
+
     def test_a_worker_report_must_state_a_numeric_cost(self):
         # Only abandonment records an unknown cost; a worker that reports states a number.
         prepared = self.prepare()

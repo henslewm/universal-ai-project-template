@@ -73,6 +73,19 @@ def verify_prepared(rundir, expected):
             "invocation.json differs from what the current configuration prepares for this attempt")
 
 
+def protect_brief(rundir):
+    """Make the brief and rules read-only before the harness starts (OL-041).
+
+    The worker runs in its run directory, and the first cloud worker edited its own brief. This is
+    defense in depth: only the permissions change, never the content, and the byte checks stay the control.
+    """
+    for name in ("brief.json", "BOUNDED_WORKER_RULES.md"):
+        path = rundir / name
+        mode = os.lstat(path).st_mode
+        require(stat.S_ISREG(mode), f"{name} is not a regular file")
+        os.chmod(path, stat.S_IMODE(mode) & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
+
+
 def launch_guard(directory, dispatch_id):
     """The one-launch guard, beside the ledger: a path the worker is never given, so it lasts the whole run.
 
@@ -269,6 +282,7 @@ def launch(directory, config, rundir, root, timeout=None):
             verify_prepared(run["rundir"], run["expected"])
             require_unreported(run["rundir"])
             remaining_seconds(run["deadline"])
+            protect_brief(run["rundir"])
         except (ValueError, OSError):
             marker.unlink()  # Nothing ran, so the run directory is not spent.
             guard.unlink()

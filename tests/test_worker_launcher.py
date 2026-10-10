@@ -40,7 +40,9 @@ here = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(here, "mode.txt"), encoding="utf-8") as stream:
     mode = stream.read().strip()
 observed = {"environment_names": sorted(os.environ), "argv": sys.argv[1:], "stdin": sys.stdin.read(),
-            "credential_sha256": hashlib.sha256(os.environ.get("SYNTH_LAUNCH_CREDENTIAL", "").encode()).hexdigest()}
+            "credential_sha256": hashlib.sha256(os.environ.get("SYNTH_LAUNCH_CREDENTIAL", "").encode()).hexdigest(),
+            "brief_writable": os.access(brief_path, os.W_OK),
+            "rules_writable": os.access(os.path.join(os.path.dirname(brief_path), "BOUNDED_WORKER_RULES.md"), os.W_OK)}
 with open(os.path.join(here, "observed.json"), "w", encoding="utf-8") as stream:
     json.dump(observed, stream)
 if mode in ("report", "orphan", "tamper"):
@@ -77,9 +79,23 @@ if mode == "unmark-wait":
     while not os.path.exists(os.path.join(here, "release.txt")) and time.monotonic() < deadline:
         time.sleep(0.02)
 if mode == "tamper":
-    # Change the brief while the run is under way; the launcher must notice once the tree stops.
-    with open(brief_path, "a", encoding="utf-8") as stream:
-        stream.write("\n")
+    # Replace the brief while the run is under way; the launcher must notice once the tree stops.
+    # The brief is read-only (OL-041), so this replaces it through the writable directory (POSIX).
+    with open(brief_path, encoding="utf-8") as stream:
+        text = stream.read()
+    os.remove(brief_path)
+    with open(brief_path, "w", encoding="utf-8") as stream:
+        stream.write(text + "\n")
+if mode == "append":
+    # Try to edit the brief in place; it is read-only, so the write must fail and change nothing.
+    try:
+        with open(brief_path, "a", encoding="utf-8") as stream:
+            stream.write("\n")
+        outcome = "written"
+    except OSError:
+        outcome = "refused"
+    with open(os.path.join(here, "append.txt"), "w", encoding="utf-8") as stream:
+        stream.write(outcome)
 if mode == "orphan":
     # Leave a descendant behind that keeps writing a heartbeat for as long as it lives.
     beat = os.path.join(here, "heartbeat.txt")
@@ -462,6 +478,22 @@ class LauncherRunTests(LauncherBase):
         self.assertEqual(code, 130, out + err)
         self.assertEqual(json.loads(out)["status"], "INTERRUPTED")
 
+    def test_the_brief_and_rules_are_read_only_while_the_harness_runs(self):
+        # OL-041: the first cloud worker edited its own brief; only the post-run check caught it.
+        prepared = self.prepare()
+        rundir = Path(prepared["destination"])
+        before = (rundir / "brief.json").read_bytes()
+        self.mode("append")
+        with self.environment():
+            code, out, err = self.run_cli(rundir)
+        self.assertEqual(code, 2, err)  # NO_REPORT: the harness only tried to edit its brief.
+        seen = self.observed()
+        self.assertFalse(seen["brief_writable"])
+        self.assertFalse(seen["rules_writable"])
+        self.assertEqual((self.tool / "append.txt").read_text(encoding="utf-8"), "refused")
+        self.assertEqual((rundir / "brief.json").read_bytes(), before)
+
+    @unittest.skipIf(sys.platform == "win32", "Windows refuses to delete a read-only file, so a replace cannot happen")
     def test_a_run_directory_changed_during_the_run_is_reported_not_trusted(self):
         prepared = self.prepare()
         rundir = Path(prepared["destination"])

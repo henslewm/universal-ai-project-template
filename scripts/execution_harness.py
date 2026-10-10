@@ -369,7 +369,8 @@ def brief(context, routing, binding, dispatch_id, paths, startup):
                 " The contract's validation id goes in check_id, not id. passed is a boolean."
                 " failure_code, expected and actual are strings and may be empty. evidence is a list of strings.",
                 "outcome is one of outcomes; scope_status is one of scope_status_values.",
-                "api_cost_usd is a number and cost_evidence is a string; state them plainly.",
+                "api_cost_usd is a number and cost_evidence is a string; state them plainly."
+                " A worker cannot measure its own spend, so on a priced resource a reported 0 is recorded as unknown.",
                 "Claim PASS only when every check passed and scope_status is within.",
                 "Record anything outside this contract as a discovery; never widen scope or edit the contract.",
                 "Never include credentials, tokens or private keys in any field.",
@@ -506,8 +507,17 @@ def ingest(directory, config, report_path):
     report = wp.read_json(path)
     report_valid(report, wp.current(state["packet"])["contract"], state["pending"],
                  config["limits"], path.stat().st_size)
-    recorded = feedback.complete(directory, report)
+    # ADR-101 (OL-041): a worker cannot measure its own spend (Cline reports 0 for every provider), so a
+    # reported zero on a resource that declared an API price at dispatch is recorded as unknown, never as
+    # free (ADR-097). A stated nonzero cost is still the worker's own figure.
+    unknown = bool(state["attempts"][-1].get("api_metered", True)) and report["api_cost_usd"] == 0
+    if unknown:
+        note = ("Unknown: the routed resource declared an API price and the worker reported 0, which it "
+                "cannot measure (ADR-101). Worker's statement: ")
+        report = {**report, "api_cost_usd": None, "cost_evidence": (note + report["cost_evidence"])[:2000]}
+    recorded = (feedback.complete_cost_unknown if unknown else feedback.complete)(directory, report)
     return {"status": recorded["status"], "outcome": report["outcome"], "reason": recorded["reason"],
+            "api_cost_unknown": unknown,
             "dispatch_id": report["dispatch_id"],
             "attempts_used": len(recorded["attempts"]), "remaining_task_attempts": recorded["total_cap"] - len(recorded["attempts"]),
             "evidence_preserved": bool(recorded["attempts"][-1].get("fingerprint")) or report["outcome"] == "PASS",
