@@ -38,5 +38,5 @@
 - On macOS the launcher tests fail (32 of 34 errors: "Startup document path contains a symlink") under the default `TMPDIR`, because `/var` links to `/private/var`. Run them with `TMPDIR` set to a directory whose path has no link. The tests and `closeout.py ready` also need `jsonschema` (`requirements-work-packets.txt`), which the Mac's system Python lacks.
 - After switching branches, run `python3 scripts/sync_skills.py` before the suite. The gitignored payload keeps the previous branch's files (OL-037), and a stale one fails `test_bootstrap_integration`.
 - `test_cli_exit_codes` times out when stdin is an open pipe (OL-039); run the suite with `< /dev/null`.
-- Next free ADR: ADR-100. ADR-062: one writer per tree. A session on the owner's Mac also works this repository; check for its pushes before multi-file work.
+- Next free ADR: ADR-101. ADR-062: one writer per tree. A session on the owner's Mac also works this repository; check for its pushes before multi-file work.
 - Never write the Codex trigger phrase in a PR comment unless requesting a review.
