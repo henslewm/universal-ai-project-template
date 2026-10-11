@@ -4,9 +4,9 @@
 `push` pushes the current branch (never forced, never to a protected branch). `ready` decides
 whether the branch's pull request may merge: validator and tests green, an automated review on
 the exact head (ADR-074), every review thread resolved, and the ADR-089 cap of 4 rounds. `merge`
-merges only when `ready` passes, then deletes the branch locally and remotely, returns to the
-base branch, pulls and verifies a clean tree; rerun after a queued merge lands, it only cleans
-up. `issue` opens a GitHub issue mirroring an
+merges only when `ready` passes, preserves every feature branch locally and remotely, returns to
+the base branch, pulls and verifies a clean tree. A rerun after a queued merge lands refreshes
+the base without deleting branches (ADR-103). `issue` opens a GitHub issue mirroring an
 `OPEN_LOOPS.md` row; `sync-loops` keeps the pair's open/closed state in step. OPEN_LOOPS.md is
 the record of truth; the issue is its tracker mirror.
 
@@ -230,7 +230,7 @@ def readiness(pr: str | None, view: dict | None = None) -> tuple[dict, list[str]
     if view["isDraft"]:
         reasons.append("the pull request is a draft")
     if view.get("isCrossRepository"):
-        reasons.append("cross-repository pull request: its branch is not this repository's to delete; merge it by hand")
+        reasons.append("cross-repository pull request: its branch is not this repository's to manage; merge it by hand")
     if run(["git", "status", "--porcelain"]):
         reasons.append("working tree is not clean")
     if run(["git", "rev-parse", "HEAD"]) != view["headRefOid"]:
@@ -271,7 +271,7 @@ def cmd_ready(args) -> int:
 def cmd_merge(args) -> int:
     view = pr_view(args.pr)
     if merged := merged_commit(view):
-        # The rerun a queued merge asks for: GitHub has merged it, so only the cleanup is left.
+        # GitHub has merged it; refresh the base while preserving every feature branch.
         return clean_up(view, merged)
     view, reasons = readiness(args.pr, view)
     if reasons:
@@ -286,38 +286,30 @@ def cmd_merge(args) -> int:
     merged = merged_commit(gh_json(["pr", "view", number, "--json", "state,mergeCommit"]))
     if not merged:
         print(f"QUEUED: PR #{number} is accepted for merge but not merged yet; {branch} is kept. "
-              "Run `closeout.py merge` again after it merges to clean up.")
+              "Run `closeout.py merge` again after it merges to refresh the base; branches stay kept.")
         return 0
     return clean_up(view, merged)
 
 
 def clean_up(view: dict, merged: str) -> int:
-    """Delete a merged pull request's branch locally and on origin, return to the base branch, pull
-    and verify a clean tree. A protected branch is never deleted; a branch that is not at the merged
-    head holds other work and is kept."""
-    number, branch, base, head = view["number"], view["headRefName"], view["baseRefName"], view["headRefOid"]
+    """Refresh the merged pull request's base and verify it. Never delete or move its head branch.
+
+    Feature branches are durable project records, including heads that gained new work after merge.
+    """
+    number, branch, base = view["number"], view["headRefName"], view["baseRefName"]
     if branch in PROTECTED:
         raise Refused(f"PR #{number} merged; its head {branch} is protected and is never deleted")
     if view.get("isCrossRepository"):
-        raise Refused(f"PR #{number} came from another repository: its branch is not this repository's to delete")
+        raise Refused(f"PR #{number} came from another repository: its branch is not this repository's to manage")
     require_clean()
-    local = run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], check=False)
-    remote = run(["git", "ls-remote", "origin", f"refs/heads/{branch}"]).split("\t")[0]
-    for where, tip in (("local", local), ("origin", remote)):
-        if tip and tip != head:
-            raise Refused(f"PR #{number} merged; {where} {branch} is at {tip[:7]}, not the merged head {head[:7]}, so it is kept")
     if current_branch() != base:
         run(["git", "switch", base])
     run(["git", "pull", "--ff-only"])
-    if local:
-        run(["git", "branch", "-D", branch])
-    if remote:
-        run(["git", "push", "origin", "--delete", branch])
     if run(["git", "status", "--porcelain"]):
         raise Refused(f"merged, but the working tree on {base} is not clean")
     if not passes(["git", "merge-base", "--is-ancestor", merged, "HEAD"], COMMAND_TIMEOUT):
         raise Refused(f"merged as {merged[:7]}, but local {base} does not contain it")
-    print(f"MERGED: PR #{number} as {merged[:7]}; {branch} deleted locally and on origin; {base} clean")
+    print(f"MERGED: PR #{number} as {merged[:7]}; branch deletion disabled; {branch} preserved if present; {base} clean")
     return 0
 
 

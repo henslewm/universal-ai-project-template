@@ -1,5 +1,14 @@
 # Current Handoff
 
+- **Prepared:** 2026-10-11. Owner requires permanent feature-branch retention (ADR-103).
+- **Current work:** all 77 missing PR head names restored and verified; review the no-deletion code on `fix/preserve-feature-branches`; verification matched all 77 recorded heads.
+- **Important:** automatic branch deletion already reports false in both templates; main closeout still deletes branches until this change merges. Never run the old deletion behavior.
+- **Next:** review and merge this change under the existing exact-head review gates, preserving its branch. Continue independent acceptance of SHB-CLOUD-004 as recorded below.
+
+## Previous handoff preserved
+
+# Current Handoff
+
 - **Prepared:** 2026-10-10 (owner's Windows machine; first cloud launch)
 - **Repository:** `henslewm/universal-ai-project-template`
 - **Gate:** the owner re-approved the foundation after the ADR-100 charter change (2026-10-10T02:49Z, commit `e055c50`).
