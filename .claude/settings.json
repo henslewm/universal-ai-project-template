@@ -23,7 +23,15 @@
       "PowerShell(Remove-Item *-Recurse*)",
       "PowerShell(Remove-Item -r *)",
       "PowerShell(Remove-Item * -r *)",
-      "PowerShell(Remove-Item * -r)"
+      "PowerShell(Remove-Item * -r)",
+      "Bash(git branch -d *)",
+      "Bash(git branch -D *)",
+      "Bash(git push *--delete*)",
+      "Bash(git push * -d *)",
+      "PowerShell(git branch -d *)",
+      "PowerShell(git branch -D *)",
+      "PowerShell(git push *--delete*)",
+      "PowerShell(git push * -d *)"
     ]
   }
 }

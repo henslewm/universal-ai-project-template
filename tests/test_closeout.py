@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -146,18 +147,17 @@ class MergeTests(unittest.TestCase):
     def deleted(self):
         return [cmd for cmd in self.calls if cmd[:3] == ["git", "branch", "-D"] or "--delete" in cmd]
 
-    def test_rerun_after_a_queued_merge_cleans_up(self):
+    def test_rerun_after_a_queued_merge_preserves_local_and_remote_branches(self):
         # PR #116 Codex round 3: the rerun the QUEUED message asks for refused the merged pull request.
         self.assertEqual(self.merge(), 0)
-        self.assertEqual(self.deleted(), [["git", "branch", "-D", BRANCH], ["git", "push", "origin", "--delete", BRANCH]])
+        self.assertEqual(self.deleted(), [])
         self.assertFalse(any(cmd[:3] == ["gh", "pr", "merge"] for cmd in self.calls))
         self.assertEqual(self.merge(local="", remote=""), 0)  # already cleaned up: nothing left to delete
         self.assertEqual(self.deleted(), [])
 
-    def test_rerun_keeps_a_branch_that_moved_past_the_merged_head(self):
+    def test_rerun_preserves_a_branch_that_moved_past_the_merged_head(self):
         for local, remote in (("a" * 40, HEAD), (HEAD, "a" * 40)):
-            with self.assertRaisesRegex(closeout.Refused, "not the merged head"):
-                self.merge(local=local, remote=remote)
+            self.assertEqual(self.merge(local=local, remote=remote), 0)
             self.assertEqual(self.deleted(), [])
         with self.assertRaisesRegex(closeout.Refused, "another repository"):
             self.merge({**MERGED, "isCrossRepository": True})
@@ -179,6 +179,50 @@ class MergeTests(unittest.TestCase):
     def test_merged_state_is_required_before_cleanup(self):
         self.assertIsNone(closeout.merged_commit({"state": "OPEN", "mergeCommit": {"oid": HEAD}}))
         self.assertEqual(closeout.merged_commit({"state": "MERGED", "mergeCommit": {"oid": HEAD}}), HEAD)
+
+    def test_real_git_closeout_preserves_feature_work_after_merge(self):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            origin, work = base / "origin.git", base / "work"
+            subprocess.run(["git", "init", "--bare", str(origin)], check=True, capture_output=True)
+            work.mkdir()
+
+            def git(*args):
+                return subprocess.run(["git", *args], cwd=work, check=True,
+                                      capture_output=True, text=True).stdout.strip()
+
+            git("init", "--initial-branch=main")
+            git("config", "user.name", "Synthetic retention test")
+            git("config", "user.email", "retention@example.invalid")
+            git("config", "commit.gpgsign", "false")
+            (work / "sample.txt").write_text("baseline\n", encoding="utf-8")
+            git("add", "sample.txt")
+            git("commit", "-m", "Synthetic baseline")
+            git("remote", "add", "origin", str(origin))
+            git("push", "-u", "origin", "main")
+            git("switch", "-c", "feature/retained")
+            (work / "sample.txt").write_text("feature\n", encoding="utf-8")
+            git("commit", "-am", "Synthetic feature")
+            feature_head = git("rev-parse", "HEAD")
+            git("push", "-u", "origin", "feature/retained")
+            git("switch", "main")
+            git("merge", "--no-ff", "--no-edit", "feature/retained")
+            merged_head = git("rev-parse", "HEAD")
+            git("push", "origin", "main")
+            git("switch", "feature/retained")
+            (work / "followup.txt").write_text("later work\n", encoding="utf-8")
+            git("add", "followup.txt")
+            git("commit", "-m", "Synthetic follow-up")
+            followup_head = git("rev-parse", "HEAD")
+            git("push", "origin", "feature/retained")
+            view = {**MERGED, "headRefName": "feature/retained", "headRefOid": feature_head}
+            with mock.patch.object(closeout, "ROOT", work):
+                self.assertEqual(closeout.clean_up(view, merged_head), 0)
+            self.assertEqual(git("branch", "--show-current"), "main")
+            self.assertEqual(git("rev-parse", "refs/heads/feature/retained"), followup_head)
+            self.assertEqual(git("ls-remote", "origin", "refs/heads/feature/retained").split()[0], followup_head)
 
 
 LOOPS = """# Open Loops
@@ -251,7 +295,7 @@ class ValidatorTests(unittest.TestCase):
     def test_dropping_any_force_push_hard_reset_or_recursive_delete_deny_fails(self):
         # PR #116 Codex round 3: only 6 of the template's 19 such denies were checked, no recursive delete.
         denies = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))["permissions"]["deny"]
-        kept = [rule for rule in denies if any(word in rule for word in ("git push", "git reset", "rm -rf", "Remove-Item"))]
+        kept = [rule for rule in denies if rule in VALIDATOR.KEPT_DENIES]
         self.assertEqual(len(kept), 19)
         for rule in kept:
             errors = VALIDATOR.validate_closeout(
@@ -263,6 +307,13 @@ class ValidatorTests(unittest.TestCase):
             self.project(permissions={"deny": DENIES, "ask": ["Bash(gh pr merge *)"]}), github=False)
         self.assertEqual(len(errors), 1)
         self.assertIn("gh pr merge", errors[0])
+
+    def test_branch_deletion_denies_do_not_block_preserving_closeout(self):
+        branch_denies = [f"{shell}({command})" for shell in ("Bash", "PowerShell")
+                         for command in ("git branch -d *", "git branch -D *",
+                                         "git push *--delete*", "git push * -d *")]
+        self.assertEqual(VALIDATOR.validate_closeout(
+            self.project(permissions={"deny": DENIES + branch_denies}), github=False), [])
 
     def test_a_wildcard_gate_on_a_closeout_command_fails(self):
         # PR #116 Codex round 3: a broader rule gates the same commands without naming them.

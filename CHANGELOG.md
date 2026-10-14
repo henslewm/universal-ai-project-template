@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-11 — Preserve feature branches (ADR-103)
+
+- Owner prohibits feature-branch deletion. Closeout now preserves local and origin feature refs after merge, including later work, while retaining review and clean-base verification gates. Updated regression tests and agent instructions; deny common local/remote branch-deletion commands in Claude settings and remove deletion from the validator's allowed closeout command list.
+- All 77 missing PR head names restored and verified independently through GitHub; repository settings already report automatic deletion disabled. Recovery completion is recorded in the session report rather than inferred from this code change.
+
 ## 2026-10-10 — Fourth cloud run meets its contract at a measured cost
 
 - `SHB-CLOUD-004` on `contract-v2.json` passed every independent check; the ledger recorded its cost as a measured USD 0.361109 (ADR-102) against the worker's reported 0.0. State, handoff and SRC-042 updated.

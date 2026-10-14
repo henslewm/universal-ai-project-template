@@ -1,6 +1,14 @@
 # Project State
 
-## Current (2026-10-10): first cloud worker output that meets its contract, at a measured cost
+## Current (2026-10-11): owner requires permanent feature-branch retention
+
+- **Status:** ACTIVE — existing foundation; owner explicitly directs branch restoration and no future branch deletion (ADR-103).
+- **Policy code:** prepared on `fix/preserve-feature-branches`; enforcement is not on main until merged after the existing review gates. No feature branch is deleted by this change.
+- **Recovery:** All 77 missing unique PR head names restored and independently verified against GitHub (72 latest merged PRs, 5 latest closed-unmerged PRs). Each matches its latest recorded PR head; all 9 pre-existing branches remain. Recorded PR heads do not prove recovery of unrecorded later commits.
+- **Settings:** automatic branch deletion already disabled in both universal-ai-project-template and ai-template-oop when read on 2026-10-11. The session did not change those settings.
+- **Continuity:** SHB-CLOUD-004 remains REVIEW_PENDING; independent acceptance is still outstanding. Existing open loops and cloud budget decisions remain unchanged.
+
+## 2026-10-10: first cloud worker output that meets its contract, at a measured cost
 
 - **Status:** ACTIVE — approved foundation
 - **Fourth cloud run (`SHB-CLOUD-004`, `contract-v2.json`, main `5a26dcc`):** `REPORT_WRITTEN`, exit 0, child environment `MISTRAL_API_KEY` only, exactly the two named files. Independently rechecked: the worker's tests pass, the contract's fixed `VAL-CONTRACT` checker prints ALL CHECKS PASSED, and `bytearray`, wrong-length and empty input return results without raising. Ingested as `REVIEW_PENDING`; independent acceptance (`scripts/acceptance.py`) not yet run.

@@ -27,6 +27,8 @@ Apply `MASTER_INSTRUCTIONS.md` → "Bootstrap / autonomy gate" exactly as stated
 
 ## Safety
 
+- Never delete feature branches locally or on origin, including after merge. Keep GitHub automatic branch deletion disabled (ADR-103).
+
 Do not force-push, delete evidence, expose secrets, send external communications, change permissions, or perform consequential external writes without explicit user authority. The automatic closeout commands in `MASTER_INSTRUCTIONS.md` → "Automatic closeout (ADR-094)" are standing owner direction. Launching a metered (paid) model through `scripts/worker_launcher.py` within the per-packet budget and attempt limits needs no further prompt only where `DECISIONS.md` records that owner direction; raising either limit always needs the owner.
 
 ## Review guidelines
