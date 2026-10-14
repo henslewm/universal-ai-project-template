@@ -4,9 +4,9 @@
   "state": "ACTIVE",
   "project": {
     "name": "Universal AI Project Template",
-    "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+    "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
     "definition_of_done": [
-      "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+      "Cheaper cloud models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
       "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
       "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
     ],
@@ -60,7 +60,7 @@
     "A fresh clone fails sync_skills --check and two tests until sync_skills.py builds the gitignored payload"
   ],
   "routing": {
-    "policy": "The architect session decomposes and integrates; bounded research, edits and records go to the .claude/agents subagents on sonnet; independent review stays at the architect tier (ADR-093). Once the launcher lands, packets may go to the cheapest external or local tier expected to pass acceptance, within per-packet budget and attempt limits (MODEL_ROUTING.md). Automated PR review by Codex or CodeRabbit."
+    "policy": "The architect session decomposes and integrates; bounded research, edits and records go to the .claude/agents subagents on sonnet; independent review stays at the architect tier (ADR-093). Once the launcher lands, packets may go to the cheapest cloud tier expected to pass acceptance, within per-packet budget and attempt limits (MODEL_ROUTING.md). Automated PR review by Codex or CodeRabbit."
   },
   "workflow": {
     "policy": "One branch and pull request per milestone. Before merge: validate_project.py and the unit suite green, sync_skills.py --check clean, an automated review on the exact head (ADR-074), every actionable finding answered (ADR-063), at most 4 rounds (ADR-089). The owner merges until ADR-094 lands; after that, auto-merge applies only under its stated conditions. Closeout records per MASTER_INSTRUCTIONS.md."
@@ -92,10 +92,10 @@
     "created": "2026-08-29",
     "project_name": "Universal AI Project Template",
     "project_slug": "universal-ai-project-template",
-    "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+    "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
     "problem_statement": "All AI models hallucinate, drift and deviate from requests, goals, requirements and specs, so the controls must prevent that; having the strongest model do all the work costs too much, and one chat's memory does not carry across models or sessions (PROJECT_CHARTER.md).",
     "success_criteria": [
-      "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+      "Cheaper cloud models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
       "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
       "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
     ],
@@ -146,15 +146,15 @@
     "domain_profile": "software-hardware"
   },
   "documents": {
-    "PROJECT_CHARTER.md": "844f24858bf93a6083c80b9bdeccb30ab60aff08162dea0ed036e7d80c11ef19",
+    "PROJECT_CHARTER.md": "4a116815d04e04393df0f091cf02db253976ecdb8a43bb017e0c4195b3c1f60d",
     "CONNECTOR_PLAN.md": "f1871dc620ceeaa8bda289e04723a96c0ffbb53b2b9434403c4bc289c94167d4",
     "SKILL_PLAN.md": "6d1b8c44b088d462ae588ae81d191bc523878ee66e08eb5c38802df851585e1d",
-    "DOMAIN_PROFILE.md": "91d42727ef1a1b26894f5c3e9f6938c01ac8e372544079da97b7140665875e65"
+    "DOMAIN_PROFILE.md": "0f0058c8fcd6ce944c6cfe5829136a39167478efe2048927a597f078864209db"
   },
   "approval": {
     "approved": true,
-    "approved_by": "henslewm",
-    "approved_at": "2026-10-08T14:29:43.815225+00:00",
-    "architecture_fingerprint": "f3954b7e97eed0922364e62acf1107e356087db9d18f59788234b7be1cbf7b34"
+    "approved_by": "Winston",
+    "approved_at": "2026-10-10T02:49:34.489313+00:00",
+    "architecture_fingerprint": "00f2a204fb76b5c8dfdde6a0e5ad3df6648713256690b3ab14aedbeb572e494b"
   }
 }

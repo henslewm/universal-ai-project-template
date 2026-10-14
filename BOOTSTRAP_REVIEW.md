@@ -2,16 +2,16 @@
 
 State: AWAITING_APPROVAL — autonomy is OFF until explicit activation.
 Profile: software-hardware
-Architecture fingerprint: `f3954b7e97eed0922364e62acf1107e356087db9d18f59788234b7be1cbf7b34`
+Architecture fingerprint: `00f2a204fb76b5c8dfdde6a0e5ad3df6648713256690b3ab14aedbeb572e494b`
 
 ## Charter
 
 ```json
 {
   "name": "Universal AI Project Template",
-  "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+  "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
   "definition_of_done": [
-    "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+    "Cheaper cloud models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
     "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
     "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
   ],
@@ -85,7 +85,7 @@ Architecture fingerprint: `f3954b7e97eed0922364e62acf1107e356087db9d18f59788234b
 
 ```json
 {
-  "policy": "The architect session decomposes and integrates; bounded research, edits and records go to the .claude/agents subagents on sonnet; independent review stays at the architect tier (ADR-093). Once the launcher lands, packets may go to the cheapest external or local tier expected to pass acceptance, within per-packet budget and attempt limits (MODEL_ROUTING.md). Automated PR review by Codex or CodeRabbit."
+  "policy": "The architect session decomposes and integrates; bounded research, edits and records go to the .claude/agents subagents on sonnet; independent review stays at the architect tier (ADR-093). Once the launcher lands, packets may go to the cheapest cloud tier expected to pass acceptance, within per-packet budget and attempt limits (MODEL_ROUTING.md). Automated PR review by Codex or CodeRabbit."
 }
 ```
 
@@ -142,10 +142,10 @@ Architecture fingerprint: `f3954b7e97eed0922364e62acf1107e356087db9d18f59788234b
   "created": "2026-08-29",
   "project_name": "Universal AI Project Template",
   "project_slug": "universal-ai-project-template",
-  "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+  "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
   "problem_statement": "All AI models hallucinate, drift and deviate from requests, goals, requirements and specs, so the controls must prevent that; having the strongest model do all the work costs too much, and one chat's memory does not carry across models or sessions (PROJECT_CHARTER.md).",
   "success_criteria": [
-    "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+    "Cheaper cloud models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
     "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
     "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
   ],
@@ -201,10 +201,10 @@ Architecture fingerprint: `f3954b7e97eed0922364e62acf1107e356087db9d18f59788234b
 
 ```json
 {
-  "PROJECT_CHARTER.md": "844f24858bf93a6083c80b9bdeccb30ab60aff08162dea0ed036e7d80c11ef19",
+  "PROJECT_CHARTER.md": "4a116815d04e04393df0f091cf02db253976ecdb8a43bb017e0c4195b3c1f60d",
   "CONNECTOR_PLAN.md": "f1871dc620ceeaa8bda289e04723a96c0ffbb53b2b9434403c4bc289c94167d4",
   "SKILL_PLAN.md": "6d1b8c44b088d462ae588ae81d191bc523878ee66e08eb5c38802df851585e1d",
-  "DOMAIN_PROFILE.md": "91d42727ef1a1b26894f5c3e9f6938c01ac8e372544079da97b7140665875e65"
+  "DOMAIN_PROFILE.md": "0f0058c8fcd6ce944c6cfe5829136a39167478efe2048927a597f078864209db"
 }
 ```
 
@@ -232,17 +232,17 @@ All AI models hallucinate, drift and deviate from requests, goals, requirements 
 
 ## Desired outcome
 
-A reusable, repo-backed control plane that makes complex, high-stakes AI-assisted work efficient: the owner is "spending money now to save money later." An architect model (Fable, Opus 5.5/6) must delegate intelligently to cheaper or local models under an explicit contract and monitor them effectively.
+A reusable, repo-backed control plane that makes complex, high-stakes AI-assisted work efficient: the owner is "spending money now to save money later." An architect model (Fable, Opus 5.5/6) must delegate intelligently to cheaper cloud models under an explicit contract and monitor them effectively.
 
 ## Definition of done (inferred)
 
-- Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers.
+- Cheaper cloud models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers.
 - The software and hardware tracks bootstrap, plan, execute and verify end to end. The ADR-089 freeze was lifted on 2026-10-06 (ADR-093) for two objectives: less drift and token cost at session start, and delegation by default.
 
 ## Required deliverables
 
 - **Continuity:** GitHub as durable memory for ChatGPT, Codex, Claude, Claude Code and Mistral.
-- **Packets:** the strong model writes bounded, machine-checkable packets; cheaper cloud or local models execute them.
+- **Packets:** the strong model writes bounded, machine-checkable packets; cheaper cloud models execute them.
 - **Ledgers:** the existing acceptance and feedback ledgers and the Markdown control files. A combined ledger is not pursued (ADR-089).
 - **Domain templates:** the `software-hardware` profile with a `hardware` or `web-ui` track (`instructions/tracks/`). ESP32/PlatformIO is only one example of serial hardware and hardware/software human interfaces.
 
@@ -300,6 +300,13 @@ Stated by the owner in the session of 2026-10-07.
 - **OL-036:** yes. The architect may launch external harness workers automatically once a launcher is scoped and built under `EXECUTION_HARNESS_PROTOCOL.md`, starting from the ADR-077 limits. This supersedes the ADR-083 and ADR-089 refusals for that launcher only.
 - **ADR-094 (branch `claude/auto-closeout`):** finish as directed: push on closeout, auto-merge once machine-checked ready (validator and tests green, an automated review on the exact head per ADR-074, every thread resolved, within the cap of 4), remove the ADR-091 ask rules, and mirror open loops as GitHub issues.
 - **Savings:** fix the cost-as-zero defect (abandoned and failed attempts recorded as $0, `docs/AUDIT_2026-10-03.md` section 2); #12 and #13 stay deferred (decision G).
+
+## Decisions (2026-10-09, ADR-100)
+
+Stated by the owner after the first real launch on Windows timed out with no report on a local model.
+
+- **Local models dropped:** local models (LM Studio, Ollama, llama.cpp and the like) are removed from the template's goals and instructions. Workers are cheaper cloud models only.
+- The launcher milestone (OL-036) now completes on a first real launch against a metered cloud binding, within the per-packet budget and attempt limits (ADR-099).
 
 
 ## Bound document: CONNECTOR_PLAN.md
@@ -368,7 +375,7 @@ Do not create a skill for a single ordinary answer, general subject knowledge, o
 # Domain Profile — Software + Hardware Interfaces
 
 This is the default `main` specialization of the universal autonomous project template: software
-that interacts with physical hardware, built so that most bounded work can go to cheap or local
+that interacts with physical hardware, built so that most bounded work can go to cheap cloud
 models while no claim of hardware success is ever made on the strength of compilation or
 simulation. `AUTONOMY_CONTROL_PLANE.md` is the controlling workflow policy; the controllers named
 below are the mechanism.
@@ -453,7 +460,7 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` generated 
 ## Cost posture
 
 Pure functions, codecs, parsers, fixtures, fakes, tests, log analysis and repetitive adapters route
-to the local tiers first; objective failures and risk, never preference, drive escalation. The
+to the cheapest tiers first; objective failures and risk, never preference, drive escalation. The
 hardware adapter and the integration/field packets carry `high` risk so the acceptance floor adds
 independent model review and the cross-family gate. Hardware runs are operator actions and are
 never dispatched to a worker.

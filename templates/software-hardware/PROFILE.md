@@ -1,7 +1,7 @@
 # Domain Profile — Software + Hardware Interfaces
 
 This is the default `main` specialization of the universal autonomous project template: software
-that interacts with physical hardware, built so that most bounded work can go to cheap or local
+that interacts with physical hardware, built so that most bounded work can go to cheap cloud
 models while no claim of hardware success is ever made on the strength of compilation or
 simulation. `AUTONOMY_CONTROL_PLANE.md` is the controlling workflow policy; the controllers named
 below are the mechanism.
@@ -86,7 +86,7 @@ Every Arduino or ESP32 firmware project keeps a root `platformio.ini` generated 
 ## Cost posture
 
 Pure functions, codecs, parsers, fixtures, fakes, tests, log analysis and repetitive adapters route
-to the local tiers first; objective failures and risk, never preference, drive escalation. The
+to the cheapest tiers first; objective failures and risk, never preference, drive escalation. The
 hardware adapter and the integration/field packets carry `high` risk so the acceptance floor adds
 independent model review and the cross-family gate. Hardware runs are operator actions and are
 never dispatched to a worker.

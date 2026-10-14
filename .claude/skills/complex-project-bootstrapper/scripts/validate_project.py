@@ -238,8 +238,7 @@ KEPT_DENIES = ([f"Bash({rule})" for rule in _FORCE_AND_RESET + ["rm -rf *"]]
 CLOSEOUT_COMMANDS = {"gh pr merge": "gh pr merge 1 --merge --match-head-commit 0",
                      "gh issue create": "gh issue create --title t --body b",
                      "gh issue close": "gh issue close 1 --comment c",
-                     "git push -u": "git push -u origin topic",
-                     "git push origin --delete": "git push origin --delete topic"}
+                     "git push -u": "git push -u origin topic"}
 SHELL_RULE = re.compile(r"(?:Bash|PowerShell)(?:\((.*)\))?")
 
 

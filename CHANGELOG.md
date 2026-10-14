@@ -1,11 +1,34 @@
 # Changelog
 
-## 2026-10-09 — First real worker launch on Windows (ADR-099, OL-036)
+## 2026-10-11 — Preserve feature branches (ADR-103)
 
-- Records only; no code or decision change. `python -m unittest discover -s tests -p "test_worker_launcher.py"` on Windows: 35 ran, OK, 1 skipped (FIFO, POSIX-only).
-- Cline CLI 3.0.70 installed with an absolute-path wrapper; ledger LAUNCH-WIN-001 on a zero-priced LM Studio resource, kept outside git in `C:\Users\hensl\worker-runs\2026-10-09-first-launch\`. Attempt 1 (qwen3.8-27b) was killed by Claude Code's host for low system memory; attempt 2 (huihui-qwen3.8-27b-abliterated) ran to the 3400 s bound with TIMED_OUT and no report. Both abandoned at $0; 2/2 attempts used.
-- The launcher behaved as designed (scoped environment, job-object tree stop, relaunch guard). The worker produced no report, so the OL-036 first-launch criterion is not met.
-- `OPEN_LOOPS.md` adds OL-041 (brief unusable by the local model), OL-042 (unknown-scope abandon spends the contract repair) and OL-043 (first successful launch outstanding). `PROJECT_STATE.md` and `HANDOFF_CURRENT.md` updated. No `RISK_REGISTER.md` change.
+- Owner prohibits feature-branch deletion. Closeout now preserves local and origin feature refs after merge, including later work, while retaining review and clean-base verification gates. Updated regression tests and agent instructions; deny common local/remote branch-deletion commands in Claude settings and remove deletion from the validator's allowed closeout command list.
+- All 77 missing PR head names restored and verified independently through GitHub; repository settings already report automatic deletion disabled. Recovery completion is recorded in the session report rather than inferred from this code change.
+
+## 2026-10-10 — Fourth cloud run meets its contract at a measured cost
+
+- `SHB-CLOUD-004` on `contract-v2.json` passed every independent check; the ledger recorded its cost as a measured USD 0.361109 (ADR-102) against the worker's reported 0.0. State, handoff and SRC-042 updated.
+
+## 2026-10-10 — Worker cost measured from harness usage (ADR-102)
+
+- `config/execution-harness.schema.json` gains `usage_format` (`cline-json`). `scripts/worker_launcher.py` forwards a declaring harness's stdout to stderr, keeps no transcript, and records only its token counts in `<dispatch_id>.usage.json` beside the launch guard (`usage_record`); `scripts/execution_harness.py` (`usage_record_path`, `UsageTally`, `measured_usage`, `measured_cost`) prices the last `run_result` token counts at the dispatch's rates in `ingest` and returns `api_cost_measured`.
+- Regressions in `tests/test_execution_harness.py` and `tests/test_worker_launcher.py`; `EXECUTION_HARNESS_PROTOCOL.md`, ADR-102, R-020, state and handoff updated; OL-016 closed by `closeout.py sync-loops` (issue #49 closed).
+
+## 2026-10-10 — OL-041 fixed in the launcher (ADR-101)
+
+- `scripts/worker_launcher.py` makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before the harness starts.
+- `scripts/execution_harness.py` `ingest` records a metered worker's reported 0 cost as unknown and returns `api_cost_unknown`; `scripts/feedback.py` records it as a `RESULT_COST_UNKNOWN` event, accepted only on a metered attempt, while `complete` still refuses `null`; the brief's report rules say so.
+- Regressions in `tests/test_feedback.py`, `tests/test_execution_harness.py` and `tests/test_worker_launcher.py`; the replace-the-brief tamper test is skipped on Windows. `EXECUTION_HARNESS_PROTOCOL.md`, `FEEDBACK_PROTOCOL.md`, ADR-101, OL-041 closed, state and handoff updated; cloud-launch budget 10.
+
+## 2026-10-10 — First cloud worker launch (OL-036)
+
+- Ran the worker launcher end to end on Windows against Mistral Devstral Medium through Cline: one attempt refused for brief tampering and abandoned, a fresh-task retry `REPORT_WRITTEN` and ingested; independent checks found the work not acceptable. OL-041 opened; SRC-040 and SRC-041 added; state and handoff updated.
+
+## 2026-10-09 — Local models dropped (ADR-100)
+
+- Owner direction after the first real Windows launch failed on a local 27B (attempt 1 killed for low memory; attempt 2 `TIMED_OUT` with no report): workers are cheaper cloud models only.
+- `PROJECT_CHARTER.md`, `config/project.json` and `config/bootstrap.json` drop "or local models" from the goals; `AUTONOMY_CONTROL_PLANE.md` maps T0/T1 to cloud models; `MODEL_ROUTING.md` and `EXECUTION_HARNESS_PROTOCOL.md` say to bind cloud resources only; `prompts/PROVISION_LOCAL_MODEL.md` deleted; OL-011 and OL-015 closed.
+- Code, tests and the disabled example configurations keep their LM Studio fixtures. The bootstrap package was re-reviewed and awaits the owner's `activate`.
 
 ## 2026-10-09 — Architect runs the worker launcher (ADR-099, OL-036)
 

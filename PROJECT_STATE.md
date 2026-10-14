@@ -1,20 +1,57 @@
 # Project State
 
-## Current (2026-10-09): first real launch on Windows ran; no worker report (ADR-099)
+## Current (2026-10-11): owner requires permanent feature-branch retention
 
-- **Status:** ACTIVE — approved foundation; `validate_bootstrap.py config/bootstrap.json --require-active` passes.
-- **Milestones:** unchanged from the section below. External worker launcher (OL-036): the launch path worked on Windows, but the worker produced no report, so the milestone criterion "not done until the owner's first real launch succeeds" is not met. The owner decides whether launcher-path success suffices (OL-043).
-- **Windows verification:** `python -m unittest discover -s tests -p "test_worker_launcher.py"` ran 35, OK, 1 skipped (FIFO test, POSIX-only); first run of the Windows path. Cline CLI 3.0.70 (`npm install -g cline@3.0.70`; 3.0.69 lacked its win32-x64 binary) with an absolute-path Python wrapper `C:\Users\hensl\worker-runs\cline_wrapper.py` (sets `PATH`, `SystemRoot`, empty `HOME`/`USERPROFILE`/`TEMP`); LM Studio `lmstudio` provider needs no key. A smoke run wrote `hello.txt`.
-- **Launch LAUNCH-WIN-001 (local zero-priced LM Studio resource, ledger outside git in `C:\Users\hensl\worker-runs\2026-10-09-first-launch\`):**
-  - Attempt 1 (qwen3.8-27b, partly offloaded to RAM on a 12 GB RTX 3060): Claude Code's host killed the background launcher after about 27 min for low system memory; no files, no report, no surviving process (job object). Abandoned, $0.
-  - Attempt 2 (huihui-qwen3.8-27b-abliterated, fully on GPU): ran to the 3400 s bound (TIMED_OUT, tree stopped, `report_present` false). The worker spent about 55 min in one reasoning turn rebuilding the JSON nesting of the 16 KB `brief.json` and never called another tool. Abandoned, $0. Ledger: 2/2 attempts used, NEEDS_ARCHITECT.
-  - Verified launcher behaviour: scoped environment, job-object tree stop at the bound, TIMED_OUT with next action abandon, the guard bars relaunch of a reservation.
-- **Defect candidates:** the worker could not use the brief (OL-041); an abandon with unknown scope consumed the task's one contract repair (OL-042).
-- **Open:** OL-041, OL-042, OL-043, OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+- **Status:** ACTIVE — existing foundation; owner explicitly directs branch restoration and no future branch deletion (ADR-103).
+- **Policy code:** prepared on `fix/preserve-feature-branches`; enforcement is not on main until merged after the existing review gates. No feature branch is deleted by this change.
+- **Recovery:** All 77 missing unique PR head names restored and independently verified against GitHub (72 latest merged PRs, 5 latest closed-unmerged PRs). Each matches its latest recorded PR head; all 9 pre-existing branches remain. Recorded PR heads do not prove recovery of unrecorded later commits.
+- **Settings:** automatic branch deletion already disabled in both universal-ai-project-template and ai-template-oop when read on 2026-10-11. The session did not change those settings.
+- **Continuity:** SHB-CLOUD-004 remains REVIEW_PENDING; independent acceptance is still outstanding. Existing open loops and cloud budget decisions remain unchanged.
+
+## 2026-10-10: first cloud worker output that meets its contract, at a measured cost
+
+- **Status:** ACTIVE — approved foundation
+- **Fourth cloud run (`SHB-CLOUD-004`, `contract-v2.json`, main `5a26dcc`):** `REPORT_WRITTEN`, exit 0, child environment `MISTRAL_API_KEY` only, exactly the two named files. Independently rechecked: the worker's tests pass, the contract's fixed `VAL-CONTRACT` checker prints ALL CHECKS PASSED, and `bytearray`, wrong-length and empty input return results without raising. Ingested as `REVIEW_PENDING`; independent acceptance (`scripts/acceptance.py`) not yet run.
+- **Measured cost (ADR-102), first live use:** the usage record held one run_result (795,537 input, 68,480 cache-read, 7,751 output tokens); the ledger recorded USD 0.361109 as a known cost while the worker reported 0.0.
+- **Budget:** `role_api_budget_usd` 10 in the cloud-launch router configuration.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-10: worker cost measured from harness usage (ADR-102)
+
+- **Status:** ACTIVE — approved foundation
+- **Measured cost (ADR-102):** the launcher records a Cline run's token counts (never its transcript) beside the launch guard, and `ingest` prices them at the dispatch's recorded rates as a known cost, so paid retries stay possible within `role_api_budget_usd` (10 for the cloud-launch configuration).
+- **Third cloud run (`SHB-CLOUD-003`, before ADR-102):** `REPORT_WRITTEN`, brief untouched, only the two named files created; cost recorded as unknown under ADR-101 (about USD 0.25 by its token counts). Not accepted: invalid frames raise instead of returning a result, and `bytes` input is rejected. The run contract (`contract-v2.json` in the run folder) now names `bytes` input and a returned invalid result, and adds a fixed checker (`VAL-CONTRACT`).
+- **Milestones:** all four ADR-096 milestones done.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-10: OL-041 fixed in the launcher (ADR-101)
+
+- **Status:** ACTIVE — approved foundation
+- **OL-041 fixed (ADR-101):** the launcher makes `brief.json` and `BOUNDED_WORKER_RULES.md` read-only before the harness starts, and `ingest` records a metered worker's reported 0 cost as unknown (`null`). Consequence: a task gets one cloud attempt before the architect must repair or decide. 538 tests pass on Windows (7 skipped).
+- **Budget:** the cloud-launch router configuration's `role_api_budget_usd` is 10 (owner, 2026-10-10).
+- **Milestones:** all four ADR-096 milestones done; the launcher milestone completed on the first cloud launch.
+- **Open:** OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-10: launcher milestone done on the first cloud launch; its work is not accepted
+
+- **Status:** ACTIVE — approved foundation
+- **First cloud launch (OL-036):** Mistral `devstral-medium-latest` through Cline CLI 3.0.70 on Windows (`~/worker-runs/2026-10-10-cloud-launch` on the owner's Windows machine). Attempt `SHB-CLOUD-001` ran but the launcher refused it: the worker edited its own `brief.json` (inserted `"documents": []`), so it was abandoned. Retry `SHB-CLOUD-002` (brief and rules made read-only by the wrapper): launcher `REPORT_WRITTEN`, exit 0, tree stopped, child environment `MISTRAL_API_KEY` only; ingested as the worker's PASS claim, `REVIEW_PENDING`.
+- **Independent check of `SHB-CLOUD-002`:** the 8 worker tests pass and the contract's six samples give the specified results when passed as lists; but it rejects `bytes`/`bytearray` (interface says "a byte sequence"), it created `tests/__init__.py` against "create only the files the contract names", and it reported `api_cost_usd: 0.0` while the transcript shows about 1.14M input and 7K output tokens (about USD 0.47). Not accepted; OL-041 tracks the launcher gaps.
+- **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) done: the first real metered-cloud launch within the packet limits ran end to end (ADR-100's completion condition; about USD 0.47 against the USD 2 budget). OL-041 tracks the separate tampering and cost-reporting defects.
+- **Open:** OL-041 (worker tampering and cost misreport), OL-037 (fresh-clone payload), OL-039 (CLI test stdin), OL-034 (informational).
+
+## 2026-10-09: local models dropped (ADR-100); foundation re-approved
+
+- **Status:** ACTIVE — approved foundation (history)
+- **Gate:** the charter is bound, so the package was re-reviewed with `bootstrap_gate.py review`; the owner re-activated it on 2026-10-10T02:49Z (approval receipt in `config/bootstrap.json`, commit `e055c50`).
+- **Local models dropped (ADR-100):** workers are cheaper cloud models only. The charter, `config/project.json`, `config/bootstrap.json`, the tier table, `MODEL_ROUTING.md` and `EXECUTION_HARNESS_PROTOCOL.md` say so; `prompts/PROVISION_LOCAL_MODEL.md` is deleted; OL-011 and OL-015 closed. Code, tests and the disabled example configurations keep their LM Studio fixtures.
+- **First launch (Windows, 2026-10-09, another session):** the 35 launcher tests pass on Windows. Both attempts on a local 27B failed: attempt 1 was killed by the host for low memory; attempt 2 hit its 3,400 s bound with no report (`TIMED_OUT`, tree stopped and confirmed). The launcher milestone now needs a first real launch on a metered cloud binding.
+- **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) merged; not done until a cloud launch succeeds.
+- **Open (then):** OL-037, OL-039, OL-034.
 
 ## 2026-10-09: launcher fixes merged; architect may launch (ADR-099)
 
-- **Status:** ACTIVE — approved foundation; `validate_bootstrap.py config/bootstrap.json --require-active` passes.
+- **Status:** ACTIVE — approved foundation (history)
 - **Milestones:** Records current, Unknown-cost state and Auto-closeout done and frozen (ADR-098). External worker launcher (OL-036) merged with its post-merge fixes: #126 (`11e9822`), #128 (`9004eff`), #130 (`cd07187`) and #132 (`4b4f0ea`); no Codex finding on them is open. Not done until the first real launch succeeds.
 - **Delegation:** `MASTER_CLAUDE_CODE.md` now says the architect session runs `scripts/worker_launcher.py` itself under ADR-099 and subagents do not (owner-directed, 2026-10-09).
 - **First launch blocked on setup:** on 2026-10-09 the owner's Mac had no local model server and no Cline CLI, so no zero-priced binding exists yet. The 35 launcher tests pass there only with a `TMPDIR` whose path has no symlink.

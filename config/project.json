@@ -4,10 +4,10 @@
   "created": "2026-08-29",
   "project_name": "Universal AI Project Template",
   "project_slug": "universal-ai-project-template",
-  "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud or local models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
+  "objective": "A reusable, repo-backed control plane in which an architect model delegates bounded, machine-checkable work packets to cheaper cloud models and monitors them, so complex AI-assisted work costs less without drift (PROJECT_CHARTER.md, Desired outcome).",
   "problem_statement": "All AI models hallucinate, drift and deviate from requests, goals, requirements and specs, so the controls must prevent that; having the strongest model do all the work costs too much, and one chat's memory does not carry across models or sessions (PROJECT_CHARTER.md).",
   "success_criteria": [
-    "Cheaper cloud or local models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
+    "Cheaper cloud models execute architect-written packets within the per-packet limits, monitored through the acceptance and feedback ledgers (charter).",
     "The software and hardware tracks bootstrap, plan, execute and verify end to end (charter).",
     "Every milestone below is merged with validate_project.py and the unit suite green and an automated review on the exact head (ADR-074)."
   ],
