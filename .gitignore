@@ -9,6 +9,10 @@ secrets/
 *.pfx
 credentials*.json
 service-account*.json
+# Local runtime secrets and per-machine tool config
+config/secret_key
+config/field_encryption_key
+config/codex.toml
 
 # Claude local settings
 **/.claude/settings.local.json
